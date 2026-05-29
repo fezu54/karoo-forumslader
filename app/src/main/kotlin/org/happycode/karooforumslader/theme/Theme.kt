@@ -1,4 +1,4 @@
-package io.hammerhead.karooexttemplate.theme
+package org.happycode.karooforumslader.theme
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable

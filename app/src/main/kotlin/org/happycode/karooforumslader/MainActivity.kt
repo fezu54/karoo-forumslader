@@ -1,11 +1,10 @@
-package io.hammerhead.karooexttemplate
+package org.happycode.karooforumslader
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import io.hammerhead.karooext.KarooSystemService
-import io.hammerhead.karooexttemplate.screens.MainScreen
-import io.hammerhead.karooexttemplate.theme.AppTheme
+import org.happycode.karooforumslader.screens.MainScreen
+import org.happycode.karooforumslader.theme.AppTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

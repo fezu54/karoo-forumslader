@@ -1,4 +1,4 @@
-package io.hammerhead.karooexttemplate.screens
+package org.happycode.karooforumslader.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -9,10 +9,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.tooling.preview.Devices
 import androidx.compose.ui.tooling.preview.Preview
-import io.hammerhead.karooexttemplate.R
-import io.hammerhead.karooexttemplate.theme.AppTheme
+import org.happycode.karooforumslader.R
+import org.happycode.karooforumslader.theme.AppTheme
 
 @Composable
 fun MainScreen() {
