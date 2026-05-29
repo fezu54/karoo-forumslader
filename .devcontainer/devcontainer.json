@@ -6,30 +6,7 @@
   },
   "features": {
     "ghcr.io/devcontainers/features/git:1": {},
-    "ghcr.io/devcontainers/features/github-cli:1": {},
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
-  },
-  "customizations": {
-    "vscode": {
-      "extensions": [
-        "kotlin.language",
-        "Google.android-ndk-extension",
-        "ms-vscode.gradle"
-      ],
-      "settings": {
-        "kotlin.linting.enabled": true,
-        "kotlin.linting.debounceTime": 250,
-        "[kotlin]": {
-          "editor.formatOnSave": true,
-          "editor.defaultFormatter": "fwcd.kotlin"
-        }
-      }
-    },
-    "jetbrains.intellij": {
-      "vscodeExtensions": [
-        "ms-vscode.gradle"
-      ]
-    }
+    "ghcr.io/devcontainers/features/github-cli:1": {}
   },
   "postCreateCommand": "bash .devcontainer/post-create.sh",
   "remoteUser": "vscode",
