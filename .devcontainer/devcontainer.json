@@ -1,0 +1,40 @@
+{
+  "name": "Android Development (Android 12)",
+  "image": "mcr.microsoft.com/devcontainers/java:21-bullseye",
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "kotlin.language",
+        "Google.android-ndk-extension",
+        "ms-vscode.gradle",
+        "hashicorp.terraform"
+      ],
+      "settings": {
+        "kotlin.linting.enabled": true,
+        "kotlin.linting.debounceTime": 250,
+        "[kotlin]": {
+          "editor.formatOnSave": true,
+          "editor.defaultFormatter": "fwcd.kotlin"
+        }
+      }
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "remoteUser": "vscode",
+  "mounts": [
+    "source=${localEnv:HOME}/.gradle,target=/home/vscode/.gradle,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.android,target=/home/vscode/.android,type=bind,consistency=cached"
+  ],
+  "forwardPorts": [5037],
+  "portsAttributes": {
+    "5037": {
+      "label": "Android Debug Bridge (ADB)",
+      "onAutoForward": "silent"
+    }
+  }
+}
