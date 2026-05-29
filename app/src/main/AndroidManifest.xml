@@ -10,7 +10,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCompat">
         <activity
-            android:name="org.happycode.karooforumslader.MainActivity"
+            android:name="org.happycode.karoo.forumslader.MainActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -19,7 +19,7 @@
         </activity>
 
         <service
-            android:name="org.happycode.karooforumslader.extension.TemplateExtension"
+            android:name="org.happycode.karoo.forumslader.extension.TemplateExtension"
             android:exported="true"
             tools:ignore="ExportedService">
             <intent-filter>

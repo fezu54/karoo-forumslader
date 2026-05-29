@@ -1,4 +1,4 @@
-package org.happycode.karooforumslader.theme
+package org.happycode.karoo.forumslader.theme
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable

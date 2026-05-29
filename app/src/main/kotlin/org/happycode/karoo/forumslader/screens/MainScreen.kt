@@ -1,4 +1,4 @@
-package org.happycode.karooforumslader.screens
+package org.happycode.karoo.forumslader.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -10,8 +10,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
-import org.happycode.karooforumslader.R
-import org.happycode.karooforumslader.theme.AppTheme
+import org.happycode.karoo.forumslader.theme.AppTheme
+import org.happycode.karoo.forumslader.R
 
 @Composable
 fun MainScreen() {

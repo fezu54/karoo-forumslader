@@ -1,4 +1,4 @@
-package org.happycode.karooforumslader.extension
+package org.happycode.karoo.forumslader.extension
 
 import io.hammerhead.karooext.extension.KarooExtension
 

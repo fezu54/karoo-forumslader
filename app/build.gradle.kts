@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "org.happycode.karooforumslader"
+    namespace = "org.happycode.karoo.forumslader"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "org.happycode.karooforumslader"
+        applicationId = "org.happycode.karoo.forumslader"
         minSdk = 23
         targetSdk = 36
         versionCode = 1
