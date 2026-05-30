@@ -3,6 +3,6 @@
     displayName="@string/extension_name"
     icon="@drawable/ic_launcher_foreground"
     id="karoo-forumslader"
-    scansDevices="false">
+    scansDevices="true">
     <!-- DataType ... -->
 </ExtensionInfo>
