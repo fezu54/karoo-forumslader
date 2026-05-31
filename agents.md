@@ -38,7 +38,7 @@ Naming and self-documenting code
 
 Testing
 - Every production change must include tests. Unit tests first, then integration tests if necessary.
-- Use JUnit 6 and MockK for unit tests.
+- Use testing frameworks (e.g., JUnit, MockK) with versions maintained in `gradle/libs.versions.toml`.
 - Tests must be deterministic and not rely on external services; use fakes or in-memory adapters for CI.
 - Add clear test names following the pattern: methodName_state_expectedOutcome.
 
