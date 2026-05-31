@@ -7,7 +7,7 @@ Purpose
 High-level rules
 - Prefer Kotlin scope functions (let, run, apply, also, with) to reduce nested ifs where appropriate.
 - Prefer `when` over nested `if-else if` chains.
-- Use named parameters for public functions and constructors where it improves clarity.
+- Use named parameters for public functions and constructors where it improves clarity. Don't use it if it parameter and variable names are the same.
 - Use clear, self-explaining names for classes, functions and variables; avoid comments when names suffice.
 - Follow Kotlin coding conventions (package and file names, camelCase for functions/variables, PascalCase for types).
 - Keep code short and focused: small functions and single-responsibility classes.
@@ -28,7 +28,7 @@ Kotlin style specifics
   - Use `apply` and `also` for configuring objects.
 - Use `when` to handle multiple branches instead of nested `if` blocks.
 - Favor expression-bodied functions for short implementations.
-- Use named parameters in calls when it clarifies intent, especially for functions with multiple parameters of the same type.
+- Use named parameters in calls when it clarifies intent, especially for functions with multiple parameters of the same type. Avoid it when it just mirrors the name.
 - Keep functions small (ideally under ~40 lines) and with a single reason to change.
 
 Naming and self-documenting code
@@ -40,7 +40,8 @@ Testing
 - Every production change must include tests. Unit tests first, then integration tests if necessary.
 - Use testing frameworks (e.g., JUnit, MockK) with versions maintained in `gradle/libs.versions.toml`.
 - Tests must be deterministic and not rely on external services; use fakes or in-memory adapters for CI.
-- Add clear test names following the pattern: methodName_state_expectedOutcome.
+- Add clear test names in full sentences which describes the wanted behavior following the pattern: `should do something when action executed` .
+- Define `//given`, `//when`, `//then` comments if it adds clarity
 
 Commit & PR rules
 - Follow Conventional Commits for commit messages. Examples:
