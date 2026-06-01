@@ -20,10 +20,11 @@ import io.hammerhead.karooext.models.Device
 import io.hammerhead.karooext.models.DeviceEvent
 import io.hammerhead.karooext.models.OnConnectionStatus
 import io.hammerhead.karooext.models.OnDataPoint
+import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter
+import org.happycode.karoo.forumslader.domain.ForumsladerMetrics
 import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.CHARACTERISTIC_UART_TX_RX
 import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.CLIENT_CHARACTERISTIC_CONFIGURATION_DESCRIPTOR
 import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.SERVICE_UUID
-import org.happycode.karoo.forumslader.model.ForumsladerData
 import org.happycode.karoo.forumslader.model.ForumsladerParser
 
 class Forumslader(
@@ -38,9 +39,10 @@ class Forumslader(
         extension = "karoo-forumslader",
         uid = "fl-$address",
         dataTypes = listOf(
-            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_battery_pct"),
+            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_battery_level"),
+            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_consumer_current"),
             DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_speed"),
-            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_voltage")
+            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_trip_distance")
         ),
         displayName = displayName ?: "Forumslader"
     )
@@ -95,8 +97,8 @@ class Forumslader(
                 value: ByteArray
             ) {
                 if (characteristic.uuid == CHARACTERISTIC_UART_TX_RX) {
-                    parser.processIncomingBytes(value)?.let { data ->
-                        emitData(emitter, data)
+                    parser.processIncomingBytes(value)?.let { metrics ->
+                        emitMetrics(emitter, metrics)
                     }
                 }
             }
@@ -119,31 +121,42 @@ class Forumslader(
         }
     }
 
-    private fun emitData(emitter: Emitter<DeviceEvent>, data: ForumsladerData) {
-        val batteryDataPoint = OnDataPoint(
-            dataPoint = DataPoint(
-                dataTypeId = DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_battery_pct"),
-                values = mapOf(DataType.Field.SINGLE to data.batteryLevelPct.toDouble()),
-                sourceId = device.uid
+    private fun emitMetrics(emitter: Emitter<DeviceEvent>, metrics: ForumsladerMetrics) {
+        emitter.onNext(
+            OnDataPoint(
+                dataPoint = DataPoint(
+                    dataTypeId = DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_battery_level"),
+                    values = mapOf(DataType.Field.SINGLE to metrics.batteryLevelPct.toDouble()),
+                    sourceId = device.uid
+                )
             )
         )
-        val speedDataPoint = OnDataPoint(
-            dataPoint = DataPoint(
-                dataTypeId = DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_speed"),
-                values = mapOf(DataType.Field.SINGLE to data.speedKmh.toDouble()),
-                sourceId = device.uid
+        emitter.onNext(
+            OnDataPoint(
+                dataPoint = DataPoint(
+                    dataTypeId = DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_consumer_current"),
+                    values = mapOf(DataType.Field.SINGLE to metrics.consumerCurrent.toDouble()),
+                    sourceId = device.uid
+                )
             )
         )
-        val voltageDataPoint = OnDataPoint(
-            dataPoint = DataPoint(
-                dataTypeId = DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_voltage"),
-                values = mapOf(DataType.Field.SINGLE to data.batteryVoltage.toDouble()),
-                sourceId = device.uid
+        emitter.onNext(
+            OnDataPoint(
+                dataPoint = DataPoint(
+                    dataTypeId = DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_speed"),
+                    values = mapOf(DataType.Field.SINGLE to metrics.speedKmh.toDouble()),
+                    sourceId = device.uid
+                )
             )
         )
-
-        emitter.onNext(batteryDataPoint)
-        emitter.onNext(speedDataPoint)
-        emitter.onNext(voltageDataPoint)
+        emitter.onNext(
+            OnDataPoint(
+                dataPoint = DataPoint(
+                    dataTypeId = DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_trip_distance"),
+                    values = mapOf(DataType.Field.SINGLE to metrics.tripDistanceKm.toDouble()),
+                    sourceId = device.uid
+                )
+            )
+        )
     }
 }
