@@ -1,18 +1,19 @@
 package org.happycode.karoo.forumslader.adapters
 
 import android.content.Context
-import io.mockk.mockk
 import io.mockk.every
+import io.mockk.mockk
 import org.happycode.karoo.forumslader.R
 import org.happycode.karoo.forumslader.domain.ForumsladerMetrics
-import org.junit.Test
-import kotlin.test.assertEquals
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Test
+
 
 class ForumsladerDataFieldsAdapterTest {
     private val mockContext = mockk<Context>()
 
     @Test
-    fun `should convert metrics to datafield values`() {
+    fun `should convert metrics to data field values`() {
         // given
         val metrics = ForumsladerMetrics(
             batteryVoltage = 48.2f,
@@ -59,13 +60,13 @@ class ForumsladerDataFieldsAdapterTest {
     }
 
     @Test
-    fun `should return localized datafield names from string resources`() {
+    fun `should return localized data field names from string resources`() {
         // given
         every { mockContext.getString(R.string.datafield_battery_level) } returns "Battery Level"
         every { mockContext.getString(R.string.datafield_consumer_current) } returns "Consumer Current"
         every { mockContext.getString(R.string.datafield_speed) } returns "Speed"
         every { mockContext.getString(R.string.datafield_trip_distance) } returns "Trip Distance"
-        
+
         val adapter = ForumsladerDataFieldsAdapter(mockContext)
 
         // when
