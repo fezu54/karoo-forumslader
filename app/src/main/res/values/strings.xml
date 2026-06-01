@@ -2,4 +2,10 @@
     <string name="app_name">Karoo Forumslader</string>
     <string name="hello_karoo">Hello Karoo!</string>
     <string name="extension_name">Karoo Forumslader</string>
+    
+    <!-- Datafield names -->
+    <string name="datafield_battery_level">Battery Level</string>
+    <string name="datafield_consumer_current">Consumer Current</string>
+    <string name="datafield_speed">Speed</string>
+    <string name="datafield_trip_distance">Trip Distance</string>
 </resources>
