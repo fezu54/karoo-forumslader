@@ -13,9 +13,21 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import io.hammerhead.karooext.extension.DataTypeImpl
+import io.hammerhead.karooext.models.DataType
+import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
 
 class ForumsladerExtension : KarooExtension(extension = "karoo-forumslader", version = "1.0") {
     private val devices = mutableMapOf<String, Forumslader>()
+
+    override val types: List<DataTypeImpl> by lazy {
+        listOf(
+            ForumsladerDataType(extension, DataFieldId.BATTERY_LEVEL, DataType.Type.BATTERY_PERCENT),
+            ForumsladerDataType(extension, DataFieldId.CONSUMER_CURRENT),
+            ForumsladerDataType(extension, DataFieldId.SPEED, DataType.Type.SPEED),
+            ForumsladerDataType(extension, DataFieldId.TRIP_DISTANCE, DataType.Type.DISTANCE)
+        )
+    }
 
     @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT])
     override fun startScan(emitter: Emitter<Device>) {
