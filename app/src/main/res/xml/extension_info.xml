@@ -4,5 +4,33 @@
     icon="@drawable/ic_launcher_foreground"
     id="karoo-forumslader"
     scansDevices="true">
-    <!-- DataType ... -->
+
+    <DataType
+        typeId="fl_battery_level"
+        displayName="@string/datafield_battery_level"
+        description="@string/datafield_battery_level_desc"
+        icon="@drawable/ic_launcher_foreground"
+        graphical="false" />
+
+    <DataType
+        typeId="fl_consumer_current"
+        displayName="@string/datafield_consumer_current"
+        description="@string/datafield_consumer_current_desc"
+        icon="@drawable/ic_launcher_foreground"
+        graphical="false" />
+
+    <DataType
+        typeId="fl_speed"
+        displayName="@string/datafield_speed"
+        description="@string/datafield_speed_desc"
+        icon="@drawable/ic_launcher_foreground"
+        graphical="false" />
+
+    <DataType
+        typeId="fl_trip_distance"
+        displayName="@string/datafield_trip_distance"
+        description="@string/datafield_trip_distance_desc"
+        icon="@drawable/ic_launcher_foreground"
+        graphical="false" />
+
 </ExtensionInfo>

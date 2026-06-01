@@ -7,11 +7,13 @@ androidxLifecycle = "2.10.0"
 androidxActivity = "1.13.0"
 androidxComposeUi = "1.11.2"
 androidxComposeMaterial = "1.4.0"
+androidxComposeUiTest = "1.11.2"
 glance = "1.1.1"
 junit = "6.1.0"
 junit-platform = "6.1.0"
 mockk = "1.14.11"
 mockito-kotlin = "6.3.0"
+robolectric = "4.16.1"
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
@@ -37,9 +39,13 @@ androidx-glance-appwidget = { group = "androidx.glance", name = "glance-appwidge
 androidx-glance-preview = { group = "androidx.glance", name = "glance-preview", version.ref = "glance" }
 
 # testing
+androidx-compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4", version.ref = "androidxComposeUiTest" }
+androidx-compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest", version.ref = "androidxComposeUiTest" }
+robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 junit-jupiter-api = { group = "org.junit.jupiter", name = "junit-jupiter-api", version.ref = "junit" }
 junit-jupiter-engine = { group = "org.junit.jupiter", name = "junit-jupiter-engine", version.ref = "junit" }
 junit-jupiter-params = { group = "org.junit.jupiter", name = "junit-jupiter-params", version.ref = "junit" }
+junit-vintage-engine = { group = "org.junit.vintage", name = "junit-vintage-engine", version.ref = "junit" }
 junit-platform-launcher = { group = "org.junit.platform", name = "junit-platform-launcher", version.ref = "junit-platform" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 mockito-kotlin = { module = "org.mockito.kotlin:mockito-kotlin", version.ref = "mockito-kotlin" }
