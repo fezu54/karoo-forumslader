@@ -5,7 +5,11 @@
     
     <!-- Datafield names -->
     <string name="datafield_battery_level">Battery Level</string>
+    <string name="datafield_battery_level_desc">Forumslader battery level in percentage</string>
     <string name="datafield_consumer_current">Consumer Current</string>
+    <string name="datafield_consumer_current_desc">Forumslader consumer current in Amperes</string>
     <string name="datafield_speed">Speed</string>
+    <string name="datafield_speed_desc">Forumslader current speed in km/h</string>
     <string name="datafield_trip_distance">Trip Distance</string>
+    <string name="datafield_trip_distance_desc">Forumslader trip distance in km</string>
 </resources>
