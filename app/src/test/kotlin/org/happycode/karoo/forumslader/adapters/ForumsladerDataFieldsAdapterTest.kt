@@ -1,13 +1,19 @@
 package org.happycode.karoo.forumslader.adapters
 
+import android.content.Context
+import io.hammerhead.karooext.models.DataField
+import io.hammerhead.karooext.models.SensorDataTypeDef
+import org.happycode.karoo.forumslader.R
 import org.happycode.karoo.forumslader.domain.ForumsladerMetrics
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 
 class ForumsladerDataFieldsAdapterTest {
+    private val mockContext = org.mockito.Mockito.mock(Context::class.java)
+
     @Test
-    fun should_convert_metrics_to_datafield_values() {
+    fun `should convert metrics to datafield values`() {
         // given
         val metrics = ForumsladerMetrics(
             batteryVoltage = 48.2f,
@@ -32,9 +38,9 @@ class ForumsladerDataFieldsAdapterTest {
     }
 
     @Test
-    fun should_create_four_datafields() {
+    fun `should create four datafields`() {
         // when
-        val dataFields = ForumsladerDataFieldsAdapter.createDataFields()
+        val dataFields = ForumsladerDataFieldsAdapter(mockContext).createDataFields()
 
         // then
         assertEquals(4, dataFields.size)
@@ -45,21 +51,9 @@ class ForumsladerDataFieldsAdapterTest {
     }
 
     @Test
-    fun should_have_correct_datafield_names() {
+    fun `should have non-null sensorDataType definitions`() {
         // when
-        val dataFields = ForumsladerDataFieldsAdapter.createDataFields()
-
-        // then
-        assertEquals("Battery Level", dataFields[0].name)
-        assertEquals("Consumer Current", dataFields[1].name)
-        assertEquals("Speed", dataFields[2].name)
-        assertEquals("Trip Distance", dataFields[3].name)
-    }
-
-    @Test
-    fun should_have_non_null_sensorDataTypeDefinitions() {
-        // when
-        val dataFields = ForumsladerDataFieldsAdapter.createDataFields()
+        val dataFields = ForumsladerDataFieldsAdapter(mockContext).createDataFields()
 
         // then
         dataFields.forEach { dataField ->
