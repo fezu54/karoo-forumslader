@@ -1,5 +1,7 @@
 package org.happycode.karoo.forumslader.model
 
+import org.happycode.karoo.forumslader.domain.ForumsladerMetrics
+
 class ForumsladerParser {
 
     private val frameBuffer = StringBuilder()
@@ -8,7 +10,7 @@ class ForumsladerParser {
      * Collects incoming byte arrays from the BLE onCharacteristicChanged callback
      * and triggers parsing as soon as a termination character is detected.
      */
-    fun processIncomingBytes(data: ByteArray): ForumsladerData? {
+    fun processIncomingBytes(data: ByteArray): ForumsladerMetrics? {
         val chunk = String(data, Charsets.US_ASCII)
         frameBuffer.append(chunk)
 
@@ -26,11 +28,11 @@ class ForumsladerParser {
         // frame still incomplete
     }
 
-    private fun parseAsciiPayload(payload: String): ForumsladerData? {
+    private fun parseAsciiPayload(payload: String): ForumsladerMetrics? {
         return try {
             val tokens = payload.split(",")
 
-            ForumsladerData(
+            ForumsladerMetrics(
                 batteryVoltage = tokens.getOrNull(0)?.toFloatOrNull() ?: 0f,
                 batteryCurrent = tokens.getOrNull(1)?.toFloatOrNull() ?: 0f,
                 consumerCurrent = tokens.getOrNull(2)?.toFloatOrNull() ?: 0f,
