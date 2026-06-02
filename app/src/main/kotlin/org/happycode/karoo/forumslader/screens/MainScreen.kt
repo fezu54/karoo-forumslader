@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Card
@@ -44,6 +46,7 @@ fun MainScreen() {
     val context = LocalContext.current
     val karooSystem = remember { KarooSystemService(context) }
     var connected by remember { mutableStateOf(false) }
+    var sensorState by remember { mutableStateOf<StreamState>(StreamState.Idle) }
     val metrics = remember { mutableStateMapOf<String, Double>() }
 
     DisposableEffect(karooSystem) {
@@ -60,6 +63,7 @@ fun MainScreen() {
         val listeners = types.map { typeId ->
             val dataTypeId = "$extensionId:$typeId"
             karooSystem.addConsumer(OnStreamState.StartStreaming(dataTypeId)) { event: OnStreamState ->
+                sensorState = event.state
                 (event.state as? StreamState.Streaming)?.dataPoint?.values?.get(DataType.Field.SINGLE)?.let { value ->
                     metrics[typeId] = value
                 }
@@ -72,12 +76,12 @@ fun MainScreen() {
         }
     }
 
-    MainScreenContent(connected = connected, metrics = metrics)
+    MainScreenContent(connected = connected, sensorState = sensorState, metrics = metrics)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreenContent(connected: Boolean, metrics: Map<String, Double>) {
+fun MainScreenContent(connected: Boolean, sensorState: StreamState, metrics: Map<String, Double>) {
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -89,37 +93,64 @@ fun MainScreenContent(connected: Boolean, metrics: Map<String, Double>) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .verticalScroll(rememberScrollState())
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            StatusCard(connected = connected)
+            StatusCard(connected = connected, sensorState = sensorState)
             MetricsList(metrics = metrics)
         }
     }
 }
 
 @Composable
-fun StatusCard(connected: Boolean) {
+fun StatusCard(connected: Boolean, sensorState: StreamState) {
     Card(
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Row(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(
-                text = stringResource(id = R.string.extension_name),
-                style = MaterialTheme.typography.titleMedium
-            )
-            Text(
-                text = if (connected) "Connected" else "Disconnected",
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Bold,
-                color = if (connected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stringResource(id = R.string.extension_name),
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Text(
+                    text = if (connected) "Active" else "Inactive",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = if (connected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                )
+            }
+            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Forumslader Device",
+                    style = MaterialTheme.typography.bodyLarge
+                )
+                val (statusText, statusColor) = when (sensorState) {
+                    is StreamState.Streaming -> "Connected" to MaterialTheme.colorScheme.primary
+                    is StreamState.Searching -> "Searching" to MaterialTheme.colorScheme.secondary
+                    is StreamState.NotAvailable -> "Not Available" to MaterialTheme.colorScheme.error
+                    else -> "Disconnected" to MaterialTheme.colorScheme.outline
+                }
+                Text(
+                    text = statusText,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = statusColor
+                )
+            }
         }
     }
 }
@@ -170,7 +201,7 @@ fun MainScreenPreview() {
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                StatusCard(connected = true)
+                StatusCard(connected = true, sensorState = StreamState.Streaming(io.hammerhead.karooext.models.DataPoint("", emptyMap(), "")))
                 MetricsList(
                     metrics = mapOf(
                         DataFieldId.BATTERY_LEVEL to 85.0,

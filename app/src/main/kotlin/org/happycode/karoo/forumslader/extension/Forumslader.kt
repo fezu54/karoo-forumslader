@@ -23,7 +23,8 @@ import io.hammerhead.karooext.models.OnDataPoint
 import org.happycode.karoo.forumslader.domain.ForumsladerMetrics
 import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.CHARACTERISTIC_UART_TX_RX
 import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.CLIENT_CHARACTERISTIC_CONFIGURATION_DESCRIPTOR
-import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.SERVICE_UUID
+import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.SERVICE_UUID_V5
+import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.SERVICE_UUID_V6
 import org.happycode.karoo.forumslader.model.ForumsladerParser
 
 class Forumslader(
@@ -33,6 +34,7 @@ class Forumslader(
 ) {
     private val parser = ForumsladerParser()
     private var bluetoothGatt: BluetoothGatt? = null
+    private var uartCharacteristicUuid: java.util.UUID? = null
 
     val device: Device = Device(
         extension = "karoo-forumslader",
@@ -72,9 +74,18 @@ class Forumslader(
             override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
                 if (status != BluetoothGatt.GATT_SUCCESS) return
 
-                gatt.getService(SERVICE_UUID)
-                    ?.getCharacteristic(CHARACTERISTIC_UART_TX_RX)
-                    ?.also { gatt.setCharacteristicNotification(it, true) }
+                val service = gatt.getService(SERVICE_UUID_V5) ?: gatt.getService(SERVICE_UUID_V6)
+                val characteristic = service?.getCharacteristic(CHARACTERISTIC_UART_TX_RX)
+                    ?: service?.characteristics?.firstOrNull { char ->
+                        (char.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY) != 0 ||
+                        (char.properties and BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0
+                    }
+
+                characteristic?.also { char ->
+                    uartCharacteristicUuid = char.uuid
+                    Log.i("FL_BLE", "Subscribing to UART characteristic: ${char.uuid}")
+                    gatt.setCharacteristicNotification(char, true)
+                }
                     ?.getDescriptor(CLIENT_CHARACTERISTIC_CONFIGURATION_DESCRIPTOR)
                     ?.let { descriptor ->
                         val value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
@@ -95,7 +106,7 @@ class Forumslader(
                 characteristic: BluetoothGattCharacteristic,
                 value: ByteArray
             ) {
-                if (characteristic.uuid == CHARACTERISTIC_UART_TX_RX) {
+                if (characteristic.uuid == uartCharacteristicUuid) {
                     parser.processIncomingBytes(value)?.let { metrics ->
                         emitMetrics(emitter, metrics)
                     }

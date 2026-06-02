@@ -3,6 +3,8 @@ package org.happycode.karoo.forumslader.screens
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import io.hammerhead.karooext.models.DataPoint
+import io.hammerhead.karooext.models.StreamState
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
 import org.happycode.karoo.forumslader.theme.AppTheme
 import org.junit.Rule
@@ -22,7 +24,7 @@ class MainScreenTest {
     fun `should display disconnected status when not connected`() {
         composeTestRule.setContent {
             AppTheme {
-                MainScreenContent(connected = false, metrics = emptyMap())
+                MainScreenContent(connected = false, sensorState = StreamState.Idle, metrics = emptyMap())
             }
         }
 
@@ -33,7 +35,11 @@ class MainScreenTest {
     fun `should display connected status when connected`() {
         composeTestRule.setContent {
             AppTheme {
-                MainScreenContent(connected = true, metrics = emptyMap())
+                MainScreenContent(
+                    connected = true,
+                    sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+                    metrics = emptyMap()
+                )
             }
         }
 
@@ -46,7 +52,11 @@ class MainScreenTest {
         
         composeTestRule.setContent {
             AppTheme {
-                MainScreenContent(connected = true, metrics = metrics)
+                MainScreenContent(
+                    connected = true,
+                    sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+                    metrics = metrics
+                )
             }
         }
 
