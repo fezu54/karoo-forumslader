@@ -32,6 +32,7 @@ android {
         unitTests.all {
             it.useJUnitPlatform()
         }
+        unitTests.isIncludeAndroidResources = true
     }
 }
 
@@ -46,6 +47,10 @@ dependencies {
     testImplementation(libs.junit.jupiter.params)
     testImplementation(libs.mockk)
     testImplementation(libs.mockito.kotlin)
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    testImplementation(libs.robolectric)
     testRuntimeOnly(libs.junit.jupiter.engine)
+    testRuntimeOnly(libs.junit.vintage.engine)
     testRuntimeOnly(libs.junit.platform.launcher)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
