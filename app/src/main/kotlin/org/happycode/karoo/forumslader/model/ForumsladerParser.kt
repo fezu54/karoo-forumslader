@@ -6,45 +6,165 @@ class ForumsladerParser {
 
     private val frameBuffer = StringBuilder()
 
+    // Stateful metrics updated incrementally by various sentences
+    private var batteryVoltage: Float = 0f
+    private var batteryCurrent: Float = 0f
+    private var consumerCurrent: Float = 0f
+    private var batteryLevelPct: Int = 0
+    private var speedKmh: Float = 0f
+    private var tripDistanceKm: Float = 0f
+    private var totalDistanceKm: Float = 0f
+    private var temperatureCelsius: Float = 0f
+    private var altitudeMeters: Float = 0f
+
+    // Configuration parameters
+    private var wheelsize: Int = 2200 // default fallback in mm
+    private var poles: Int = 14       // default fallback (pole pairs)
+    private var isV6: Boolean = true   // default fallback
+
     /**
-     * Collects incoming byte arrays from the BLE onCharacteristicChanged callback
-     * and triggers parsing as soon as a termination character is detected.
+     * Collects incoming byte arrays from the BLE onCharacteristicChanged callback,
+     * extracts complete lines, parses them, and returns the updated metrics.
      */
     fun processIncomingBytes(data: ByteArray): ForumsladerMetrics? {
         val chunk = String(data, Charsets.US_ASCII)
         frameBuffer.append(chunk)
 
-        // Forumslader ASCII frames are typically terminated by \n or \r\n        
-        val delimiterIndex = frameBuffer.indexOf("\n")
-        return when {
-            delimiterIndex != -1 -> {
-                val completeFrame = frameBuffer.substring(0, delimiterIndex).trim()
-                frameBuffer.delete(0, delimiterIndex + 1)
-        
-                parseAsciiPayload(completeFrame)
+        var parsedAny = false
+        while (true) {
+            val delimiterIndex = frameBuffer.indexOf("\n")
+            if (delimiterIndex == -1) break
+
+            val completeFrame = frameBuffer.substring(0, delimiterIndex).trim()
+            frameBuffer.delete(0, delimiterIndex + 1)
+
+            if (parseAsciiPayload(completeFrame)) {
+                parsedAny = true
             }
-            else -> null
         }
-        // frame still incomplete
+
+        return if (parsedAny) {
+            ForumsladerMetrics(
+                batteryVoltage = batteryVoltage,
+                batteryCurrent = batteryCurrent,
+                consumerCurrent = consumerCurrent,
+                batteryLevelPct = batteryLevelPct,
+                speedKmh = speedKmh,
+                tripDistanceKm = tripDistanceKm,
+                totalDistanceKm = totalDistanceKm,
+                temperatureCelsius = temperatureCelsius,
+                altitudeMeters = altitudeMeters
+            )
+        } else {
+            null
+        }
     }
 
-    private fun parseAsciiPayload(payload: String): ForumsladerMetrics? {
-        return try {
-            val tokens = payload.split(",")
+    private fun parseAsciiPayload(payload: String): Boolean {
+        if (!payload.startsWith("$")) return false
 
-            ForumsladerMetrics(
-                batteryVoltage = tokens.getOrNull(0)?.toFloatOrNull() ?: 0f,
-                batteryCurrent = tokens.getOrNull(1)?.toFloatOrNull() ?: 0f,
-                consumerCurrent = tokens.getOrNull(2)?.toFloatOrNull() ?: 0f,
-                batteryLevelPct = tokens.getOrNull(3)?.toIntOrNull() ?: 0,
-                speedKmh = tokens.getOrNull(4)?.toFloatOrNull() ?: 0f,
-                tripDistanceKm = tokens.getOrNull(5)?.toFloatOrNull() ?: 0f,
-                totalDistanceKm = tokens.getOrNull(6)?.toFloatOrNull() ?: 0f,
-                temperatureCelsius = tokens.getOrNull(7)?.toFloatOrNull() ?: 0f,
-                altitudeMeters = tokens.getOrNull(8)?.toFloatOrNull() ?: 0f
-            )
+        return try {
+            val starIndex = payload.indexOf('*')
+            val semiIndex = payload.indexOf(';')
+
+            val dataString: String
+            val checksumString: String
+
+            if (starIndex != -1) {
+                dataString = payload.substring(1, starIndex)
+                checksumString = payload.substring(starIndex + 1).trim()
+            } else if (semiIndex != -1) {
+                dataString = payload.substring(1, semiIndex)
+                checksumString = ""
+            } else {
+                dataString = payload.substring(1)
+                checksumString = ""
+            }
+
+            if (checksumString.isNotEmpty()) {
+                var calculatedParity = 0
+                for (char in dataString) {
+                    calculatedParity = calculatedParity xor char.code
+                }
+                val expectedParity = checksumString.toIntOrNull(16)
+                if (expectedParity != null && calculatedParity != expectedParity) {
+                    return false // Checksum mismatch
+                }
+            }
+
+            val tokens = dataString.split(",")
+            val header = tokens.getOrNull(0) ?: return false
+
+            when (header) {
+                "FL5", "FL6" -> {
+                    isV6 = (header == "FL6")
+                    val frequency = tokens.getOrNull(3)?.toFloatOrNull() ?: 0f
+                    val cell1 = tokens.getOrNull(4)?.toFloatOrNull() ?: 0f
+                    val cell2 = tokens.getOrNull(5)?.toFloatOrNull() ?: 0f
+                    val cell3 = tokens.getOrNull(6)?.toFloatOrNull() ?: 0f
+                    batteryVoltage = (cell1 + cell2 + cell3) / 1000f
+                    batteryCurrent = (tokens.getOrNull(7)?.toFloatOrNull() ?: 0f) / 1000f
+                    consumerCurrent = (tokens.getOrNull(8)?.toFloatOrNull() ?: 0f) / 1000f
+
+                    val impulseIdx = if (isV6) 12 else 13
+                    val impulseCounter = tokens.getOrNull(impulseIdx)?.toFloatOrNull() ?: 0f
+
+                    val freq2speed = wheelsize.toFloat() / poles.toFloat() * 0.0036f / (if (isV6) 10f else 1f)
+                    speedKmh = frequency * freq2speed
+
+                    val imp2odo = wheelsize.toDouble() / poles.toDouble() / 1000000.0 * (if (isV6) 1.0 else 4096.0)
+                    tripDistanceKm = (impulseCounter * imp2odo).toFloat()
+                    totalDistanceKm = tripDistanceKm
+                    true
+                }
+                "FLB" -> {
+                    temperatureCelsius = (tokens.getOrNull(1)?.toFloatOrNull() ?: 0f) / 10f
+                    altitudeMeters = (tokens.getOrNull(3)?.toFloatOrNull() ?: 0f) / 10f
+                    true
+                }
+                "FLC" -> {
+                    val setnr = tokens.getOrNull(1)
+                    if (setnr == "5") {
+                        batteryLevelPct = tokens.getOrNull(3)?.toIntOrNull() ?: batteryLevelPct
+                    }
+                    true
+                }
+                "FLP" -> {
+                    wheelsize = tokens.getOrNull(1)?.toIntOrNull() ?: wheelsize
+                    poles = tokens.getOrNull(2)?.toIntOrNull() ?: poles
+                    true
+                }
+                "FLD" -> {
+                    val frequency = tokens.getOrNull(4)?.toFloatOrNull() ?: 0f
+                    batteryVoltage = tokens.getOrNull(5)?.toFloatOrNull() ?: 0f
+                    batteryCurrent = tokens.getOrNull(6)?.toFloatOrNull() ?: 0f
+                    consumerCurrent = tokens.getOrNull(7)?.toFloatOrNull() ?: 0f
+
+                    val p9 = tokens.getOrNull(9)?.toIntOrNull() ?: 0
+                    batteryLevelPct = when (p9) {
+                        0 -> 5
+                        1 -> 10
+                        2 -> 20
+                        3 -> 35
+                        4 -> 50
+                        5 -> 65
+                        6 -> 80
+                        7 -> 95
+                        else -> batteryLevelPct
+                    }
+
+                    val freq2speed = wheelsize.toFloat() / poles.toFloat() * 0.0036f / (if (isV6) 10f else 1f)
+                    speedKmh = frequency * freq2speed
+
+                    val kmCounter = tokens.getOrNull(14)?.toFloatOrNull() ?: 0f
+                    tripDistanceKm = kmCounter
+                    totalDistanceKm = kmCounter
+                    true
+                }
+                else -> false
+            }
         } catch (_: Exception) {
-            null // Parsing failed (e.g. boot sequence or inconsistent frame)
+            false
         }
     }
 }

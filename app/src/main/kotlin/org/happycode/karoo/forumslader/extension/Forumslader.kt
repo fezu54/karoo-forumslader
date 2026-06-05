@@ -22,6 +22,8 @@ import io.hammerhead.karooext.models.OnConnectionStatus
 import io.hammerhead.karooext.models.OnDataPoint
 import org.happycode.karoo.forumslader.domain.ForumsladerMetrics
 import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.CHARACTERISTIC_UART_TX_RX
+import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.CHARACTERISTIC_UART_RX_V6
+import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.CHARACTERISTIC_UART_TX_V6
 import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.CLIENT_CHARACTERISTIC_CONFIGURATION_DESCRIPTOR
 import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.SERVICE_UUID_V5
 import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.SERVICE_UUID_V6
@@ -76,6 +78,7 @@ class Forumslader(
 
                 val service = gatt.getService(SERVICE_UUID_V5) ?: gatt.getService(SERVICE_UUID_V6)
                 val characteristic = service?.getCharacteristic(CHARACTERISTIC_UART_TX_RX)
+                    ?: service?.getCharacteristic(CHARACTERISTIC_UART_TX_V6)
                     ?: service?.characteristics?.firstOrNull { char ->
                         (char.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY) != 0 ||
                         (char.properties and BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0
@@ -99,6 +102,32 @@ class Forumslader(
                         }
                         Log.i("FL_BLE", "Forumslader UART Stream subscribed.")
                     } ?: Log.e("FL_BLE", "Forumslader UART Characteristic or Descriptor not found.")
+            }
+
+            @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+            override fun onDescriptorWrite(gatt: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
+                if (status == BluetoothGatt.GATT_SUCCESS && descriptor.uuid == CLIENT_CHARACTERISTIC_CONFIGURATION_DESCRIPTOR) {
+                    Log.i("FL_BLE", "Descriptor write successful, requesting parameters...")
+                    val service = gatt.getService(SERVICE_UUID_V5) ?: gatt.getService(SERVICE_UUID_V6)
+                    val isV6 = service?.uuid == SERVICE_UUID_V6
+                    val rxChar = if (isV6) {
+                        service?.getCharacteristic(CHARACTERISTIC_UART_RX_V6)
+                    } else {
+                        service?.getCharacteristic(CHARACTERISTIC_UART_TX_RX)
+                    }
+                    rxChar?.let { char ->
+                        val cmdBytes = "\$FLT,5*47\n".toByteArray(Charsets.US_ASCII)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            gatt.writeCharacteristic(char, cmdBytes, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+                        } else {
+                            @Suppress("DEPRECATION")
+                            char.value = cmdBytes
+                            @Suppress("DEPRECATION")
+                            gatt.writeCharacteristic(char)
+                        }
+                        Log.i("FL_BLE", "Forumslader parameter request command sent.")
+                    }
+                }
             }
 
             override fun onCharacteristicChanged(
