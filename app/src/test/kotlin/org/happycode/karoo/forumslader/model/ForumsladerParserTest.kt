@@ -1,5 +1,10 @@
 package org.happycode.karoo.forumslader.model
 
+import android.util.Log
+import io.mockk.every
+import io.mockk.mockkStatic
+import io.mockk.unmockkAll
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.BeforeEach
@@ -11,7 +16,20 @@ class ForumsladerParserTest {
 
     @BeforeEach
     fun setUp() {
+        mockkStatic(Log::class)
+        every { Log.v(any<String>(), any<String>()) } returns 0
+        every { Log.d(any<String>(), any<String>()) } returns 0
+        every { Log.i(any<String>(), any<String>()) } returns 0
+        every { Log.w(any<String>(), any<String>()) } returns 0
+        every { Log.e(any<String>(), any<String>()) } returns 0
+        every { Log.e(any<String>(), any<String>(), any<Throwable>()) } returns 0
+
         parser = ForumsladerParser()
+    }
+
+    @AfterEach
+    fun tearDown() {
+        unmockkAll()
     }
 
     private fun withChecksum(sentence: String): String {
@@ -27,7 +45,7 @@ class ForumsladerParserTest {
     }
 
     @Test
-    fun `processIncomingBytes parses FL6 sentence correctly`() {
+    fun `should parse FL6 sentence when processIncomingBytes is called`() {
         // given
         // $FL6,status,gear,frequency,cell1,cell2,cell3,battCurrent,loadCurrent,...,impulseCounter
         val payload = $$"$FL6,0,0,100,4100,4120,4110,-150,250,0,0,0,12345"
@@ -52,10 +70,11 @@ class ForumsladerParserTest {
     }
 
     @Test
-    fun `processIncomingBytes parses FLB sentence correctly`() {
+    fun `should parse FLB sentence when processIncomingBytes is called`() {
         // given: $FLB,temperature,airPressure,altitude,slope
         val payload = $$"$FLB,228,100227,918,33"
-        val data = withChecksum(payload).toByteArray()
+        val telemetry = $$"$FL6,0,0,100,4100,4120,4110,-150,250,0,0,0,12345"
+        val data = (withChecksum(payload) + withChecksum(telemetry)).toByteArray()
 
         // when
         val result = parser.processIncomingBytes(data)
@@ -66,10 +85,11 @@ class ForumsladerParserTest {
     }
 
     @Test
-    fun `processIncomingBytes parses FLC sentence correctly`() {
+    fun `should parse FLC sentence when processIncomingBytes is called`() {
         // given: $FLC,setnr,startCount,socState,...
         val payload = $$"$FLC,5,12,85,150,5,1000"
-        val data = withChecksum(payload).toByteArray()
+        val telemetry = $$"$FL6,0,0,100,4100,4120,4110,-150,250,0,0,0,12345"
+        val data = (withChecksum(payload) + withChecksum(telemetry)).toByteArray()
 
         // when
         val result = parser.processIncomingBytes(data)
@@ -79,7 +99,7 @@ class ForumsladerParserTest {
     }
 
     @Test
-    fun `processIncomingBytes configures wheelsize and poles from FLP`() {
+    fun `should configure wheelsize and poles when FLP sentence is processed`() {
         // given: $FLP,wheelsize,poles,...
         val configPayload = $$"$FLP,2000,10,0,0,0,0,0,1000"
         val fl6Payload = $$"$FL6,0,0,100,4100,4120,4110,-150,250,0,0,0,12345"
@@ -98,27 +118,32 @@ class ForumsladerParserTest {
     }
 
     @Test
-    fun `processIncomingBytes handles split frame chunks`() {
+    fun `should handle split frame chunks when complete frame is received`() {
         // given
         val chunk1 = withChecksum($$"$FLB,228,100227,918,33").substring(0, 15).toByteArray()
         val chunk2 = withChecksum($$"$FLB,228,100227,918,33").substring(15).toByteArray()
+        val telemetry = withChecksum($$"$FL6,0,0,100,4100,4120,4110,-150,250,0,0,0,12345").toByteArray()
 
         // when
         val result1 = parser.processIncomingBytes(chunk1)
         val result2 = parser.processIncomingBytes(chunk2)
+        assertNull(result1)
+        assertNull(result2) // FLB alone doesn't trigger emission
+        
+        val result3 = parser.processIncomingBytes(telemetry)
 
         // then
-        assertNull(result1)
-        assertEquals(22.8f, result2?.temperatureCelsius ?: 0f, 0.01f)
-        assertEquals(91.8f, result2?.altitudeMeters ?: 0f, 0.01f)
+        assertEquals(22.8f, result3?.temperatureCelsius ?: 0f, 0.01f)
+        assertEquals(91.8f, result3?.altitudeMeters ?: 0f, 0.01f)
     }
 
     @Test
-    fun `processIncomingBytes processes multiple frames in one chunk`() {
+    fun `should process multiple frames when a single chunk is processed`() {
         // given
         val frame1 = withChecksum($$"$FLB,250,100227,950,33")
         val frame2 = withChecksum($$"$FLC,5,12,90,150,5,1000")
-        val combinedChunk = (frame1 + frame2).toByteArray()
+        val frame3 = withChecksum($$"$FL6,0,0,100,4100,4120,4110,-150,250,0,0,0,12345")
+        val combinedChunk = (frame1 + frame2 + frame3).toByteArray()
 
         // when
         val result = parser.processIncomingBytes(combinedChunk)
@@ -130,7 +155,7 @@ class ForumsladerParserTest {
     }
 
     @Test
-    fun `processIncomingBytes ignores invalid checksum`() {
+    fun `should return null and ignore frame when checksum is invalid`() {
         // given: invalid checksum string
         val data = $$"$FLB,228,100227,918,33*FF\n".toByteArray()
 
@@ -142,7 +167,7 @@ class ForumsladerParserTest {
     }
 
     @Test
-    fun `processIncomingBytes handles fallback FLD sentence`() {
+    fun `should parse fallback FLD sentence when older frame is processed`() {
         // given: $FLD,menu,reserved,switching,frequency,voltage,battCurrent,loadCurrent,status,soc,...
         val payload = $$"$FLD,19,,0,50,12.5,0.8,0.2,-,5,0,0,0,0,10.2"
         val data = withChecksum(payload).toByteArray()

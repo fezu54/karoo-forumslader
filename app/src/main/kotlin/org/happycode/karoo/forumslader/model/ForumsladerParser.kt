@@ -84,15 +84,15 @@ class ForumsladerParser {
         // (configuration-only frames like FLP, FLC, FLB don't trigger emissions)
         return if (parsedTelemetry && hasReceivedTelemetry) {
             val metrics = ForumsladerMetrics(
-                batteryVoltage = batteryVoltage,
-                batteryCurrent = batteryCurrent,
-                consumerCurrent = consumerCurrent,
-                batteryLevelPct = batteryLevelPct,
-                speedKmh = speedKmh,
-                tripDistanceKm = tripDistanceKm,
-                totalDistanceKm = totalDistanceKm,
-                temperatureCelsius = temperatureCelsius,
-                altitudeMeters = altitudeMeters
+                batteryVoltage,
+                batteryCurrent,
+                consumerCurrent,
+                batteryLevelPct,
+                speedKmh,
+                tripDistanceKm,
+                totalDistanceKm,
+                temperatureCelsius,
+                altitudeMeters
             )
             totalMetricsEmitted++
             
@@ -123,29 +123,13 @@ class ForumsladerParser {
             
             dataString.split(",").getOrNull(0) ?: "UNKNOWN"
         } catch (e: Exception) {
+            Log.e(TAG, "Error parsing sentence: $payload", e)
             "ERROR"
         }
     }
 
-    private fun isTelemetrySentence(payload: String): Boolean {
-        // Extract header to determine if this is a primary telemetry sentence
-        if (!payload.startsWith("$")) return false
-        
-        val starIndex = payload.indexOf('*')
-        val semiIndex = payload.indexOf(';')
-        
-        val dataString: String = when {
-            starIndex != -1 -> payload.substring(1, starIndex)
-            semiIndex != -1 -> payload.substring(1, semiIndex)
-            else -> payload.substring(1)
-        }
-        
-        val header = dataString.split(",").getOrNull(0) ?: return false
-        
-        // Only FL5, FL6, and FLD contain actual telemetry (speed, power, distance)
-        // FLP, FLC, FLB are configuration or environmental and should not trigger emissions
-        return header in listOf("FL5", "FL6", "FLD")
-    }
+    private fun isTelemetrySentence(payload: String): Boolean =
+        extractSentenceType(payload) in listOf("FL5", "FL6", "FLD")
 
     private fun parseAsciiPayload(payload: String): Boolean {
         if (!payload.startsWith("$")) return false
