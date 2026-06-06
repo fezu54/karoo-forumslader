@@ -22,15 +22,22 @@ class ForumsladerParser {
     private var poles: Int = 14       // default fallback (pole pairs)
     private var isV6: Boolean = true   // default fallback
 
+    // Track whether we've received a primary telemetry sentence (FL5/FL6/FLD)
+    // Configuration sentences (FLP, FLC, FLB) should not trigger emissions
+    private var hasReceivedTelemetry: Boolean = false
+
     /**
      * Collects incoming byte arrays from the BLE onCharacteristicChanged callback,
      * extracts complete lines, parses them, and returns the updated metrics.
+     * 
+     * Only returns metrics after receiving a primary telemetry sentence (FL5, FL6, or FLD),
+     * ensuring that configuration data has had time to be received first.
      */
     fun processIncomingBytes(data: ByteArray): ForumsladerMetrics? {
         val chunk = String(data, Charsets.US_ASCII)
         frameBuffer.append(chunk)
 
-        var parsedAny = false
+        var parsedTelemetry = false
         while (true) {
             val delimiterIndex = frameBuffer.indexOf("\n")
             if (delimiterIndex == -1) break
@@ -39,11 +46,17 @@ class ForumsladerParser {
             frameBuffer.delete(0, delimiterIndex + 1)
 
             if (parseAsciiPayload(completeFrame)) {
-                parsedAny = true
+                // Track if this was a telemetry sentence
+                if (isTelemetrySentence(completeFrame)) {
+                    hasReceivedTelemetry = true
+                    parsedTelemetry = true
+                }
             }
         }
 
-        return if (parsedAny) {
+        // Only return metrics if we've received a telemetry sentence in this batch
+        // (configuration-only frames like FLP, FLC, FLB don't trigger emissions)
+        return if (parsedTelemetry && hasReceivedTelemetry) {
             ForumsladerMetrics(
                 batteryVoltage = batteryVoltage,
                 batteryCurrent = batteryCurrent,
@@ -58,6 +71,26 @@ class ForumsladerParser {
         } else {
             null
         }
+    }
+
+    private fun isTelemetrySentence(payload: String): Boolean {
+        // Extract header to determine if this is a primary telemetry sentence
+        if (!payload.startsWith("$")) return false
+        
+        val starIndex = payload.indexOf('*')
+        val semiIndex = payload.indexOf(';')
+        
+        val dataString: String = when {
+            starIndex != -1 -> payload.substring(1, starIndex)
+            semiIndex != -1 -> payload.substring(1, semiIndex)
+            else -> payload.substring(1)
+        }
+        
+        val header = dataString.split(",").getOrNull(0) ?: return false
+        
+        // Only FL5, FL6, and FLD contain actual telemetry (speed, power, distance)
+        // FLP, FLC, FLB are configuration or environmental and should not trigger emissions
+        return header in listOf("FL5", "FL6", "FLD")
     }
 
     private fun parseAsciiPayload(payload: String): Boolean {
