@@ -1,8 +1,14 @@
 package org.happycode.karoo.forumslader.model
 
+import android.util.Log
 import org.happycode.karoo.forumslader.domain.ForumsladerMetrics
 
 class ForumsladerParser {
+
+    companion object {
+        private const val TAG = "FL_Parser"
+        private const val DEBUG_SENTENCE_PARSING = true // Set to false to reduce verbose logs
+    }
 
     private val frameBuffer = StringBuilder()
 
@@ -26,6 +32,10 @@ class ForumsladerParser {
     // Configuration sentences (FLP, FLC, FLB) should not trigger emissions
     private var hasReceivedTelemetry: Boolean = false
 
+    // Statistics for debugging
+    private var totalFramesParsed: Int = 0
+    private var totalMetricsEmitted: Int = 0
+
     /**
      * Collects incoming byte arrays from the BLE onCharacteristicChanged callback,
      * extracts complete lines, parses them, and returns the updated metrics.
@@ -38,6 +48,8 @@ class ForumsladerParser {
         frameBuffer.append(chunk)
 
         var parsedTelemetry = false
+        var parsedSentenceType: String? = null
+
         while (true) {
             val delimiterIndex = frameBuffer.indexOf("\n")
             if (delimiterIndex == -1) break
@@ -45,19 +57,33 @@ class ForumsladerParser {
             val completeFrame = frameBuffer.substring(0, delimiterIndex).trim()
             frameBuffer.delete(0, delimiterIndex + 1)
 
+            if (completeFrame.isEmpty()) continue
+
+            val sentenceType = extractSentenceType(completeFrame)
             if (parseAsciiPayload(completeFrame)) {
+                totalFramesParsed++
+                
                 // Track if this was a telemetry sentence
                 if (isTelemetrySentence(completeFrame)) {
                     hasReceivedTelemetry = true
                     parsedTelemetry = true
+                    parsedSentenceType = sentenceType
+                    
+                    if (DEBUG_SENTENCE_PARSING) {
+                        Log.d(TAG, "Telemetry sentence parsed: $sentenceType (frame #$totalFramesParsed)")
+                    }
+                } else if (DEBUG_SENTENCE_PARSING) {
+                    Log.d(TAG, "Configuration sentence parsed: $sentenceType (frame #$totalFramesParsed)")
                 }
+            } else if (DEBUG_SENTENCE_PARSING) {
+                Log.d(TAG, "Failed to parse sentence: $sentenceType | Payload: ${completeFrame.take(60)}")
             }
         }
 
         // Only return metrics if we've received a telemetry sentence in this batch
         // (configuration-only frames like FLP, FLC, FLB don't trigger emissions)
         return if (parsedTelemetry && hasReceivedTelemetry) {
-            ForumsladerMetrics(
+            val metrics = ForumsladerMetrics(
                 batteryVoltage = batteryVoltage,
                 batteryCurrent = batteryCurrent,
                 consumerCurrent = consumerCurrent,
@@ -68,8 +94,36 @@ class ForumsladerParser {
                 temperatureCelsius = temperatureCelsius,
                 altitudeMeters = altitudeMeters
             )
+            totalMetricsEmitted++
+            
+            Log.i(TAG, "Metrics emitted (#$totalMetricsEmitted) from $parsedSentenceType | " +
+                "V=${String.format("%.2f", batteryVoltage)}V I=${String.format("%.2f", batteryCurrent)}A " +
+                "Speed=${String.format("%.1f", speedKmh)}km/h Trip=${String.format("%.2f", tripDistanceKm)}km " +
+                "Batt=$batteryLevelPct% Temp=${String.format("%.1f", temperatureCelsius)}°C " +
+                "[Config: WS=$wheelsize poles=$poles V6=$isV6]")
+            
+            metrics
         } else {
             null
+        }
+    }
+
+    private fun extractSentenceType(payload: String): String {
+        return try {
+            if (!payload.startsWith("$")) return "UNKNOWN"
+            
+            val starIndex = payload.indexOf('*')
+            val semiIndex = payload.indexOf(';')
+            
+            val dataString: String = when {
+                starIndex != -1 -> payload.substring(1, starIndex)
+                semiIndex != -1 -> payload.substring(1, semiIndex)
+                else -> payload.substring(1)
+            }
+            
+            dataString.split(",").getOrNull(0) ?: "UNKNOWN"
+        } catch (e: Exception) {
+            "ERROR"
         }
     }
 
@@ -121,7 +175,9 @@ class ForumsladerParser {
                 }
                 val expectedParity = checksumString.toIntOrNull(16)
                 if (expectedParity != null && calculatedParity != expectedParity) {
-                    return false // Checksum mismatch
+                    Log.w(TAG, "Checksum mismatch for ${dataString.split(",").getOrNull(0)}: " +
+                        "expected=$checksumString calculated=${calculatedParity.toString(16).uppercase()}")
+                    return false
                 }
             }
 
@@ -130,7 +186,12 @@ class ForumsladerParser {
 
             when (header) {
                 "FL5", "FL6" -> {
+                    val prevIsV6 = isV6
                     isV6 = (header == "FL6")
+                    if (prevIsV6 != isV6) {
+                        Log.i(TAG, "Device version changed: V5/V6 mode is now $isV6")
+                    }
+                    
                     val frequency = tokens.getOrNull(3)?.toFloatOrNull() ?: 0f
                     val cell1 = tokens.getOrNull(4)?.toFloatOrNull() ?: 0f
                     val cell2 = tokens.getOrNull(5)?.toFloatOrNull() ?: 0f
@@ -148,23 +209,43 @@ class ForumsladerParser {
                     val imp2odo = wheelsize.toDouble() / poles.toDouble() / 1000000.0 * (if (isV6) 1.0 else 4096.0)
                     tripDistanceKm = (impulseCounter * imp2odo).toFloat()
                     totalDistanceKm = tripDistanceKm
+                    
+                    if (DEBUG_SENTENCE_PARSING) {
+                        Log.d(TAG, "$header: freq=$frequency impulse=$impulseCounter " +
+                            "-> speed=${String.format("%.1f", speedKmh)}km/h trip=${String.format("%.2f", tripDistanceKm)}km")
+                    }
                     true
                 }
                 "FLB" -> {
                     temperatureCelsius = (tokens.getOrNull(1)?.toFloatOrNull() ?: 0f) / 10f
                     altitudeMeters = (tokens.getOrNull(3)?.toFloatOrNull() ?: 0f) / 10f
+                    
+                    if (DEBUG_SENTENCE_PARSING) {
+                        Log.d(TAG, "FLB: temp=${String.format("%.1f", temperatureCelsius)}°C alt=${String.format("%.1f", altitudeMeters)}m")
+                    }
                     true
                 }
                 "FLC" -> {
                     val setnr = tokens.getOrNull(1)
                     if (setnr == "5") {
                         batteryLevelPct = tokens.getOrNull(3)?.toIntOrNull() ?: batteryLevelPct
+                        if (DEBUG_SENTENCE_PARSING) {
+                            Log.d(TAG, "FLC: battery level set to $batteryLevelPct%")
+                        }
                     }
                     true
                 }
                 "FLP" -> {
-                    wheelsize = tokens.getOrNull(1)?.toIntOrNull() ?: wheelsize
-                    poles = tokens.getOrNull(2)?.toIntOrNull() ?: poles
+                    val newWheelsize = tokens.getOrNull(1)?.toIntOrNull() ?: wheelsize
+                    val newPoles = tokens.getOrNull(2)?.toIntOrNull() ?: poles
+                    
+                    if (newWheelsize != wheelsize || newPoles != poles) {
+                        Log.i(TAG, "Configuration updated: wheelsize $wheelsize -> $newWheelsize mm, " +
+                            "poles $poles -> $newPoles (pole pairs)")
+                    }
+                    
+                    wheelsize = newWheelsize
+                    poles = newPoles
                     true
                 }
                 "FLD" -> {
@@ -192,11 +273,20 @@ class ForumsladerParser {
                     val kmCounter = tokens.getOrNull(14)?.toFloatOrNull() ?: 0f
                     tripDistanceKm = kmCounter
                     totalDistanceKm = kmCounter
+                    
+                    if (DEBUG_SENTENCE_PARSING) {
+                        Log.d(TAG, "FLD: freq=$frequency -> speed=${String.format("%.1f", speedKmh)}km/h " +
+                            "distance=${String.format("%.2f", kmCounter)}km battery=$batteryLevelPct%")
+                    }
                     true
                 }
-                else -> false
+                else -> {
+                    Log.w(TAG, "Unknown sentence type: $header")
+                    false
+                }
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.e(TAG, "Parse error in payload: ${payload.take(100)}", e)
             false
         }
     }
