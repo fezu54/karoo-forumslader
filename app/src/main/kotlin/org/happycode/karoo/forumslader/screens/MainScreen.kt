@@ -61,7 +61,7 @@ fun MainScreen() {
         )
 
         val listeners = types.map { typeId ->
-            val dataTypeId = "$extensionId:$typeId"
+            val dataTypeId = DataType.dataTypeId(extensionId, typeId)
             karooSystem.addConsumer(OnStreamState.StartStreaming(dataTypeId)) { event: OnStreamState ->
                 sensorState = event.state
                 (event.state as? StreamState.Streaming)?.dataPoint?.values?.get(DataType.Field.SINGLE)?.let { value ->
