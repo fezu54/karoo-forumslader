@@ -90,6 +90,12 @@ class Forumslader(
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
             if (status != BluetoothGatt.GATT_SUCCESS) return
 
+            Log.i("FL_BLE", "Services discovered on device:")
+            gatt.services.forEach { s ->
+                val charsInfo = s.characteristics.joinToString { c -> "${c.uuid.toString().substring(0, 8)}(props=${c.properties})" }
+                Log.i("FL_BLE", "Service: ${s.uuid.toString().substring(0, 8)} | Chars: $charsInfo")
+            }
+
             val service = gatt.getService(SERVICE_UUID_V5) ?: gatt.getService(SERVICE_UUID_V6)
             val characteristic = service?.getCharacteristic(CHARACTERISTIC_UART_TX_RX)
                 ?: service?.getCharacteristic(CHARACTERISTIC_UART_RX_V6)
