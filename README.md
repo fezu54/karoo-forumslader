@@ -31,7 +31,7 @@ Following the project's [Agents Guidelines](agents.md), the codebase is organize
 
 ## Acknowledgments
 
-This project is heavily influenced by and takes inspiration from [cyberman54/Forumslader-Companion](https://github.com/cyberman54/Forumslader-Companion). We are grateful for their excellent work on the Forumslader communication protocol implementation, which served as a blueprint for our Bluetooth Low Energy communication approach in this extension. Special thanks to the original project for paving the way!
+This project is heavily influenced by and takes inspiration from [cyberman54/Forumslader-Companion](https://github.com/cyberman54/Forumslader-Companion). I'm grateful for the excellent work on the Forumslader communication protocol implementation, which served as a blueprint for my Bluetooth Low Energy communication approach in this extension. Special thanks for paving the way!
 
 ## Links
 
