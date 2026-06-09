@@ -6,7 +6,7 @@ This project is a [Hammerhead Karoo](https://www.hammerhead.io/) extension that 
 
 ## Purpose
 
-The extension allows Karoo users to monitor real-time data from their Forumslader device directly on their head unit. It handles device discovery, establishes a secure Bluetooth Low Energy (BLE) connection, and parses the Forumslader's UART data stream to provide actionable insights during your ride.
+The extension allows Karoo users to monitor real-time data from their Forumslader device directly on their head unit. It handles device discovery, establishes a secure Bluetooth Low Energy (BLE) connection, and streams live sensor data.
 
 ## Key Features
 
@@ -29,7 +29,12 @@ Following the project's [Agents Guidelines](agents.md), the codebase is organize
 - Forumslader with Bluetooth (BLE) support
 - Android 8.0 (API 26) or higher (as per Karoo SDK)
 
+## Acknowledgments
+
+This project is heavily influenced by and takes inspiration from [cyberman54/Forumslader-Companion](https://github.com/cyberman54/Forumslader-Companion). We are grateful for their excellent work on the Forumslader communication protocol implementation, which served as a blueprint for our Bluetooth Low Energy communication approach in this extension. Special thanks to the original project for paving the way!
+
 ## Links
 
 - [Hammerhead Karoo SDK Documentation](https://hammerheadnav.github.io/karoo-ext/index.html)
 - [Forumslader Official Website](http://www.forumslader.de/)
+- [Forumslader-Companion (Inspiration)](https://github.com/cyberman54/Forumslader-Companion)
