@@ -1,7 +1,5 @@
 # Karoo Forumslader Extension
 
-⚠️ **This project is currently WIP and not ready** ⚠️s
-
 This project is a [Hammerhead Karoo](https://www.hammerhead.io/) extension that integrates the **Forumslader** (a versatile bike dynamo charger and battery system) into your Karoo cycling computer.
 
 ## Purpose
