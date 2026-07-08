@@ -34,6 +34,18 @@ class ForumsladerTest {
         every { Log.e(any<String>(), any<String>()) } returns 0
         every { Log.e(any<String>(), any<String>(), any<Throwable>()) } returns 0
 
+        mockkStatic(android.os.Looper::class)
+        every { android.os.Looper.getMainLooper() } returns mockk(relaxed = true)
+
+        io.mockk.mockkConstructor(android.os.Handler::class)
+        every { anyConstructed<android.os.Handler>().post(any()) } answers {
+            val runnable = firstArg<Runnable>()
+            runnable.run()
+            true
+        }
+        every { anyConstructed<android.os.Handler>().postDelayed(any(), any()) } returns true
+        every { anyConstructed<android.os.Handler>().removeCallbacks(any<Runnable>()) } returns Unit
+
         context = mockk(relaxed = true)
         bluetoothManager = mockk(relaxed = true)
         bluetoothAdapter = mockk(relaxed = true)

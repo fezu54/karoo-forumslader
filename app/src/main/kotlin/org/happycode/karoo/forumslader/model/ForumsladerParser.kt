@@ -27,6 +27,8 @@ class ForumsladerParser {
     private var wheelsize: Int = 2200 // default fallback in mm
     private var poles: Int = 14       // default fallback (pole pairs)
     private var isV6: Boolean = true   // default fallback
+    var isConfigLoaded: Boolean = false
+        private set
 
     // Track whether we've received a primary telemetry sentence (FL5/FL6/FLD)
     // Configuration sentences (FLP, FLC, FLB) should not trigger emissions
@@ -230,6 +232,7 @@ class ForumsladerParser {
                     
                     wheelsize = newWheelsize
                     poles = newPoles
+                    isConfigLoaded = true
                     true
                 }
                 "FLD" -> {
@@ -273,5 +276,9 @@ class ForumsladerParser {
             Log.e(TAG, "Parse error in payload: ${payload.take(100)}", e)
             false
         }
+    }
+
+    fun resetConfigLoaded() {
+        isConfigLoaded = false
     }
 }

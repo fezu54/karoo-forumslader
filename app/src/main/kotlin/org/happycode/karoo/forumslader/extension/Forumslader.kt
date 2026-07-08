@@ -42,6 +42,9 @@ class Forumslader(
     private var currentEmitter: Emitter<DeviceEvent>? = null
     private val mainHandler by lazy { android.os.Handler(android.os.Looper.getMainLooper()) }
     private var reconnectRunnable: Runnable? = null
+    private var connectionTimeoutRunnable: Runnable? = null
+    private var parameterRequestRunnable: Runnable? = null
+    private var cccdRetryCount = 0
 
     val device: Device = Device(
         extension = "karoo-forumslader",
@@ -58,25 +61,19 @@ class Forumslader(
     private val gattCallback = object : BluetoothGattCallback() {
         @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
-            Log.d("FL_BLE", "onConnectionStateChange: status=$status, newState=$newState")
-            val emitter = currentEmitter ?: return
+            mainHandler.post {
+                Log.d("FL_BLE", "onConnectionStateChange: status=$status, newState=$newState")
+                val emitter = currentEmitter ?: return@post
 
-            when {
-                status == BluetoothGatt.GATT_SUCCESS && newState == BluetoothProfile.STATE_CONNECTED -> {
+                if (status == BluetoothGatt.GATT_SUCCESS && newState == BluetoothProfile.STATE_CONNECTED) {
                     Log.i("FL_BLE", "Connected to Forumslader, discovering services...")
                     isConnecting = false
                     emitter.onNext(OnConnectionStatus(status = ConnectionStatus.CONNECTED))
                     gatt.discoverServices()
-                }
-                else -> {
+                } else {
                     Log.w("FL_BLE", "Disconnected or connection failed: status=$status, newState=$newState")
-
-                    gatt.close()
-                    if (bluetoothGatt == gatt) {
-                        bluetoothGatt = null
-                    }
-                    isConnecting = false
-
+                    cancelConnectionTimeout()
+                    cleanupConnection()
                     emitter.onNext(OnConnectionStatus(status = ConnectionStatus.SEARCHING))
 
                     if (!isClosed) {
@@ -88,66 +85,36 @@ class Forumslader(
 
         @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
-            if (status != BluetoothGatt.GATT_SUCCESS) return
-
-            Log.i("FL_BLE", "Services discovered on device:")
-            gatt.services.forEach { s ->
-                val charsInfo = s.characteristics.joinToString { c -> "${c.uuid.toString().substring(0, 8)}(props=${c.properties})" }
-                Log.i("FL_BLE", "Service: ${s.uuid.toString().substring(0, 8)} | Chars: $charsInfo")
-            }
-
-            val service = gatt.getService(SERVICE_UUID_V5) ?: gatt.getService(SERVICE_UUID_V6)
-            val characteristic = service?.getCharacteristic(CHARACTERISTIC_UART_TX_RX)
-                ?: service?.getCharacteristic(CHARACTERISTIC_UART_RX_V6)
-                ?: service?.characteristics?.firstOrNull { char ->
-                    (char.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY) != 0 ||
-                    (char.properties and BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0
+            mainHandler.post {
+                if (status != BluetoothGatt.GATT_SUCCESS) {
+                    Log.e("FL_BLE", "Service discovery failed with status $status, disconnecting...")
+                    cancelConnectionTimeout()
+                    cleanupConnection()
+                    if (!isClosed) {
+                        scheduleReconnect()
+                    }
+                    return@post
                 }
 
-            characteristic?.also { char ->
-                uartCharacteristicUuid = char.uuid
-                Log.i("FL_BLE", "Subscribing to UART characteristic: ${char.uuid}")
-                gatt.setCharacteristicNotification(char, true)
+                Log.i("FL_BLE", "Services discovered on device:")
+                gatt.services.forEach { s ->
+                    val charsInfo = s.characteristics.joinToString { c -> "${c.uuid.toString().substring(0, 8)}(props=${c.properties})" }
+                    Log.i("FL_BLE", "Service: ${s.uuid.toString().substring(0, 8)} | Chars: $charsInfo")
+                }
+
+                enableNotifications(gatt)
             }
-                ?.getDescriptor(CLIENT_CHARACTERISTIC_CONFIGURATION_DESCRIPTOR)
-                ?.let { descriptor ->
-                    val value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        gatt.writeDescriptor(descriptor, value)
-                    } else {
-                        @Suppress("DEPRECATION")
-                        descriptor.value = value
-                        @Suppress("DEPRECATION")
-                        gatt.writeDescriptor(descriptor)
-                    }
-                    Log.i("FL_BLE", "Forumslader UART Stream subscribed.")
-                } ?: Log.e("FL_BLE", "Forumslader UART Characteristic or Descriptor not found.")
         }
 
         @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
         override fun onDescriptorWrite(gatt: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
-            if (status == BluetoothGatt.GATT_SUCCESS && descriptor.uuid == CLIENT_CHARACTERISTIC_CONFIGURATION_DESCRIPTOR) {
-                Log.i("FL_BLE", "Descriptor write successful, requesting parameters...")
-                val service = gatt.getService(SERVICE_UUID_V5) ?: gatt.getService(SERVICE_UUID_V6)
-                val isV6 = service?.uuid == SERVICE_UUID_V6
-                val rxChar = service?.let { s ->
-                    if (isV6) {
-                        s.getCharacteristic(CHARACTERISTIC_UART_TX_V6)
-                    } else {
-                        s.getCharacteristic(CHARACTERISTIC_UART_TX_RX)
-                    }
-                }
-                rxChar?.let { char ->
-                    val cmdBytes = $$"$FLT,5*47\n".toByteArray(Charsets.US_ASCII)
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        gatt.writeCharacteristic(char, cmdBytes, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
-                    } else {
-                        @Suppress("DEPRECATION")
-                        char.value = cmdBytes
-                        @Suppress("DEPRECATION")
-                        gatt.writeCharacteristic(char)
-                    }
-                    Log.i("FL_BLE", "Forumslader parameter request command sent.")
+            mainHandler.post {
+                if (descriptor.uuid != CLIENT_CHARACTERISTIC_CONFIGURATION_DESCRIPTOR) return@post
+
+                if (status == BluetoothGatt.GATT_SUCCESS) {
+                    handleCccdWriteSuccess(gatt)
+                } else {
+                    handleCccdWriteFailure(gatt, status)
                 }
             }
         }
@@ -157,10 +124,12 @@ class Forumslader(
             characteristic: BluetoothGattCharacteristic,
             value: ByteArray
         ) {
-            if (characteristic.uuid == uartCharacteristicUuid) {
-                val emitter = currentEmitter ?: return
-                parser.processIncomingBytes(value)?.let { metrics ->
-                    emitMetrics(emitter, metrics)
+            mainHandler.post {
+                if (characteristic.uuid == uartCharacteristicUuid) {
+                    val emitter = currentEmitter ?: return@post
+                    parser.processIncomingBytes(value)?.let { metrics ->
+                        emitMetrics(emitter, metrics)
+                    }
                 }
             }
         }
@@ -175,22 +144,22 @@ class Forumslader(
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     fun connect(emitter: Emitter<DeviceEvent>) {
         Log.i("FL_BLE", "connect() called for Forumslader at $address")
-        isClosed = false
-        currentEmitter = emitter
+        mainHandler.post {
+            isClosed = false
+            currentEmitter = emitter
 
-        emitter.setCancellable {
-            Log.i("FL_BLE", "Disconnecting from Forumslader (cancelled by Karoo)...")
-            isClosed = true
-            reconnectRunnable?.let { mainHandler.removeCallbacks(it) }
-            bluetoothGatt?.run {
-                disconnect()
-                close()
+            emitter.setCancellable {
+                mainHandler.post {
+                    Log.i("FL_BLE", "Disconnecting from Forumslader (cancelled by Karoo)...")
+                    isClosed = true
+                    reconnectRunnable?.let { mainHandler.removeCallbacks(it) }
+                    cleanupConnection()
+                    currentEmitter = null
+                }
             }
-            bluetoothGatt = null
-            currentEmitter = null
-        }
 
-        doConnect()
+            doConnect()
+        }
     }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
@@ -202,6 +171,9 @@ class Forumslader(
         val bluetoothDevice = bluetoothManager.adapter.getRemoteDevice(address)
 
         Log.i("FL_BLE", "Initiating connection to GATT at $address...")
+        
+        scheduleConnectionTimeout()
+        
         bluetoothGatt = bluetoothDevice.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
     }
 
@@ -220,6 +192,157 @@ class Forumslader(
         reconnectRunnable = runnable
         Log.i("FL_BLE", "Scheduling reconnection attempt in 5 seconds...")
         mainHandler.postDelayed(runnable, 5000)
+    }
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    private fun enableNotifications(gatt: BluetoothGatt) {
+        val service = gatt.getService(SERVICE_UUID_V5) ?: gatt.getService(SERVICE_UUID_V6)
+        val characteristic = service?.getCharacteristic(CHARACTERISTIC_UART_TX_RX)
+            ?: service?.getCharacteristic(CHARACTERISTIC_UART_RX_V6)
+            ?: service?.characteristics?.firstOrNull { char ->
+                (char.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY) != 0 ||
+                (char.properties and BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0
+            }
+
+        characteristic?.also { char ->
+            uartCharacteristicUuid = char.uuid
+            Log.i("FL_BLE", "Subscribing to UART characteristic: ${char.uuid}")
+            gatt.setCharacteristicNotification(char, true)
+        }
+            ?.getDescriptor(CLIENT_CHARACTERISTIC_CONFIGURATION_DESCRIPTOR)
+            ?.let { descriptor ->
+                val value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                Log.i("FL_BLE", "Writing CCCD descriptor...")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    gatt.writeDescriptor(descriptor, value)
+                } else {
+                    @Suppress("DEPRECATION")
+                    descriptor.value = value
+                    @Suppress("DEPRECATION")
+                    gatt.writeDescriptor(descriptor)
+                }
+            } ?: Log.e("FL_BLE", "Forumslader UART Characteristic or Descriptor not found.")
+    }
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    private fun handleCccdWriteSuccess(gatt: BluetoothGatt) {
+        cancelConnectionTimeout()
+        cccdRetryCount = 0
+        Log.i("FL_BLE", "Descriptor write successful, starting parameter request loop...")
+        startParameterRequestLoop(gatt)
+    }
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    private fun handleCccdWriteFailure(gatt: BluetoothGatt, status: Int) {
+        Log.w("FL_BLE", "Descriptor write failed with status $status (retry $cccdRetryCount/3)")
+        if (cccdRetryCount >= 3) {
+            Log.e("FL_BLE", "CCCD write max retries reached, reconnecting...")
+            cancelConnectionTimeout()
+            cleanupConnection()
+            if (!isClosed) {
+                scheduleReconnect()
+            }
+            return
+        }
+
+        cccdRetryCount++
+        mainHandler.postDelayed({
+            if (!isClosed && bluetoothGatt == gatt) {
+                enableNotifications(gatt)
+            }
+        }, 1000)
+    }
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    private fun cleanupConnection() {
+        cancelConnectionTimeout()
+        stopParameterRequestLoop()
+        isConnecting = false
+        cccdRetryCount = 0
+        bluetoothGatt?.run {
+            disconnect()
+            close()
+        }
+        bluetoothGatt = null
+        parser.resetConfigLoaded()
+    }
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    private fun scheduleConnectionTimeout() {
+        cancelConnectionTimeout()
+        val runnable = Runnable {
+            if (isConnecting || bluetoothGatt != null) {
+                Log.w("FL_BLE", "Connection attempt timed out after 15 seconds. Cleaning up and retrying...")
+                cleanupConnection()
+                currentEmitter?.onNext(OnConnectionStatus(status = ConnectionStatus.SEARCHING))
+                if (!isClosed) {
+                    scheduleReconnect()
+                }
+            }
+        }
+        connectionTimeoutRunnable = runnable
+        mainHandler.postDelayed(runnable, 15000)
+    }
+
+    private fun cancelConnectionTimeout() {
+        connectionTimeoutRunnable?.let {
+            mainHandler.removeCallbacks(it)
+            connectionTimeoutRunnable = null
+        }
+    }
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    private fun startParameterRequestLoop(gatt: BluetoothGatt) {
+        stopParameterRequestLoop()
+        val runnable = object : Runnable {
+            @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+            override fun run() {
+                if (isClosed || bluetoothGatt != gatt) return
+                if (parser.isConfigLoaded) {
+                    Log.i("FL_BLE", "Forumslader config is loaded, stopping parameter request loop.")
+                    return
+                }
+
+                Log.i("FL_BLE", "Requesting parameters (FLP) from Forumslader...")
+                sendParameterRequest(gatt)
+
+                mainHandler.postDelayed(this, 5000)
+            }
+        }
+        parameterRequestRunnable = runnable
+        mainHandler.post(runnable)
+    }
+
+    private fun stopParameterRequestLoop() {
+        parameterRequestRunnable?.let {
+            mainHandler.removeCallbacks(it)
+            parameterRequestRunnable = null
+        }
+    }
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    private fun sendParameterRequest(gatt: BluetoothGatt) {
+        val service = gatt.getService(SERVICE_UUID_V5) ?: gatt.getService(SERVICE_UUID_V6)
+        val isV6 = service?.uuid == SERVICE_UUID_V6
+        val rxChar = service?.let { s ->
+            if (isV6) {
+                s.getCharacteristic(CHARACTERISTIC_UART_TX_V6)
+            } else {
+                s.getCharacteristic(CHARACTERISTIC_UART_TX_RX)
+            }
+        }
+        rxChar?.let { char ->
+            val cmdBytes = $$"$FLT,5*47\n".toByteArray(Charsets.US_ASCII)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                gatt.writeCharacteristic(char, cmdBytes, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+            } else {
+                @Suppress("DEPRECATION")
+                char.value = cmdBytes
+                @Suppress("DEPRECATION")
+                gatt.writeCharacteristic(char)
+            }
+            Log.d("FL_BLE", "Forumslader parameter request command bytes written.")
+        } ?: Log.w("FL_BLE", "Command characteristic not found for parameter request.")
     }
 
     private fun emitMetrics(emitter: Emitter<DeviceEvent>, metrics: ForumsladerMetrics) {
