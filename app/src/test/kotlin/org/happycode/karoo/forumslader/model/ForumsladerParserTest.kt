@@ -182,4 +182,25 @@ class ForumsladerParserTest {
         assertEquals(65, result?.batteryLevelPct) // stage 5 = 65%
         assertEquals(10.2f, result?.tripDistanceKm ?: 0f, 0.01f)
     }
+
+    @Test
+    fun `should track and reset config loaded status`() {
+        // given
+        val configPayload = "\$FLP,2000,10,0,0,0,0,0,1000"
+        
+        // then: initially config is not loaded
+        assertEquals(false, parser.isConfigLoaded)
+        
+        // when: config sentence is processed
+        parser.processIncomingBytes(withChecksum(configPayload).toByteArray())
+        
+        // then: config is loaded
+        assertEquals(true, parser.isConfigLoaded)
+        
+        // when: reset is called
+        parser.resetConfigLoaded()
+        
+        // then: config is reset to false
+        assertEquals(false, parser.isConfigLoaded)
+    }
 }
