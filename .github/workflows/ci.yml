@@ -1,0 +1,91 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Restore baseline coverage
+        uses: actions/cache/restore@v6
+        with:
+          path: .github/coverage-baseline.txt
+          key: coverage-main-${{ github.event.pull_request.base.sha }}
+          restore-keys: |
+            coverage-main-
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Run tests and verify coverage
+        env:
+          USERNAME: ${{ github.actor }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ./gradlew :app:checkCoverageBaseline
+
+      - name: Save baseline coverage
+        if: github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v6
+        with:
+          path: .github/coverage-baseline.txt
+          key: coverage-main-${{ github.sha }}
+
+      - name: Check commit message for release criteria
+        if: github.ref == 'refs/heads/main'
+        id: check_commit
+        run: |
+          commit_msg=$(git log -1 --pretty=%B)
+          echo "Commit message:"
+          echo "$commit_msg"
+          if echo "$commit_msg" | grep -qE '^(feat|fix|refactor)(\(.*\))?(\!)?:'; then
+            echo "should_release=true" >> $GITHUB_ENV
+            echo "Matches release criteria (feat/fix/refactor)."
+          else
+            echo "should_release=false" >> $GITHUB_ENV
+            echo "Does not match release criteria."
+          fi
+
+      - name: Build productive release APK
+        if: github.ref == 'refs/heads/main' && env.should_release == 'true'
+        env:
+          USERNAME: ${{ github.actor }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ./gradlew :app:assembleRelease
+
+      - name: Create GitHub Release
+        if: github.ref == 'refs/heads/main' && env.should_release == 'true'
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Release v1.0.${{ github.run_number }}
+          draft: false
+          prerelease: false
+          files: app/build/outputs/apk/release/app-release.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
