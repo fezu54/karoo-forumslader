@@ -34,6 +34,7 @@ import io.hammerhead.karooext.KarooSystemService
 import io.hammerhead.karooext.models.DataType
 import io.hammerhead.karooext.models.OnStreamState
 import io.hammerhead.karooext.models.StreamState
+import io.hammerhead.karooext.models.UserProfile
 import org.happycode.karoo.forumslader.R
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
@@ -47,6 +48,7 @@ fun MainScreen() {
     val karooSystem = remember { KarooSystemService(context) }
     var connected by remember { mutableStateOf(false) }
     var sensorState by remember { mutableStateOf<StreamState>(StreamState.Idle) }
+    var userProfile by remember { mutableStateOf<UserProfile?>(null) }
     val metrics = remember { mutableStateMapOf<String, Double>() }
 
     DisposableEffect(karooSystem) {
@@ -60,14 +62,20 @@ fun MainScreen() {
             DataFieldId.TRIP_DISTANCE
         )
 
-        val listeners = types.map { typeId ->
+        val listeners = mutableListOf<String>()
+        
+        listeners.add(karooSystem.addConsumer { profile: UserProfile ->
+            userProfile = profile
+        })
+
+        types.forEach { typeId ->
             val dataTypeId = DataType.dataTypeId(extensionId, typeId)
-            karooSystem.addConsumer(OnStreamState.StartStreaming(dataTypeId)) { event: OnStreamState ->
+            listeners.add(karooSystem.addConsumer(OnStreamState.StartStreaming(dataTypeId)) { event: OnStreamState ->
                 sensorState = event.state
                 (event.state as? StreamState.Streaming)?.dataPoint?.values?.get(DataType.Field.SINGLE)?.let { value ->
                     metrics[typeId] = value
                 }
-            }
+            })
         }
 
         onDispose {
@@ -76,12 +84,12 @@ fun MainScreen() {
         }
     }
 
-    MainScreenContent(connected = connected, sensorState = sensorState, metrics = metrics)
+    MainScreenContent(connected = connected, sensorState = sensorState, metrics = metrics, userProfile = userProfile)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreenContent(connected: Boolean, sensorState: StreamState, metrics: Map<String, Double>) {
+fun MainScreenContent(connected: Boolean, sensorState: StreamState, metrics: Map<String, Double>, userProfile: UserProfile?) {
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -98,7 +106,7 @@ fun MainScreenContent(connected: Boolean, sensorState: StreamState, metrics: Map
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             StatusCard(connected = connected, sensorState = sensorState)
-            MetricsList(metrics = metrics)
+            MetricsList(metrics = metrics, userProfile = userProfile)
         }
     }
 }
@@ -156,10 +164,11 @@ fun StatusCard(connected: Boolean, sensorState: StreamState) {
 }
 
 @Composable
-fun MetricsList(metrics: Map<String, Double>) {
+fun MetricsList(metrics: Map<String, Double>, userProfile: UserProfile?) {
     val context = LocalContext.current
     val adapter = remember { ForumsladerDataFieldsAdapter(context) }
     val names = remember { adapter.getDataFieldNames() }
+    val isImperial = userProfile?.preferredUnit?.distance == UserProfile.PreferredUnit.UnitType.IMPERIAL
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -169,9 +178,35 @@ fun MetricsList(metrics: Map<String, Double>) {
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             names.forEach { (id, name) ->
+                val rawValue = metrics[id]
+                val formattedValue = when (id) {
+                    DataFieldId.SPEED -> {
+                        rawValue?.let {
+                            val speedKmh = it * 3.6
+                            if (isImperial) {
+                                String.format(Locale.getDefault(), "%.1f mph", speedKmh * 0.621371)
+                            } else {
+                                String.format(Locale.getDefault(), "%.1f km/h", speedKmh)
+                            }
+                        } ?: "---"
+                    }
+                    DataFieldId.TRIP_DISTANCE -> {
+                        rawValue?.let {
+                            val distanceKm = it / 1000.0
+                            if (isImperial) {
+                                String.format(Locale.getDefault(), "%.2f mi", distanceKm * 0.621371)
+                            } else {
+                                String.format(Locale.getDefault(), "%.2f km", distanceKm)
+                            }
+                        } ?: "---"
+                    }
+                    DataFieldId.BATTERY_LEVEL -> rawValue?.let { String.format(Locale.getDefault(), "%d%%", it.toInt()) } ?: "---"
+                    DataFieldId.CONSUMER_CURRENT -> rawValue?.let { String.format(Locale.getDefault(), "%.1f A", it) } ?: "---"
+                    else -> rawValue?.let { String.format(Locale.getDefault(), "%.1f", it) } ?: "---"
+                }
                 MetricItem(
                     label = name,
-                    value = metrics[id]?.let { String.format(Locale.getDefault(), "%.1f", it) } ?: "---"
+                    value = formattedValue
                 )
                 if (id != names.keys.last()) {
                     HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
@@ -205,8 +240,9 @@ fun MainScreenPreview() {
                 MetricsList(
                     metrics = mapOf(
                         DataFieldId.BATTERY_LEVEL to 85.0,
-                        DataFieldId.SPEED to 25.4
-                    )
+                        DataFieldId.SPEED to 7.05 // ~25.4 km/h
+                    ),
+                    userProfile = null
                 )
             }
         }

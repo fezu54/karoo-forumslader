@@ -2,6 +2,7 @@ package org.happycode.karoo.forumslader.model
 
 import android.util.Log
 import io.mockk.every
+import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import org.junit.jupiter.api.AfterEach
@@ -54,19 +55,20 @@ class ForumsladerParserTest {
         // when
         val result = parser.processIncomingBytes(data)
 
-        // then: default wheelsize=2200, poles=14, isV6=true
+        // then: default wheelsize=2200, poles=14, V6 scaling (0.1x freq, 1.0x impulse)
         // batteryVoltage = (4100 + 4120 + 4110) / 1000 = 12.33
         // batteryCurrent = -150 / 1000 = -0.15
         // consumerCurrent = 250 / 1000 = 0.25
-        // freq2speed = 2200 / 14 * 0.0036 / 10 = 0.05657143
-        // speedKmh = 100 * 0.05657143 = 5.657143
-        // imp2odo = 2200 / 14 / 1000000.0 * 1.0 = 0.00015714
-        // tripDistanceKm = 12345 * 0.00015714 = 1.9398571
+        // freq2speed = 2200 / 14 / 1000 * 0.1 = 0.01571428
+        // speedMs = 100 * 0.01571428 = 1.571428
+        // imp2odo = 2200 / 14 / 1000.0 * 1.0 = 0.15714
+        // tripDistanceMeters = 12345 * 0.15714 = 1939.8571
         assertEquals(12.33f, result?.batteryVoltage ?: 0f, 0.01f)
         assertEquals(-0.15f, result?.batteryCurrent ?: 0f, 0.01f)
         assertEquals(0.25f, result?.consumerCurrent ?: 0f, 0.01f)
-        assertEquals(5.66f, result?.speedKmh ?: 0f, 0.01f)
-        assertEquals(1.94f, result?.tripDistanceKm ?: 0f, 0.01f)
+        assertEquals(1.57f, result?.speedMs ?: 0f, 0.01f)
+        assertEquals(1939.93, result?.tripDistanceMeters ?: 0.0, 0.01)
+        assertEquals(ForumsladerVersion.V6, parser.version)
     }
 
     @Test
@@ -109,12 +111,12 @@ class ForumsladerParserTest {
         val result = parser.processIncomingBytes(withChecksum(fl6Payload).toByteArray())
 
         // then: wheelsize=2000, poles=10, isV6=true
-        // freq2speed = 2000 / 10 * 0.0036 / 10 = 0.072
-        // speedKmh = 100 * 0.072 = 7.2
-        // imp2odo = 2000 / 10 / 1000000.0 * 1.0 = 0.0002
-        // tripDistanceKm = 12345 * 0.0002 = 2.469
-        assertEquals(7.20f, result?.speedKmh ?: 0f, 0.01f)
-        assertEquals(2.47f, result?.tripDistanceKm ?: 0f, 0.01f)
+        // freq2speed = 2000 / 10 / 1000 / 10 = 0.02
+        // speedMs = 100 * 0.02 = 2.0
+        // imp2odo = 2000 / 10 / 1000.0 * 1.0 = 0.2
+        // tripDistanceMeters = 12345 * 0.2 = 2469.0
+        assertEquals(2.0f, result?.speedMs ?: 0f, 0.01f)
+        assertEquals(2469.0, result?.tripDistanceMeters ?: 0.0, 0.01)
     }
 
     @Test
@@ -180,7 +182,58 @@ class ForumsladerParserTest {
         assertEquals(0.8f, result?.batteryCurrent ?: 0f, 0.01f)
         assertEquals(0.2f, result?.consumerCurrent ?: 0f, 0.01f)
         assertEquals(65, result?.batteryLevelPct) // stage 5 = 65%
-        assertEquals(10.2f, result?.tripDistanceKm ?: 0f, 0.01f)
+        assertEquals(10200.0, result?.tripDistanceMeters ?: 0.0, 0.01)
+        // Assume V6 default for FLD if not detected otherwise
+        assertEquals(ForumsladerVersion.Unknown, parser.version)
+    }
+
+    @Test
+    fun `should parse FL5 sentence and use V5 scaling`() {
+        // given
+        // $FL5,status,gear,frequency,cell1,cell2,cell3,battCurrent,loadCurrent,...,impulseCounter
+        val payload = $$"$FL5,0,0,100,4100,4120,4110,-150,250,0,0,0,0,12345"
+        val data = withChecksum(payload).toByteArray()
+
+        // when
+        val result = parser.processIncomingBytes(data)
+
+        // then: wheelsize=2200, poles=14, V5 scaling (1.0f freq, 4096.0 impulse)
+        // freq2speed = 2200 / 14 / 1000 * 1.0 = 0.1571428
+        // speedMs = 100 * 0.1571428 = 15.71428
+        // imp2odo = 2200 / 14 / 1000.0 * 4096.0 = 643.6571
+        // tripDistanceMeters = 12345 * 643.6571 = 7945947.43
+        assertEquals(15.71f, result?.speedMs ?: 0f, 0.01f)
+        assertEquals(7945947.43, result?.tripDistanceMeters ?: 0.0, 1.0)
+        assertEquals(ForumsladerVersion.V5, parser.version)
+    }
+
+    @Test
+    fun `should save configuration to persistent storage when FLP is parsed`() {
+        // given
+        val mockConfig = mockk<ForumsladerConfig>(relaxed = true)
+        val parserWithConfig = ForumsladerParser(mockConfig)
+        val configPayload = withChecksum($$"$FLP,2100,28,0,0,0,0,0,1000")
+
+        // when
+        parserWithConfig.processIncomingBytes(configPayload.toByteArray())
+
+        // then
+        io.mockk.verify { mockConfig.wheelsize = 2100 }
+        io.mockk.verify { mockConfig.poles = 28 }
+    }
+
+    @Test
+    fun `should save version to persistent storage when FL6 is parsed`() {
+        // given
+        val mockConfig = mockk<ForumsladerConfig>(relaxed = true)
+        val parserWithConfig = ForumsladerParser(mockConfig)
+        val fl6Payload = withChecksum($$"$FL6,0,0,100,4100,4120,4110,-150,250,0,0,0,12345")
+
+        // when
+        parserWithConfig.processIncomingBytes(fl6Payload.toByteArray())
+
+        // then
+        io.mockk.verify { mockConfig.version = ForumsladerVersion.V6 }
     }
 
     @Test

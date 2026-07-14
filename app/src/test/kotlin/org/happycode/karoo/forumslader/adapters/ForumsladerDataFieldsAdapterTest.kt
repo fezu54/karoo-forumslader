@@ -20,9 +20,9 @@ class ForumsladerDataFieldsAdapterTest {
             batteryCurrent = 1.5f,
             consumerCurrent = 2.5f,
             batteryLevelPct = 75,
-            speedKmh = 25.3f,
-            tripDistanceKm = 12.7f,
-            totalDistanceKm = 100.5f,
+            speedMs = 7.03f, // 25.3 km/h / 3.6
+            tripDistanceMeters = 12700.0,
+            totalDistanceMeters = 100500.0,
             temperatureCelsius = 22.5f,
             altitudeMeters = 150f
         )
@@ -33,8 +33,8 @@ class ForumsladerDataFieldsAdapterTest {
         // then
         assertEquals(75, values[ForumsladerDataFieldsAdapter.DataFieldId.BATTERY_LEVEL])
         assertEquals(2.5f, values[ForumsladerDataFieldsAdapter.DataFieldId.CONSUMER_CURRENT])
-        assertEquals(25.3f, values[ForumsladerDataFieldsAdapter.DataFieldId.SPEED])
-        assertEquals(12.7f, values[ForumsladerDataFieldsAdapter.DataFieldId.TRIP_DISTANCE])
+        assertEquals(7.03f, values[ForumsladerDataFieldsAdapter.DataFieldId.SPEED])
+        assertEquals(12700.0, values[ForumsladerDataFieldsAdapter.DataFieldId.TRIP_DISTANCE])
     }
 
     @Test
@@ -45,9 +45,9 @@ class ForumsladerDataFieldsAdapterTest {
             batteryCurrent = 1.5f,
             consumerCurrent = 2.5f,
             batteryLevelPct = 75,
-            speedKmh = 25.3f,
-            tripDistanceKm = 12.7f,
-            totalDistanceKm = 100.5f,
+            speedMs = 7.03f,
+            tripDistanceMeters = 12700.0,
+            totalDistanceMeters = 100500.0,
             temperatureCelsius = 22.5f,
             altitudeMeters = 150f
         )

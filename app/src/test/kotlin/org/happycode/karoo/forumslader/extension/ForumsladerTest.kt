@@ -47,6 +47,9 @@ class ForumsladerTest {
         every { anyConstructed<android.os.Handler>().removeCallbacks(any<Runnable>()) } returns Unit
 
         context = mockk(relaxed = true)
+        val mockPrefs = mockk<android.content.SharedPreferences>(relaxed = true)
+        every { context.getSharedPreferences(any(), any()) } returns mockPrefs
+
         bluetoothManager = mockk(relaxed = true)
         bluetoothAdapter = mockk(relaxed = true)
         bluetoothDevice = mockk(relaxed = true)

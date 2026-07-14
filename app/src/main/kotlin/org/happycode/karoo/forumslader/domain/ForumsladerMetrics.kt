@@ -8,9 +8,9 @@ data class ForumsladerMetrics(
     val batteryLevelPct: Int,      
 
     // Driving dynamics (natively calculated from the dynamo frequency)
-    val speedKmh: Float,           
-    val tripDistanceKm: Float,     
-    val totalDistanceKm: Float,   
+    val speedMs: Float,           
+    val tripDistanceMeters: Double,     
+    val totalDistanceMeters: Double,
 
     // environmental data
     val temperatureCelsius: Float,
