@@ -8,6 +8,7 @@ androidxLifecycle = "2.11.0"
 androidxActivity = "1.13.0"
 androidxComposeUi = "1.11.4"
 androidxComposeMaterial = "1.4.0"
+androidxComposeIcons = "1.7.8"
 androidxComposeUiTest = "1.11.4"
 junit = "6.1.2"
 junit-platform = "6.1.2"
@@ -34,6 +35,7 @@ androidx-compose-ui = { module = "androidx.compose.ui:ui", version.ref = "androi
 androidx-compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview", version.ref = "androidxComposeUi" }
 androidx-compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling", version.ref = "androidxComposeUi" }
 androidx-compose-material = { module = "androidx.compose.material3:material3", version.ref = "androidxComposeMaterial" }
+androidx-compose-icons-extended = { module = "androidx.compose.material:material-icons-extended", version.ref = "androidxComposeIcons" }
 
 # testing
 androidx-compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4", version.ref = "androidxComposeUiTest" }

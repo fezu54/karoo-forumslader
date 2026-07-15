@@ -4,17 +4,22 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.HourglassEmpty
+import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material3.Card
-import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -38,13 +43,15 @@ import io.hammerhead.karooext.models.UserProfile
 import org.happycode.karoo.forumslader.R
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
+import org.happycode.karoo.forumslader.model.ForumsladerConfig
 import org.happycode.karoo.forumslader.theme.AppTheme
-import java.util.*
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen() {
     val context = LocalContext.current
+    val config = remember { ForumsladerConfig(context) }
     val karooSystem = remember { KarooSystemService(context) }
     var connected by remember { mutableStateOf(false) }
     var sensorState by remember { mutableStateOf<StreamState>(StreamState.Idle) }
@@ -84,19 +91,13 @@ fun MainScreen() {
         }
     }
 
-    MainScreenContent(connected = connected, sensorState = sensorState, metrics = metrics, userProfile = userProfile)
+    MainScreenContent(connected = connected, sensorState = sensorState, metrics = metrics, userProfile = userProfile, config = config)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreenContent(connected: Boolean, sensorState: StreamState, metrics: Map<String, Double>, userProfile: UserProfile?) {
-    Scaffold(
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text(text = stringResource(id = R.string.app_name)) }
-            )
-        }
-    ) { padding ->
+fun MainScreenContent(connected: Boolean, sensorState: StreamState, metrics: Map<String, Double>, userProfile: UserProfile?, config: ForumsladerConfig) {
+    Scaffold { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -106,6 +107,7 @@ fun MainScreenContent(connected: Boolean, sensorState: StreamState, metrics: Map
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             StatusCard(connected = connected, sensorState = sensorState)
+            ConfigCard(config = config)
             MetricsList(metrics = metrics, userProfile = userProfile)
         }
     }
@@ -146,17 +148,32 @@ fun StatusCard(connected: Boolean, sensorState: StreamState) {
                     text = "Forumslader Device",
                     style = MaterialTheme.typography.bodyLarge
                 )
-                val (statusText, statusColor) = when (sensorState) {
-                    is StreamState.Streaming -> "Connected" to MaterialTheme.colorScheme.primary
-                    is StreamState.Searching -> "Searching" to MaterialTheme.colorScheme.secondary
-                    is StreamState.NotAvailable -> "Not Available" to MaterialTheme.colorScheme.error
-                    else -> "Disconnected" to MaterialTheme.colorScheme.outline
+                val (statusIcon, statusColor, statusDesc) = when (sensorState) {
+                    is StreamState.Streaming -> Triple(
+                        Icons.Default.CheckCircle,
+                        MaterialTheme.colorScheme.primary,
+                        "Connected"
+                    )
+                    is StreamState.Searching -> Triple(
+                        Icons.Default.HourglassEmpty,
+                        MaterialTheme.colorScheme.secondary,
+                        "Searching"
+                    )
+                    is StreamState.NotAvailable -> Triple(
+                        Icons.Default.Cancel,
+                        MaterialTheme.colorScheme.error,
+                        "Not Available"
+                    )
+                    else -> Triple(
+                        Icons.Default.LinkOff,
+                        MaterialTheme.colorScheme.outline,
+                        "Disconnected"
+                    )
                 }
-                Text(
-                    text = statusText,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = statusColor
+                Icon(
+                    imageVector = statusIcon,
+                    contentDescription = statusDesc,
+                    tint = statusColor
                 )
             }
         }
@@ -227,24 +244,55 @@ fun MetricItem(label: String, value: String) {
     }
 }
 
+@Composable
+fun ConfigCard(config: ForumsladerConfig) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "Configuration",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+            ConfigItem(label = "Wheel Size", value = "${config.wheelsize} mm")
+            ConfigItem(label = "Poles", value = "${config.poles}")
+            ConfigItem(label = "Version", value = config.version.key)
+        }
+    }
+}
+
+@Composable
+fun ConfigItem(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(text = label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(text = value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
 @Preview(showBackground = true, widthDp = 256, heightDp = 426)
 @Composable
 fun MainScreenPreview() {
     AppTheme {
-        Surface {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                StatusCard(connected = true, sensorState = StreamState.Streaming(io.hammerhead.karooext.models.DataPoint("", emptyMap(), "")))
-                MetricsList(
-                    metrics = mapOf(
-                        DataFieldId.BATTERY_LEVEL to 85.0,
-                        DataFieldId.SPEED to 7.05 // ~25.4 km/h
-                    ),
-                    userProfile = null
-                )
-            }
-        }
+        MainScreenContent(
+            connected = true,
+            sensorState = StreamState.Streaming(io.hammerhead.karooext.models.DataPoint("", emptyMap(), "")),
+            metrics = mapOf(
+                DataFieldId.BATTERY_LEVEL to 85.0,
+                DataFieldId.SPEED to 7.05 // ~25.4 km/h
+            ),
+            userProfile = null,
+            config = ForumsladerConfig(LocalContext.current)
+        )
     }
 }
