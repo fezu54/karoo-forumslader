@@ -1,6 +1,6 @@
 [versions]
-agp = "9.2.1"
-kotlin = "2.4.0"
+agp = "9.3.0"
+kotlin = "2.4.10"
 kover = "0.9.8"
 
 androidxCore = "1.19.0"
