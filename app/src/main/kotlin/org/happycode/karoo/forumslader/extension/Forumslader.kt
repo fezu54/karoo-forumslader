@@ -27,14 +27,17 @@ import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.CHARACTERISTI
 import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.CLIENT_CHARACTERISTIC_CONFIGURATION_DESCRIPTOR
 import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.SERVICE_UUID_V5
 import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.SERVICE_UUID_V6
+import org.happycode.karoo.forumslader.model.ForumsladerConfig
 import org.happycode.karoo.forumslader.model.ForumsladerParser
+import org.happycode.karoo.forumslader.model.ForumsladerVersion
 
 class Forumslader(
     private val context: Context,
     val address: String,
     displayName: String? = null
 ) {
-    private val parser = ForumsladerParser()
+    private val config = ForumsladerConfig(context)
+    private val parser = ForumsladerParser(config)
     private var bluetoothGatt: BluetoothGatt? = null
     private var uartCharacteristicUuid: java.util.UUID? = null
     private var isClosed = false
@@ -196,7 +199,16 @@ class Forumslader(
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     private fun enableNotifications(gatt: BluetoothGatt) {
-        val service = gatt.getService(SERVICE_UUID_V5) ?: gatt.getService(SERVICE_UUID_V6)
+        val serviceV6 = gatt.getService(SERVICE_UUID_V6)
+        val serviceV5 = gatt.getService(SERVICE_UUID_V5)
+        val service = serviceV6 ?: serviceV5
+        
+        val detectedVersion = if (serviceV6 != null) ForumsladerVersion.V6 else if (serviceV5 != null) ForumsladerVersion.V5 else parser.version
+        parser.version = detectedVersion
+        config.version = detectedVersion
+        
+        Log.i("FL_BLE", "Device version determined from services: ${detectedVersion.key}")
+
         val characteristic = service?.getCharacteristic(CHARACTERISTIC_UART_TX_RX)
             ?: service?.getCharacteristic(CHARACTERISTIC_UART_RX_V6)
             ?: service?.characteristics?.firstOrNull { char ->
@@ -368,7 +380,7 @@ class Forumslader(
             OnDataPoint(
                 dataPoint = DataPoint(
                     dataTypeId = DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_speed"),
-                    values = mapOf(DataType.Field.SINGLE to metrics.speedKmh.toDouble()),
+                    values = mapOf(DataType.Field.SINGLE to metrics.speedMs.toDouble()),
                     sourceId = device.uid
                 )
             )
@@ -377,7 +389,7 @@ class Forumslader(
             OnDataPoint(
                 dataPoint = DataPoint(
                     dataTypeId = DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_trip_distance"),
-                    values = mapOf(DataType.Field.SINGLE to metrics.tripDistanceKm.toDouble()),
+                    values = mapOf(DataType.Field.SINGLE to metrics.tripDistanceMeters),
                     sourceId = device.uid
                 )
             )

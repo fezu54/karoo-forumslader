@@ -24,8 +24,8 @@ class ForumsladerDataFieldsAdapter(private val context: Context) {
         fun metricsToDataFieldValues(metrics: ForumsladerMetrics): Map<String, Any> = mapOf(
             DataFieldId.BATTERY_LEVEL to metrics.batteryLevelPct,
             DataFieldId.CONSUMER_CURRENT to metrics.consumerCurrent,
-            DataFieldId.SPEED to metrics.speedKmh,
-            DataFieldId.TRIP_DISTANCE to metrics.tripDistanceKm,
+            DataFieldId.SPEED to metrics.speedMs,
+            DataFieldId.TRIP_DISTANCE to metrics.tripDistanceMeters,
         )
     }
 }

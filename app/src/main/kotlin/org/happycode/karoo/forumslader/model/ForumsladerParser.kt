@@ -3,7 +3,7 @@ package org.happycode.karoo.forumslader.model
 import android.util.Log
 import org.happycode.karoo.forumslader.domain.ForumsladerMetrics
 
-class ForumsladerParser {
+class ForumsladerParser(private val config: ForumsladerConfig? = null) {
 
     companion object {
         private const val TAG = "FL_Parser"
@@ -17,16 +17,17 @@ class ForumsladerParser {
     private var batteryCurrent: Float = 0f
     private var consumerCurrent: Float = 0f
     private var batteryLevelPct: Int = 0
-    private var speedKmh: Float = 0f
-    private var tripDistanceKm: Float = 0f
-    private var totalDistanceKm: Float = 0f
+    private var speedMs: Float = 0f
+    private var tripDistanceMeters: Double = 0.0
+    private var totalDistanceMeters: Double = 0.0
     private var temperatureCelsius: Float = 0f
     private var altitudeMeters: Float = 0f
 
     // Configuration parameters
-    private var wheelsize: Int = 2200 // default fallback in mm
-    private var poles: Int = 14       // default fallback (pole pairs)
-    private var isV6: Boolean = true   // default fallback
+    private var wheelsize: Int = config?.wheelsize ?: 2200 // default fallback in mm
+    private var poles: Int = config?.poles ?: 14       // default fallback (pole pairs)
+    var version: ForumsladerVersion = config?.version ?: ForumsladerVersion.Unknown
+        internal set
     var isConfigLoaded: Boolean = false
         private set
 
@@ -90,9 +91,9 @@ class ForumsladerParser {
                 batteryCurrent,
                 consumerCurrent,
                 batteryLevelPct,
-                speedKmh,
-                tripDistanceKm,
-                totalDistanceKm,
+                speedMs,
+                tripDistanceMeters,
+                totalDistanceMeters,
                 temperatureCelsius,
                 altitudeMeters
             )
@@ -100,13 +101,34 @@ class ForumsladerParser {
             
             Log.i(TAG, "Metrics emitted (#$totalMetricsEmitted) from $parsedSentenceType | " +
                 "V=${String.format("%.2f", batteryVoltage)}V I=${String.format("%.2f", batteryCurrent)}A " +
-                "Speed=${String.format("%.1f", speedKmh)}km/h Trip=${String.format("%.2f", tripDistanceKm)}km " +
+                "Speed=${String.format("%.1f", speedMs * 3.6f)}km/h Trip=${String.format("%.2f", tripDistanceMeters / 1000.0)}km " +
                 "Batt=$batteryLevelPct% Temp=${String.format("%.1f", temperatureCelsius)}°C " +
-                "[Config: WS=$wheelsize poles=$poles V6=$isV6]")
+                "[Config: WS=$wheelsize poles=$poles version=${version.key}]")
             
             metrics
         } else {
             null
+        }
+    }
+
+    private fun updateConfig(newWheelsize: Int, newPoles: Int) {
+        if (newWheelsize != wheelsize || newPoles != poles) {
+            Log.i(TAG, "Configuration updated: wheelsize $wheelsize -> $newWheelsize mm, " +
+                "poles $poles -> $newPoles (pole pairs)")
+            wheelsize = newWheelsize
+            poles = newPoles
+            config?.let {
+                it.wheelsize = newWheelsize
+                it.poles = newPoles
+            }
+        }
+    }
+
+    private fun updateVersion(newVersion: ForumsladerVersion) {
+        if (version != newVersion) {
+            Log.i(TAG, "Device version changed: ${version.key} -> ${newVersion.key}")
+            version = newVersion
+            config?.version = newVersion
         }
     }
 
@@ -172,11 +194,7 @@ class ForumsladerParser {
 
             when (header) {
                 "FL5", "FL6" -> {
-                    val prevIsV6 = isV6
-                    isV6 = (header == "FL6")
-                    if (prevIsV6 != isV6) {
-                        Log.i(TAG, "Device version changed: V5/V6 mode is now $isV6")
-                    }
+                    updateVersion(if (header == "FL6") ForumsladerVersion.V6 else ForumsladerVersion.V5)
                     
                     val frequency = tokens.getOrNull(3)?.toFloatOrNull() ?: 0f
                     val cell1 = tokens.getOrNull(4)?.toFloatOrNull() ?: 0f
@@ -186,19 +204,18 @@ class ForumsladerParser {
                     batteryCurrent = (tokens.getOrNull(7)?.toFloatOrNull() ?: 0f) / 1000f
                     consumerCurrent = (tokens.getOrNull(8)?.toFloatOrNull() ?: 0f) / 1000f
 
-                    val impulseIdx = if (isV6) 12 else 13
-                    val impulseCounter = tokens.getOrNull(impulseIdx)?.toFloatOrNull() ?: 0f
+                    val impulseCounter = tokens.getOrNull(version.impulseIndex)?.toDoubleOrNull() ?: 0.0
 
-                    val freq2speed = wheelsize.toFloat() / poles.toFloat() * 0.0036f / (if (isV6) 10f else 1f)
-                    speedKmh = frequency * freq2speed
+                    val freq2speed = wheelsize.toFloat() / poles.toFloat() / 1000f * version.frequencyScale
+                    speedMs = frequency * freq2speed
 
-                    val imp2odo = wheelsize.toDouble() / poles.toDouble() / 1000000.0 * (if (isV6) 1.0 else 4096.0)
-                    tripDistanceKm = (impulseCounter * imp2odo).toFloat()
-                    totalDistanceKm = tripDistanceKm
+                    val imp2odo = wheelsize.toDouble() / poles.toDouble() / 1000.0 * version.impulseScale
+                    tripDistanceMeters = impulseCounter * imp2odo
+                    totalDistanceMeters = tripDistanceMeters
                     
                     if (DEBUG_SENTENCE_PARSING) {
                         Log.d(TAG, "$header: freq=$frequency impulse=$impulseCounter " +
-                            "-> speed=${String.format("%.1f", speedKmh)}km/h trip=${String.format("%.2f", tripDistanceKm)}km")
+                            "-> speed=${String.format("%.1f", speedMs * 3.6f)}km/h trip=${String.format("%.2f", tripDistanceMeters / 1000.0)}km")
                     }
                     true
                 }
@@ -224,14 +241,7 @@ class ForumsladerParser {
                 "FLP" -> {
                     val newWheelsize = tokens.getOrNull(1)?.toIntOrNull() ?: wheelsize
                     val newPoles = tokens.getOrNull(2)?.toIntOrNull() ?: poles
-                    
-                    if (newWheelsize != wheelsize || newPoles != poles) {
-                        Log.i(TAG, "Configuration updated: wheelsize $wheelsize -> $newWheelsize mm, " +
-                            "poles $poles -> $newPoles (pole pairs)")
-                    }
-                    
-                    wheelsize = newWheelsize
-                    poles = newPoles
+                    updateConfig(newWheelsize, newPoles)
                     isConfigLoaded = true
                     true
                 }
@@ -254,15 +264,15 @@ class ForumsladerParser {
                         else -> batteryLevelPct
                     }
 
-                    val freq2speed = wheelsize.toFloat() / poles.toFloat() * 0.0036f / (if (isV6) 10f else 1f)
-                    speedKmh = frequency * freq2speed
+                    val freq2speed = wheelsize.toFloat() / poles.toFloat() / 1000f * version.frequencyScale
+                    speedMs = frequency * freq2speed
 
-                    val kmCounter = tokens.getOrNull(14)?.toFloatOrNull() ?: 0f
-                    tripDistanceKm = kmCounter
-                    totalDistanceKm = kmCounter
+                    val kmCounter = tokens.getOrNull(14)?.toDoubleOrNull() ?: 0.0
+                    tripDistanceMeters = kmCounter * 1000.0
+                    totalDistanceMeters = tripDistanceMeters
                     
                     if (DEBUG_SENTENCE_PARSING) {
-                        Log.d(TAG, "FLD: freq=$frequency -> speed=${String.format("%.1f", speedKmh)}km/h " +
+                        Log.d(TAG, "FLD: freq=$frequency -> speed=${String.format("%.1f", speedMs * 3.6f)}km/h " +
                             "distance=${String.format("%.2f", kmCounter)}km battery=$batteryLevelPct%")
                     }
                     true

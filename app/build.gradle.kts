@@ -1,3 +1,4 @@
+import org.gradle.api.JavaVersion.VERSION_11
 import java.util.Locale
 
 plugins {
@@ -26,8 +27,8 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility = VERSION_11
+        targetCompatibility = VERSION_11
     }
     buildFeatures {
         compose = true
