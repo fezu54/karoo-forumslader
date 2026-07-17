@@ -160,6 +160,140 @@ class MainScreenTest {
     }
 
     @Test
+    fun `should display searching status when searching`() {
+        val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
+        composeTestRule.setContent {
+            AppTheme {
+                MainScreenContent(
+                    connected = true,
+                    sensorState = StreamState.Searching,
+                    metrics = emptyMap(),
+                    userProfile = null,
+                    wheelsize = config.wheelsize,
+                    poles = config.poles,
+                    versionKey = config.version.key
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithContentDescription("Searching").assertIsDisplayed()
+    }
+
+    @Test
+    fun `should display not available status when not available`() {
+        val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
+        composeTestRule.setContent {
+            AppTheme {
+                MainScreenContent(
+                    connected = true,
+                    sensorState = StreamState.NotAvailable,
+                    metrics = emptyMap(),
+                    userProfile = null,
+                    wheelsize = config.wheelsize,
+                    poles = config.poles,
+                    versionKey = config.version.key
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithContentDescription("Not Available").assertIsDisplayed()
+    }
+
+    @Test
+    fun `should display trip distance in miles when system unit is Imperial`() {
+        val metrics = mapOf(DataFieldId.TRIP_DISTANCE to 1609.34) // 1 mile = 1609.34 meters
+        val imperialProfile = UserProfile(
+            weight = 70f,
+            preferredUnit = PreferredUnit(
+                distance = PreferredUnit.UnitType.IMPERIAL,
+                elevation = PreferredUnit.UnitType.IMPERIAL,
+                temperature = PreferredUnit.UnitType.IMPERIAL,
+                weight = PreferredUnit.UnitType.IMPERIAL
+            ),
+            maxHr = 190,
+            restingHr = 60,
+            heartRateZones = emptyList(),
+            ftp = 250,
+            powerZones = emptyList()
+        )
+        
+        val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
+        composeTestRule.setContent {
+            AppTheme {
+                MainScreenContent(
+                    connected = true,
+                    sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+                    metrics = metrics,
+                    userProfile = imperialProfile,
+                    wheelsize = config.wheelsize,
+                    poles = config.poles,
+                    versionKey = config.version.key
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithText("1.00 mi", substring = true).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun `should display trip distance in km when system unit is Metric`() {
+        val metrics = mapOf(DataFieldId.TRIP_DISTANCE to 2500.0) // 2.5 km
+        val metricProfile = UserProfile(
+            weight = 70f,
+            preferredUnit = PreferredUnit(
+                distance = PreferredUnit.UnitType.METRIC,
+                elevation = PreferredUnit.UnitType.METRIC,
+                temperature = PreferredUnit.UnitType.METRIC,
+                weight = PreferredUnit.UnitType.METRIC
+            ),
+            maxHr = 190,
+            restingHr = 60,
+            heartRateZones = emptyList(),
+            ftp = 250,
+            powerZones = emptyList()
+        )
+        
+        val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
+        composeTestRule.setContent {
+            AppTheme {
+                MainScreenContent(
+                    connected = true,
+                    sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+                    metrics = metrics,
+                    userProfile = metricProfile,
+                    wheelsize = config.wheelsize,
+                    poles = config.poles,
+                    versionKey = config.version.key
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithText("2.50 km", substring = true).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun `should display consumer current`() {
+        val metrics = mapOf(DataFieldId.CONSUMER_CURRENT to 1.25)
+        
+        val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
+        composeTestRule.setContent {
+            AppTheme {
+                MainScreenContent(
+                    connected = true,
+                    sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+                    metrics = metrics,
+                    userProfile = null,
+                    wheelsize = config.wheelsize,
+                    poles = config.poles,
+                    versionKey = config.version.key
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithText("1.3 A", substring = true).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
     fun `should display configuration values`() {
         val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
         config.wheelsize = 2150
