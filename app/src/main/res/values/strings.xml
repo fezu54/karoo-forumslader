@@ -12,4 +12,6 @@
     <string name="datafield_speed_desc">Forumslader current speed in km/h</string>
     <string name="datafield_trip_distance">Trip Distance</string>
     <string name="datafield_trip_distance_desc">Forumslader trip distance in km</string>
+    <string name="datafield_frequency">Frequency</string>
+    <string name="datafield_frequency_desc">Raw dynamo frequency in Hz</string>
 </resources>

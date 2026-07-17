@@ -11,6 +11,7 @@ class ForumsladerDataFieldsAdapter(private val context: Context) {
         const val CONSUMER_CURRENT = "fl_consumer_current"
         const val SPEED = "fl_speed"
         const val TRIP_DISTANCE = "fl_trip_distance"
+        const val FREQUENCY = "fl_frequency"
     }
 
     fun getDataFieldNames(): Map<String, String> = mapOf(
@@ -18,6 +19,7 @@ class ForumsladerDataFieldsAdapter(private val context: Context) {
         DataFieldId.CONSUMER_CURRENT to context.getString(R.string.datafield_consumer_current),
         DataFieldId.SPEED to context.getString(R.string.datafield_speed),
         DataFieldId.TRIP_DISTANCE to context.getString(R.string.datafield_trip_distance),
+        DataFieldId.FREQUENCY to context.getString(R.string.datafield_frequency),
     )
 
     companion object {
@@ -26,6 +28,7 @@ class ForumsladerDataFieldsAdapter(private val context: Context) {
             DataFieldId.CONSUMER_CURRENT to metrics.consumerCurrent,
             DataFieldId.SPEED to metrics.speedMs,
             DataFieldId.TRIP_DISTANCE to metrics.tripDistanceMeters,
+            DataFieldId.FREQUENCY to metrics.frequency,
         )
     }
 }

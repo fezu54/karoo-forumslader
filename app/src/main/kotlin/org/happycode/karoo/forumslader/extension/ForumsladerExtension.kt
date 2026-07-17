@@ -24,7 +24,7 @@ import io.hammerhead.karooext.extension.DataTypeImpl
 import io.hammerhead.karooext.models.DataType
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
 
-class ForumsladerExtension : KarooExtension(extension = "karoo-forumslader", version = "1.0") {
+class ForumsladerExtension : KarooExtension(extension = "karoo-forumslader", version = "1.1") {
     private val devices = mutableMapOf<String, Forumslader>()
 
     override val types: List<DataTypeImpl> by lazy {
@@ -32,7 +32,8 @@ class ForumsladerExtension : KarooExtension(extension = "karoo-forumslader", ver
             ForumsladerDataType(extension, DataFieldId.BATTERY_LEVEL, DataType.Type.BATTERY_PERCENT),
             ForumsladerDataType(extension, DataFieldId.CONSUMER_CURRENT),
             ForumsladerDataType(extension, DataFieldId.SPEED, DataType.Type.SPEED),
-            ForumsladerDataType(extension, DataFieldId.TRIP_DISTANCE, DataType.Type.DISTANCE)
+            ForumsladerDataType(extension, DataFieldId.TRIP_DISTANCE, DataType.Type.DISTANCE),
+            ForumsladerDataType(extension, DataFieldId.FREQUENCY)
         )
     }
 
