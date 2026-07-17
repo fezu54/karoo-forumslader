@@ -344,7 +344,7 @@ class Forumslader(
             }
         }
         rxChar?.let { char ->
-            val cmdBytes = $$"$FLT,5*47\n".toByteArray(Charsets.US_ASCII)
+            val cmdBytes = $$"$FLT,5*47\r\n".toByteArray(Charsets.US_ASCII)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 gatt.writeCharacteristic(char, cmdBytes, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
             } else {

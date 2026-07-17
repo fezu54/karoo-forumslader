@@ -90,12 +90,15 @@ tasks.register("checkCoverageBaseline") {
         println("Current Line Coverage: $formattedCurrent%")
         println("Baseline Line Coverage: $formattedBaseline%")
 
+        val currentRounded = formattedCurrent.toDouble()
+        val baselineRounded = formattedBaseline.toDouble()
+
         baselineFile.apply {
             parentFile.mkdirs()
             writeText(formattedCurrent)
         }
 
-        if (currentCoverage < baselineCoverage) {
+        if (currentRounded < baselineRounded) {
             throw GradleException("FAIL: Code coverage decreased from $formattedBaseline% to $formattedCurrent%!")
         }
         println("SUCCESS: Code coverage is equal to or higher than the baseline.")
