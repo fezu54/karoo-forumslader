@@ -1,5 +1,7 @@
 package org.happycode.karoo.forumslader.screens
 
+import android.content.Context
+import android.content.SharedPreferences
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -43,7 +45,6 @@ import io.hammerhead.karooext.models.UserProfile
 import org.happycode.karoo.forumslader.R
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
-import org.happycode.karoo.forumslader.model.ForumsladerConfig
 import org.happycode.karoo.forumslader.theme.AppTheme
 import java.util.Locale
 
@@ -51,12 +52,30 @@ import java.util.Locale
 @Composable
 fun MainScreen() {
     val context = LocalContext.current
-    val config = remember { ForumsladerConfig(context) }
     val karooSystem = remember { KarooSystemService(context) }
     var connected by remember { mutableStateOf(false) }
     var sensorState by remember { mutableStateOf<StreamState>(StreamState.Idle) }
     var userProfile by remember { mutableStateOf<UserProfile?>(null) }
     val metrics = remember { mutableStateMapOf<String, Double>() }
+
+    val prefs = remember { context.getSharedPreferences("forumslader_prefs", Context.MODE_PRIVATE) }
+    var wheelsize by remember { mutableStateOf(prefs.getInt("wheelsize", 2200)) }
+    var poles by remember { mutableStateOf(prefs.getInt("poles", 14)) }
+    var versionKey by remember { mutableStateOf(prefs.getString("version", "unknown") ?: "unknown") }
+
+    DisposableEffect(prefs) {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, key ->
+            when (key) {
+                "wheelsize" -> wheelsize = sharedPreferences.getInt("wheelsize", 2200)
+                "poles" -> poles = sharedPreferences.getInt("poles", 14)
+                "version" -> versionKey = sharedPreferences.getString("version", "unknown") ?: "unknown"
+            }
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose {
+            prefs.unregisterOnSharedPreferenceChangeListener(listener)
+        }
+    }
 
     DisposableEffect(karooSystem) {
         karooSystem.connect { connected = it }
@@ -91,12 +110,12 @@ fun MainScreen() {
         }
     }
 
-    MainScreenContent(connected = connected, sensorState = sensorState, metrics = metrics, userProfile = userProfile, config = config)
+    MainScreenContent(connected = connected, sensorState = sensorState, metrics = metrics, userProfile = userProfile, wheelsize = wheelsize, poles = poles, versionKey = versionKey)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreenContent(connected: Boolean, sensorState: StreamState, metrics: Map<String, Double>, userProfile: UserProfile?, config: ForumsladerConfig) {
+fun MainScreenContent(connected: Boolean, sensorState: StreamState, metrics: Map<String, Double>, userProfile: UserProfile?, wheelsize: Int, poles: Int, versionKey: String) {
     Scaffold { padding ->
         Column(
             modifier = Modifier
@@ -107,7 +126,7 @@ fun MainScreenContent(connected: Boolean, sensorState: StreamState, metrics: Map
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             StatusCard(connected = connected, sensorState = sensorState)
-            ConfigCard(config = config)
+            ConfigCard(wheelsize = wheelsize, poles = poles, versionKey = versionKey)
             MetricsList(metrics = metrics, userProfile = userProfile)
         }
     }
@@ -245,7 +264,7 @@ fun MetricItem(label: String, value: String) {
 }
 
 @Composable
-fun ConfigCard(config: ForumsladerConfig) {
+fun ConfigCard(wheelsize: Int, poles: Int, versionKey: String) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -262,9 +281,9 @@ fun ConfigCard(config: ForumsladerConfig) {
                 color = MaterialTheme.colorScheme.primary
             )
             HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-            ConfigItem(label = "Wheel Size", value = "${config.wheelsize} mm")
-            ConfigItem(label = "Poles", value = "${config.poles}")
-            ConfigItem(label = "Version", value = config.version.key)
+            ConfigItem(label = "Wheel Size", value = "$wheelsize mm")
+            ConfigItem(label = "Poles", value = "$poles")
+            ConfigItem(label = "Version", value = versionKey)
         }
     }
 }
@@ -292,7 +311,9 @@ fun MainScreenPreview() {
                 DataFieldId.SPEED to 7.05 // ~25.4 km/h
             ),
             userProfile = null,
-            config = ForumsladerConfig(LocalContext.current)
+            wheelsize = 2200,
+            poles = 14,
+            versionKey = "v6"
         )
     }
 }
