@@ -38,7 +38,7 @@ class MainScreenTest {
         val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
         composeTestRule.setContent {
             AppTheme {
-                MainScreenContent(connected = false, sensorState = StreamState.Idle, metrics = emptyMap(), userProfile = null, config = config)
+                MainScreenContent(connected = false, sensorState = StreamState.Idle, metrics = emptyMap(), userProfile = null, wheelsize = config.wheelsize, poles = config.poles, versionKey = config.version.key)
             }
         }
 
@@ -55,7 +55,9 @@ class MainScreenTest {
                     sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
                     metrics = emptyMap(),
                     userProfile = null,
-                    config = config
+                    wheelsize = config.wheelsize,
+                    poles = config.poles,
+                    versionKey = config.version.key
                 )
             }
         }
@@ -75,7 +77,9 @@ class MainScreenTest {
                     sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
                     metrics = metrics,
                     userProfile = null,
-                    config = config
+                    wheelsize = config.wheelsize,
+                    poles = config.poles,
+                    versionKey = config.version.key
                 )
             }
         }
@@ -109,7 +113,9 @@ class MainScreenTest {
                     sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
                     metrics = metrics,
                     userProfile = imperialProfile,
-                    config = config
+                    wheelsize = config.wheelsize,
+                    poles = config.poles,
+                    versionKey = config.version.key
                 )
             }
         }
@@ -143,7 +149,9 @@ class MainScreenTest {
                     sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
                     metrics = metrics,
                     userProfile = metricProfile,
-                    config = config
+                    wheelsize = config.wheelsize,
+                    poles = config.poles,
+                    versionKey = config.version.key
                 )
             }
         }
@@ -164,7 +172,9 @@ class MainScreenTest {
                     sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
                     metrics = emptyMap(),
                     userProfile = null,
-                    config = config
+                    wheelsize = config.wheelsize,
+                    poles = config.poles,
+                    versionKey = config.version.key
                 )
             }
         }
