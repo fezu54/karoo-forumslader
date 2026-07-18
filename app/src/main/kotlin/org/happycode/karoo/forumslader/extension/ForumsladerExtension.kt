@@ -30,10 +30,13 @@ class ForumsladerExtension : KarooExtension(extension = "karoo-forumslader", ver
     override val types: List<DataTypeImpl> by lazy {
         listOf(
             ForumsladerDataType(extension, DataFieldId.BATTERY_LEVEL, DataType.Type.BATTERY_PERCENT),
+            ForumsladerDataType(extension, DataFieldId.BATTERY_VOLTAGE),
+            ForumsladerDataType(extension, DataFieldId.BATTERY_CURRENT),
             ForumsladerDataType(extension, DataFieldId.CONSUMER_CURRENT),
             ForumsladerDataType(extension, DataFieldId.SPEED, DataType.Type.SPEED),
             ForumsladerDataType(extension, DataFieldId.TRIP_DISTANCE, DataType.Type.DISTANCE),
-            ForumsladerDataType(extension, DataFieldId.FREQUENCY)
+            ForumsladerDataType(extension, DataFieldId.FREQUENCY),
+            ForumsladerDataType(extension, DataFieldId.TEMPERATURE)
         )
     }
 

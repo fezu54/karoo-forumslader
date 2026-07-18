@@ -13,6 +13,20 @@
         graphical="false" />
 
     <DataType
+        typeId="fl_battery_voltage"
+        displayName="@string/datafield_battery_voltage"
+        description="@string/datafield_battery_voltage_desc"
+        icon="@drawable/ic_launcher_foreground"
+        graphical="false" />
+
+    <DataType
+        typeId="fl_battery_current"
+        displayName="@string/datafield_battery_current"
+        description="@string/datafield_battery_current_desc"
+        icon="@drawable/ic_launcher_foreground"
+        graphical="false" />
+
+    <DataType
         typeId="fl_consumer_current"
         displayName="@string/datafield_consumer_current"
         description="@string/datafield_consumer_current_desc"
@@ -30,6 +44,20 @@
         typeId="fl_trip_distance"
         displayName="@string/datafield_trip_distance"
         description="@string/datafield_trip_distance_desc"
+        icon="@drawable/ic_launcher_foreground"
+        graphical="false" />
+
+    <DataType
+        typeId="fl_frequency"
+        displayName="@string/datafield_frequency"
+        description="@string/datafield_frequency_desc"
+        icon="@drawable/ic_launcher_foreground"
+        graphical="false" />
+
+    <DataType
+        typeId="fl_temperature"
+        displayName="@string/datafield_temperature"
+        description="@string/datafield_temperature_desc"
         icon="@drawable/ic_launcher_foreground"
         graphical="false" />
 

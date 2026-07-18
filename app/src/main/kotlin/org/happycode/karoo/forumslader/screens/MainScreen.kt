@@ -97,10 +97,13 @@ fun MainScreen() {
         val extensionId = "karoo-forumslader"
         val types = listOf(
             DataFieldId.BATTERY_LEVEL,
+            DataFieldId.BATTERY_VOLTAGE,
+            DataFieldId.BATTERY_CURRENT,
             DataFieldId.CONSUMER_CURRENT,
             DataFieldId.SPEED,
             DataFieldId.TRIP_DISTANCE,
-            DataFieldId.FREQUENCY
+            DataFieldId.FREQUENCY,
+            DataFieldId.TEMPERATURE
         )
 
         val listeners = mutableListOf<String>()
@@ -306,12 +309,37 @@ fun MetricsList(metrics: Map<String, Double>, userProfile: UserProfile?) {
                         )
                     } ?: "---"
 
+                    DataFieldId.BATTERY_VOLTAGE -> rawValue?.let {
+                        String.format(
+                            locale,
+                            "%.1f V",
+                            it
+                        )
+                    } ?: "---"
+
+                    DataFieldId.BATTERY_CURRENT -> rawValue?.let {
+                        String.format(
+                            locale,
+                            "%.1f A",
+                            it
+                        )
+                    } ?: "---"
+
                     DataFieldId.CONSUMER_CURRENT -> rawValue?.let {
                         String.format(
                             locale,
                             "%.1f A",
                             it
                         )
+                    } ?: "---"
+
+                    DataFieldId.TEMPERATURE -> rawValue?.let {
+                        val isTempImperial = userProfile?.preferredUnit?.temperature == UserProfile.PreferredUnit.UnitType.IMPERIAL
+                        if (isTempImperial) {
+                            String.format(locale, "%.1f °F", (it * 9 / 5) + 32)
+                        } else {
+                            String.format(locale, "%.1f °C", it)
+                        }
                     } ?: "---"
 
                     DataFieldId.FREQUENCY -> rawValue?.let { String.format(locale, "%.1f Hz", it) } ?: "---"

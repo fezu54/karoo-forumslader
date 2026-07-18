@@ -33,10 +33,13 @@ class ForumsladerDataFieldsAdapterTest {
 
         // then
         assertEquals(75, values[ForumsladerDataFieldsAdapter.DataFieldId.BATTERY_LEVEL])
+        assertEquals(48.2f, values[ForumsladerDataFieldsAdapter.DataFieldId.BATTERY_VOLTAGE])
+        assertEquals(1.5f, values[ForumsladerDataFieldsAdapter.DataFieldId.BATTERY_CURRENT])
         assertEquals(2.5f, values[ForumsladerDataFieldsAdapter.DataFieldId.CONSUMER_CURRENT])
         assertEquals(7.03f, values[ForumsladerDataFieldsAdapter.DataFieldId.SPEED])
         assertEquals(12700.0, values[ForumsladerDataFieldsAdapter.DataFieldId.TRIP_DISTANCE])
         assertEquals(17.7f, values[ForumsladerDataFieldsAdapter.DataFieldId.FREQUENCY])
+        assertEquals(22.5f, values[ForumsladerDataFieldsAdapter.DataFieldId.TEMPERATURE])
     }
 
     @Test
@@ -59,17 +62,20 @@ class ForumsladerDataFieldsAdapterTest {
         val values = ForumsladerDataFieldsAdapter.metricsToDataFieldValues(metrics)
 
         // then
-        assertEquals(5, values.size)
+        assertEquals(8, values.size)
     }
 
     @Test
     fun `should return localized data field names from string resources`() {
         // given
         every { mockContext.getString(R.string.datafield_battery_level) } returns "Battery Level"
+        every { mockContext.getString(R.string.datafield_battery_voltage) } returns "Battery Voltage"
+        every { mockContext.getString(R.string.datafield_battery_current) } returns "Battery Current"
         every { mockContext.getString(R.string.datafield_consumer_current) } returns "Consumer Current"
         every { mockContext.getString(R.string.datafield_speed) } returns "Speed"
         every { mockContext.getString(R.string.datafield_trip_distance) } returns "Trip Distance"
         every { mockContext.getString(R.string.datafield_frequency) } returns "Frequency"
+        every { mockContext.getString(R.string.datafield_temperature) } returns "Temperature"
 
         val adapter = ForumsladerDataFieldsAdapter(mockContext)
 
@@ -78,9 +84,12 @@ class ForumsladerDataFieldsAdapterTest {
 
         // then
         assertEquals("Battery Level", names[ForumsladerDataFieldsAdapter.DataFieldId.BATTERY_LEVEL])
+        assertEquals("Battery Voltage", names[ForumsladerDataFieldsAdapter.DataFieldId.BATTERY_VOLTAGE])
+        assertEquals("Battery Current", names[ForumsladerDataFieldsAdapter.DataFieldId.BATTERY_CURRENT])
         assertEquals("Consumer Current", names[ForumsladerDataFieldsAdapter.DataFieldId.CONSUMER_CURRENT])
         assertEquals("Speed", names[ForumsladerDataFieldsAdapter.DataFieldId.SPEED])
         assertEquals("Trip Distance", names[ForumsladerDataFieldsAdapter.DataFieldId.TRIP_DISTANCE])
         assertEquals("Frequency", names[ForumsladerDataFieldsAdapter.DataFieldId.FREQUENCY])
+        assertEquals("Temperature", names[ForumsladerDataFieldsAdapter.DataFieldId.TEMPERATURE])
     }
 }
