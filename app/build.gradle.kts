@@ -93,9 +93,12 @@ tasks.register("checkCoverageBaseline") {
         val currentRounded = formattedCurrent.toDouble()
         val baselineRounded = formattedBaseline.toDouble()
 
-        baselineFile.apply {
-            parentFile.mkdirs()
-            writeText(formattedCurrent)
+        val shouldUpdate = project.hasProperty("updateBaseline") || System.getenv("CI") == "true"
+        if (shouldUpdate) {
+            baselineFile.apply {
+                parentFile.mkdirs()
+                writeText(formattedCurrent)
+            }
         }
 
         if (currentRounded < baselineRounded) {
