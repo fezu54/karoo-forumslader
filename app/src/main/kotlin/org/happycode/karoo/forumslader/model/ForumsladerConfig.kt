@@ -19,9 +19,14 @@ class ForumsladerConfig(context: Context) {
         get() = ForumsladerVersion.fromKey(prefs.getString(KEY_VERSION, ForumsladerVersion.Unknown.key))
         set(value) = prefs.edit { putString(KEY_VERSION, value.key) }
 
+    var speedMultiplier: Float
+        get() = prefs.getFloat(KEY_SPEED_MULTIPLIER, 1.0f)
+        set(value) = prefs.edit { putFloat(KEY_SPEED_MULTIPLIER, value) }
+
     companion object {
         private const val KEY_WHEELSIZE = "wheelsize"
         private const val KEY_POLES = "poles"
         private const val KEY_VERSION = "version"
+        private const val KEY_SPEED_MULTIPLIER = "speedMultiplier"
     }
 }

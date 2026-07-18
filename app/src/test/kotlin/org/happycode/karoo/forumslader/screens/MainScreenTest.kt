@@ -38,7 +38,7 @@ class MainScreenTest {
         val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
         composeTestRule.setContent {
             AppTheme {
-                MainScreenContent(connected = false, sensorState = StreamState.Idle, metrics = emptyMap(), userProfile = null, wheelsize = config.wheelsize, poles = config.poles, versionKey = config.version.key)
+                MainScreenContent(connected = false, sensorState = StreamState.Idle, metrics = emptyMap(), userProfile = null, wheelsize = config.wheelsize, poles = config.poles, versionKey = config.version.key, speedMultiplier = config.speedMultiplier, onSpeedMultiplierChange = {})
             }
         }
 
@@ -57,7 +57,7 @@ class MainScreenTest {
                     userProfile = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, onSpeedMultiplierChange = {}
                 )
             }
         }
@@ -79,7 +79,7 @@ class MainScreenTest {
                     userProfile = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, onSpeedMultiplierChange = {}
                 )
             }
         }
@@ -115,7 +115,7 @@ class MainScreenTest {
                     userProfile = imperialProfile,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, onSpeedMultiplierChange = {}
                 )
             }
         }
@@ -151,7 +151,7 @@ class MainScreenTest {
                     userProfile = metricProfile,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, onSpeedMultiplierChange = {}
                 )
             }
         }
@@ -171,7 +171,7 @@ class MainScreenTest {
                     userProfile = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, onSpeedMultiplierChange = {}
                 )
             }
         }
@@ -191,7 +191,7 @@ class MainScreenTest {
                     userProfile = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, onSpeedMultiplierChange = {}
                 )
             }
         }
@@ -227,7 +227,7 @@ class MainScreenTest {
                     userProfile = imperialProfile,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, onSpeedMultiplierChange = {}
                 )
             }
         }
@@ -263,7 +263,7 @@ class MainScreenTest {
                     userProfile = metricProfile,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, onSpeedMultiplierChange = {}
                 )
             }
         }
@@ -285,7 +285,7 @@ class MainScreenTest {
                     userProfile = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, onSpeedMultiplierChange = {}
                 )
             }
         }
@@ -308,7 +308,7 @@ class MainScreenTest {
                     userProfile = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, onSpeedMultiplierChange = {}
                 )
             }
         }

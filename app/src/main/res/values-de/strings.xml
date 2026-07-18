@@ -12,4 +12,6 @@
     <string name="datafield_speed_desc">Forumslader aktuelle Geschwindigkeit in km/h</string>
     <string name="datafield_trip_distance">Fahrstrecke</string>
     <string name="datafield_trip_distance_desc">Forumslader Fahrstrecke in km</string>
+    <string name="datafield_frequency">Frequenz</string>
+    <string name="datafield_frequency_desc">Rohfrequenz des Dynamos in Hz</string>
 </resources>

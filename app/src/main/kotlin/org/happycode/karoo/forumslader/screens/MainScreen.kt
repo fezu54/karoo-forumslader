@@ -22,16 +22,20 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -46,7 +50,7 @@ import org.happycode.karoo.forumslader.R
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
 import org.happycode.karoo.forumslader.theme.AppTheme
-import java.util.Locale
+import androidx.core.content.edit
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,18 +63,28 @@ fun MainScreen() {
     val metrics = remember { mutableStateMapOf<String, Double>() }
 
     val prefs = remember { context.getSharedPreferences("forumslader_prefs", Context.MODE_PRIVATE) }
-    var wheelsize by remember { mutableStateOf(prefs.getInt("wheelsize", 2200)) }
-    var poles by remember { mutableStateOf(prefs.getInt("poles", 14)) }
-    var versionKey by remember { mutableStateOf(prefs.getString("version", "unknown") ?: "unknown") }
+    var wheelsize by remember { mutableIntStateOf(prefs.getInt("wheelsize", 2200)) }
+    var poles by remember { mutableIntStateOf(prefs.getInt("poles", 14)) }
+    var versionKey by remember {
+        mutableStateOf(
+            prefs.getString("version", "unknown") ?: "unknown"
+        )
+    }
+    var speedMultiplier by remember { mutableFloatStateOf(prefs.getFloat("speedMultiplier", 1.0f)) }
 
     DisposableEffect(prefs) {
-        val listener = SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, key ->
-            when (key) {
-                "wheelsize" -> wheelsize = sharedPreferences.getInt("wheelsize", 2200)
-                "poles" -> poles = sharedPreferences.getInt("poles", 14)
-                "version" -> versionKey = sharedPreferences.getString("version", "unknown") ?: "unknown"
+        val listener =
+            SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, key ->
+                when (key) {
+                    "wheelsize" -> wheelsize = sharedPreferences.getInt("wheelsize", 2200)
+                    "poles" -> poles = sharedPreferences.getInt("poles", 14)
+                    "version" -> versionKey =
+                        sharedPreferences.getString("version", "unknown") ?: "unknown"
+
+                    "speedMultiplier" -> speedMultiplier =
+                        sharedPreferences.getFloat("speedMultiplier", 1.0f)
+                }
             }
-        }
         prefs.registerOnSharedPreferenceChangeListener(listener)
         onDispose {
             prefs.unregisterOnSharedPreferenceChangeListener(listener)
@@ -85,11 +99,12 @@ fun MainScreen() {
             DataFieldId.BATTERY_LEVEL,
             DataFieldId.CONSUMER_CURRENT,
             DataFieldId.SPEED,
-            DataFieldId.TRIP_DISTANCE
+            DataFieldId.TRIP_DISTANCE,
+            DataFieldId.FREQUENCY
         )
 
         val listeners = mutableListOf<String>()
-        
+
         listeners.add(karooSystem.addConsumer { profile: UserProfile ->
             userProfile = profile
         })
@@ -98,9 +113,10 @@ fun MainScreen() {
             val dataTypeId = DataType.dataTypeId(extensionId, typeId)
             listeners.add(karooSystem.addConsumer(OnStreamState.StartStreaming(dataTypeId)) { event: OnStreamState ->
                 sensorState = event.state
-                (event.state as? StreamState.Streaming)?.dataPoint?.values?.get(DataType.Field.SINGLE)?.let { value ->
-                    metrics[typeId] = value
-                }
+                (event.state as? StreamState.Streaming)?.dataPoint?.values?.get(DataType.Field.SINGLE)
+                    ?.let { value ->
+                        metrics[typeId] = value
+                    }
             })
         }
 
@@ -110,12 +126,38 @@ fun MainScreen() {
         }
     }
 
-    MainScreenContent(connected = connected, sensorState = sensorState, metrics = metrics, userProfile = userProfile, wheelsize = wheelsize, poles = poles, versionKey = versionKey)
+    MainScreenContent(
+        connected = connected,
+        sensorState = sensorState,
+        metrics = metrics,
+        userProfile = userProfile,
+        wheelsize = wheelsize,
+        poles = poles,
+        versionKey = versionKey,
+        speedMultiplier = speedMultiplier,
+        onSpeedMultiplierChange = {
+            prefs.edit {
+                putFloat(
+                    "speedMultiplier",
+                    it
+                )
+            }
+        })
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreenContent(connected: Boolean, sensorState: StreamState, metrics: Map<String, Double>, userProfile: UserProfile?, wheelsize: Int, poles: Int, versionKey: String) {
+fun MainScreenContent(
+    connected: Boolean,
+    sensorState: StreamState,
+    metrics: Map<String, Double>,
+    userProfile: UserProfile?,
+    wheelsize: Int,
+    poles: Int,
+    versionKey: String,
+    speedMultiplier: Float,
+    onSpeedMultiplierChange: (Float) -> Unit
+) {
     Scaffold { padding ->
         Column(
             modifier = Modifier
@@ -126,7 +168,13 @@ fun MainScreenContent(connected: Boolean, sensorState: StreamState, metrics: Map
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             StatusCard(connected = connected, sensorState = sensorState)
-            ConfigCard(wheelsize = wheelsize, poles = poles, versionKey = versionKey)
+            ConfigCard(
+                wheelsize = wheelsize,
+                poles = poles,
+                versionKey = versionKey,
+                speedMultiplier = speedMultiplier,
+                onSpeedMultiplierChange = onSpeedMultiplierChange
+            )
             MetricsList(metrics = metrics, userProfile = userProfile)
         }
     }
@@ -173,16 +221,19 @@ fun StatusCard(connected: Boolean, sensorState: StreamState) {
                         MaterialTheme.colorScheme.primary,
                         "Connected"
                     )
+
                     is StreamState.Searching -> Triple(
                         Icons.Default.HourglassEmpty,
                         MaterialTheme.colorScheme.secondary,
                         "Searching"
                     )
+
                     is StreamState.NotAvailable -> Triple(
                         Icons.Default.Cancel,
                         MaterialTheme.colorScheme.error,
                         "Not Available"
                     )
+
                     else -> Triple(
                         Icons.Default.LinkOff,
                         MaterialTheme.colorScheme.outline,
@@ -202,9 +253,18 @@ fun StatusCard(connected: Boolean, sensorState: StreamState) {
 @Composable
 fun MetricsList(metrics: Map<String, Double>, userProfile: UserProfile?) {
     val context = LocalContext.current
+    val locale = LocalConfiguration.current.let { config ->
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+            config.locales[0]
+        } else {
+            @Suppress("DEPRECATION")
+            config.locale
+        }
+    }
     val adapter = remember { ForumsladerDataFieldsAdapter(context) }
     val names = remember { adapter.getDataFieldNames() }
-    val isImperial = userProfile?.preferredUnit?.distance == UserProfile.PreferredUnit.UnitType.IMPERIAL
+    val isImperial =
+        userProfile?.preferredUnit?.distance == UserProfile.PreferredUnit.UnitType.IMPERIAL
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -220,32 +280,52 @@ fun MetricsList(metrics: Map<String, Double>, userProfile: UserProfile?) {
                         rawValue?.let {
                             val speedKmh = it * 3.6
                             if (isImperial) {
-                                String.format(Locale.getDefault(), "%.1f mph", speedKmh * 0.621371)
+                                String.format(locale, "%.1f mph", speedKmh * 0.621371)
                             } else {
-                                String.format(Locale.getDefault(), "%.1f km/h", speedKmh)
+                                String.format(locale, "%.1f km/h", speedKmh)
                             }
                         } ?: "---"
                     }
+
                     DataFieldId.TRIP_DISTANCE -> {
                         rawValue?.let {
                             val distanceKm = it / 1000.0
                             if (isImperial) {
-                                String.format(Locale.getDefault(), "%.2f mi", distanceKm * 0.621371)
+                                String.format(locale, "%.2f mi", distanceKm * 0.621371)
                             } else {
-                                String.format(Locale.getDefault(), "%.2f km", distanceKm)
+                                String.format(locale, "%.2f km", distanceKm)
                             }
                         } ?: "---"
                     }
-                    DataFieldId.BATTERY_LEVEL -> rawValue?.let { String.format(Locale.getDefault(), "%d%%", it.toInt()) } ?: "---"
-                    DataFieldId.CONSUMER_CURRENT -> rawValue?.let { String.format(Locale.getDefault(), "%.1f A", it) } ?: "---"
-                    else -> rawValue?.let { String.format(Locale.getDefault(), "%.1f", it) } ?: "---"
+
+                    DataFieldId.BATTERY_LEVEL -> rawValue?.let {
+                        String.format(
+                            locale,
+                            "%d%%",
+                            it.toInt()
+                        )
+                    } ?: "---"
+
+                    DataFieldId.CONSUMER_CURRENT -> rawValue?.let {
+                        String.format(
+                            locale,
+                            "%.1f A",
+                            it
+                        )
+                    } ?: "---"
+
+                    DataFieldId.FREQUENCY -> rawValue?.let { String.format(locale, "%.1f Hz", it) } ?: "---"
+                    else -> rawValue?.let { String.format(locale, "%.1f", it) } ?: "---"
                 }
                 MetricItem(
                     label = name,
                     value = formattedValue
                 )
                 if (id != names.keys.last()) {
-                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                    HorizontalDivider(
+                        thickness = 0.5.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant
+                    )
                 }
             }
         }
@@ -259,12 +339,30 @@ fun MetricItem(label: String, value: String) {
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(text = label, style = MaterialTheme.typography.bodyMedium)
-        Text(text = value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium
+        )
     }
 }
 
 @Composable
-fun ConfigCard(wheelsize: Int, poles: Int, versionKey: String) {
+fun ConfigCard(
+    wheelsize: Int,
+    poles: Int,
+    versionKey: String,
+    speedMultiplier: Float,
+    onSpeedMultiplierChange: (Float) -> Unit
+) {
+    val locale = LocalConfiguration.current.let { config ->
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+            config.locales[0]
+        } else {
+            @Suppress("DEPRECATION")
+            config.locale
+        }
+    }
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -284,6 +382,18 @@ fun ConfigCard(wheelsize: Int, poles: Int, versionKey: String) {
             ConfigItem(label = "Wheel Size", value = "$wheelsize mm")
             ConfigItem(label = "Poles", value = "$poles")
             ConfigItem(label = "Version", value = versionKey)
+            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+            ConfigItem(
+                label = "Speed Multiplier",
+                value = String.format(locale, "%.2fx", speedMultiplier)
+            )
+            Slider(
+                value = speedMultiplier,
+                onValueChange = onSpeedMultiplierChange,
+                valueRange = 0.5f..2.0f,
+                steps = 29,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }
@@ -294,8 +404,17 @@ fun ConfigItem(label: String, value: String) {
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(text = label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(text = value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -305,7 +424,13 @@ fun MainScreenPreview() {
     AppTheme {
         MainScreenContent(
             connected = true,
-            sensorState = StreamState.Streaming(io.hammerhead.karooext.models.DataPoint("", emptyMap(), "")),
+            sensorState = StreamState.Streaming(
+                io.hammerhead.karooext.models.DataPoint(
+                    "",
+                    emptyMap(),
+                    ""
+                )
+            ),
             metrics = mapOf(
                 DataFieldId.BATTERY_LEVEL to 85.0,
                 DataFieldId.SPEED to 7.05 // ~25.4 km/h
@@ -313,7 +438,9 @@ fun MainScreenPreview() {
             userProfile = null,
             wheelsize = 2200,
             poles = 14,
-            versionKey = "v6"
+            versionKey = "v6",
+            speedMultiplier = 1.0f,
+            onSpeedMultiplierChange = {}
         )
     }
 }

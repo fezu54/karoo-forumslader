@@ -17,6 +17,7 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
     private var batteryCurrent: Float = 0f
     private var consumerCurrent: Float = 0f
     private var batteryLevelPct: Int = 0
+    private var currentFrequency: Float = 0f
     private var speedMs: Float = 0f
     private var tripDistanceMeters: Double = 0.0
     private var totalDistanceMeters: Double = 0.0
@@ -91,6 +92,7 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
                 batteryCurrent,
                 consumerCurrent,
                 batteryLevelPct,
+                currentFrequency,
                 speedMs,
                 tripDistanceMeters,
                 totalDistanceMeters,
@@ -207,7 +209,9 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
                     val impulseCounter = tokens.getOrNull(version.impulseIndex)?.toDoubleOrNull() ?: 0.0
 
                     val freq2speed = wheelsize.toFloat() / poles.toFloat() / 1000f * version.frequencyScale
-                    speedMs = frequency * freq2speed
+                    currentFrequency = frequency
+                    val multiplier = config?.speedMultiplier ?: 1.0f
+                    speedMs = frequency * freq2speed * multiplier
 
                     val imp2odo = wheelsize.toDouble() / poles.toDouble() / 1000.0 * version.impulseScale
                     tripDistanceMeters = impulseCounter * imp2odo
@@ -265,7 +269,9 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
                     }
 
                     val freq2speed = wheelsize.toFloat() / poles.toFloat() / 1000f * version.frequencyScale
-                    speedMs = frequency * freq2speed
+                    currentFrequency = frequency
+                    val multiplier = config?.speedMultiplier ?: 1.0f
+                    speedMs = frequency * freq2speed * multiplier
 
                     val kmCounter = tokens.getOrNull(14)?.toDoubleOrNull() ?: 0.0
                     tripDistanceMeters = kmCounter * 1000.0

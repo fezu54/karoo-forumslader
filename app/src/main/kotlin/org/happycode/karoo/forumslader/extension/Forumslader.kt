@@ -74,7 +74,10 @@ class Forumslader(
                     emitter.onNext(OnConnectionStatus(status = ConnectionStatus.CONNECTED))
                     gatt.discoverServices()
                 } else {
-                    Log.w("FL_BLE", "Disconnected or connection failed: status=$status, newState=$newState")
+                    Log.w(
+                        "FL_BLE",
+                        "Disconnected or connection failed: status=$status, newState=$newState"
+                    )
                     cancelConnectionTimeout()
                     cleanupConnection()
                     emitter.onNext(OnConnectionStatus(status = ConnectionStatus.SEARCHING))
@@ -90,7 +93,10 @@ class Forumslader(
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
             mainHandler.post {
                 if (status != BluetoothGatt.GATT_SUCCESS) {
-                    Log.e("FL_BLE", "Service discovery failed with status $status, disconnecting...")
+                    Log.e(
+                        "FL_BLE",
+                        "Service discovery failed with status $status, disconnecting..."
+                    )
                     cancelConnectionTimeout()
                     cleanupConnection()
                     if (!isClosed) {
@@ -101,8 +107,15 @@ class Forumslader(
 
                 Log.i("FL_BLE", "Services discovered on device:")
                 gatt.services.forEach { s ->
-                    val charsInfo = s.characteristics.joinToString { c -> "${c.uuid.toString().substring(0, 8)}(props=${c.properties})" }
-                    Log.i("FL_BLE", "Service: ${s.uuid.toString().substring(0, 8)} | Chars: $charsInfo")
+                    val charsInfo = s.characteristics.joinToString { c ->
+                        "${
+                            c.uuid.toString().substring(0, 8)
+                        }(props=${c.properties})"
+                    }
+                    Log.i(
+                        "FL_BLE",
+                        "Service: ${s.uuid.toString().substring(0, 8)} | Chars: $charsInfo"
+                    )
                 }
 
                 enableNotifications(gatt)
@@ -110,7 +123,11 @@ class Forumslader(
         }
 
         @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-        override fun onDescriptorWrite(gatt: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
+        override fun onDescriptorWrite(
+            gatt: BluetoothGatt,
+            descriptor: BluetoothGattDescriptor,
+            status: Int
+        ) {
             mainHandler.post {
                 if (descriptor.uuid != CLIENT_CHARACTERISTIC_CONFIGURATION_DESCRIPTOR) return@post
 
@@ -139,8 +156,15 @@ class Forumslader(
 
         @Suppress("DEPRECATION")
         @Deprecated("Deprecated in Android 13")
-        override fun onCharacteristicChanged(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
-            onCharacteristicChanged(gatt = gatt, characteristic = characteristic, value = characteristic.value)
+        override fun onCharacteristicChanged(
+            gatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic
+        ) {
+            onCharacteristicChanged(
+                gatt = gatt,
+                characteristic = characteristic,
+                value = characteristic.value
+            )
         }
     }
 
@@ -170,14 +194,17 @@ class Forumslader(
         if (isClosed || isConnecting || bluetoothGatt != null) return
 
         isConnecting = true
-        val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+        val bluetoothManager =
+            context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
         val bluetoothDevice = bluetoothManager.adapter.getRemoteDevice(address)
 
         Log.i("FL_BLE", "Initiating connection to GATT at $address...")
-        
+
         scheduleConnectionTimeout()
-        
-        bluetoothGatt = bluetoothDevice.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
+
+        @Suppress("DEPRECATION")
+        bluetoothGatt =
+            bluetoothDevice.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
     }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
@@ -202,18 +229,19 @@ class Forumslader(
         val serviceV6 = gatt.getService(SERVICE_UUID_V6)
         val serviceV5 = gatt.getService(SERVICE_UUID_V5)
         val service = serviceV6 ?: serviceV5
-        
-        val detectedVersion = if (serviceV6 != null) ForumsladerVersion.V6 else if (serviceV5 != null) ForumsladerVersion.V5 else parser.version
+
+        val detectedVersion =
+            if (serviceV6 != null) ForumsladerVersion.V6 else if (serviceV5 != null) ForumsladerVersion.V5 else parser.version
         parser.version = detectedVersion
         config.version = detectedVersion
-        
+
         Log.i("FL_BLE", "Device version determined from services: ${detectedVersion.key}")
 
         val characteristic = service?.getCharacteristic(CHARACTERISTIC_UART_TX_RX)
             ?: service?.getCharacteristic(CHARACTERISTIC_UART_RX_V6)
             ?: service?.characteristics?.firstOrNull { char ->
                 (char.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY) != 0 ||
-                (char.properties and BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0
+                        (char.properties and BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0
             }
 
         characteristic?.also { char ->
@@ -284,7 +312,10 @@ class Forumslader(
         cancelConnectionTimeout()
         val runnable = Runnable {
             if (isConnecting || bluetoothGatt != null) {
-                Log.w("FL_BLE", "Connection attempt timed out after 15 seconds. Cleaning up and retrying...")
+                Log.w(
+                    "FL_BLE",
+                    "Connection attempt timed out after 15 seconds. Cleaning up and retrying..."
+                )
                 cleanupConnection()
                 currentEmitter?.onNext(OnConnectionStatus(status = ConnectionStatus.SEARCHING))
                 if (!isClosed) {
@@ -311,7 +342,10 @@ class Forumslader(
             override fun run() {
                 if (isClosed || bluetoothGatt != gatt) return
                 if (parser.isConfigLoaded) {
-                    Log.i("FL_BLE", "Forumslader config is loaded, stopping parameter request loop.")
+                    Log.i(
+                        "FL_BLE",
+                        "Forumslader config is loaded, stopping parameter request loop."
+                    )
                     return
                 }
 
@@ -346,7 +380,11 @@ class Forumslader(
         rxChar?.let { char ->
             val cmdBytes = $$"$FLT,5*47\r\n".toByteArray(Charsets.US_ASCII)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                gatt.writeCharacteristic(char, cmdBytes, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+                gatt.writeCharacteristic(
+                    char,
+                    cmdBytes,
+                    BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                )
             } else {
                 @Suppress("DEPRECATION")
                 char.value = cmdBytes
@@ -357,39 +395,21 @@ class Forumslader(
         } ?: Log.w("FL_BLE", "Command characteristic not found for parameter request.")
     }
 
-    private fun emitMetrics(emitter: Emitter<DeviceEvent>, metrics: ForumsladerMetrics) {
+    private fun emitMetrics(emitter: Emitter<DeviceEvent>, metrics: ForumsladerMetrics) = listOf(
+        "fl_battery_level" to metrics.batteryLevelPct.toDouble(),
+        "fl_consumer_current" to metrics.consumerCurrent.toDouble(),
+        "fl_speed" to metrics.speedMs.toDouble(),
+        "fl_trip_distance" to metrics.tripDistanceMeters,
+        "fl_frequency" to metrics.frequency.toDouble()
+    ).forEach { (typeId, value) ->
         emitter.onNext(
             OnDataPoint(
                 dataPoint = DataPoint(
-                    dataTypeId = DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_battery_level"),
-                    values = mapOf(DataType.Field.SINGLE to metrics.batteryLevelPct.toDouble()),
-                    sourceId = device.uid
-                )
-            )
-        )
-        emitter.onNext(
-            OnDataPoint(
-                dataPoint = DataPoint(
-                    dataTypeId = DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_consumer_current"),
-                    values = mapOf(DataType.Field.SINGLE to metrics.consumerCurrent.toDouble()),
-                    sourceId = device.uid
-                )
-            )
-        )
-        emitter.onNext(
-            OnDataPoint(
-                dataPoint = DataPoint(
-                    dataTypeId = DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_speed"),
-                    values = mapOf(DataType.Field.SINGLE to metrics.speedMs.toDouble()),
-                    sourceId = device.uid
-                )
-            )
-        )
-        emitter.onNext(
-            OnDataPoint(
-                dataPoint = DataPoint(
-                    dataTypeId = DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_trip_distance"),
-                    values = mapOf(DataType.Field.SINGLE to metrics.tripDistanceMeters),
+                    dataTypeId = DataType.dataTypeId(
+                        extension = "karoo-forumslader",
+                        typeId = typeId
+                    ),
+                    values = mapOf(DataType.Field.SINGLE to value),
                     sourceId = device.uid
                 )
             )

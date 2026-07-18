@@ -20,6 +20,7 @@ class ForumsladerDataFieldsAdapterTest {
             batteryCurrent = 1.5f,
             consumerCurrent = 2.5f,
             batteryLevelPct = 75,
+            frequency = 17.7f,
             speedMs = 7.03f, // 25.3 km/h / 3.6
             tripDistanceMeters = 12700.0,
             totalDistanceMeters = 100500.0,
@@ -35,6 +36,7 @@ class ForumsladerDataFieldsAdapterTest {
         assertEquals(2.5f, values[ForumsladerDataFieldsAdapter.DataFieldId.CONSUMER_CURRENT])
         assertEquals(7.03f, values[ForumsladerDataFieldsAdapter.DataFieldId.SPEED])
         assertEquals(12700.0, values[ForumsladerDataFieldsAdapter.DataFieldId.TRIP_DISTANCE])
+        assertEquals(17.7f, values[ForumsladerDataFieldsAdapter.DataFieldId.FREQUENCY])
     }
 
     @Test
@@ -45,6 +47,7 @@ class ForumsladerDataFieldsAdapterTest {
             batteryCurrent = 1.5f,
             consumerCurrent = 2.5f,
             batteryLevelPct = 75,
+            frequency = 17.7f,
             speedMs = 7.03f,
             tripDistanceMeters = 12700.0,
             totalDistanceMeters = 100500.0,
@@ -56,7 +59,7 @@ class ForumsladerDataFieldsAdapterTest {
         val values = ForumsladerDataFieldsAdapter.metricsToDataFieldValues(metrics)
 
         // then
-        assertEquals(4, values.size)
+        assertEquals(5, values.size)
     }
 
     @Test
@@ -66,6 +69,7 @@ class ForumsladerDataFieldsAdapterTest {
         every { mockContext.getString(R.string.datafield_consumer_current) } returns "Consumer Current"
         every { mockContext.getString(R.string.datafield_speed) } returns "Speed"
         every { mockContext.getString(R.string.datafield_trip_distance) } returns "Trip Distance"
+        every { mockContext.getString(R.string.datafield_frequency) } returns "Frequency"
 
         val adapter = ForumsladerDataFieldsAdapter(mockContext)
 
@@ -77,5 +81,6 @@ class ForumsladerDataFieldsAdapterTest {
         assertEquals("Consumer Current", names[ForumsladerDataFieldsAdapter.DataFieldId.CONSUMER_CURRENT])
         assertEquals("Speed", names[ForumsladerDataFieldsAdapter.DataFieldId.SPEED])
         assertEquals("Trip Distance", names[ForumsladerDataFieldsAdapter.DataFieldId.TRIP_DISTANCE])
+        assertEquals("Frequency", names[ForumsladerDataFieldsAdapter.DataFieldId.FREQUENCY])
     }
 }
