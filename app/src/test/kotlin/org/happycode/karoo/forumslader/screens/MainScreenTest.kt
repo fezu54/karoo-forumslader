@@ -294,6 +294,123 @@ class MainScreenTest {
     }
 
     @Test
+    fun `should display battery voltage`() {
+        val metrics = mapOf(DataFieldId.BATTERY_VOLTAGE to 48.2)
+
+        val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
+        composeTestRule.setContent {
+            AppTheme {
+                MainScreenContent(
+                    connected = true,
+                    sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+                    metrics = metrics,
+                    userProfile = null,
+                    wheelsize = config.wheelsize,
+                    poles = config.poles,
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, onSpeedMultiplierChange = {}
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithText("48.2 V", substring = true).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun `should display battery current`() {
+        val metrics = mapOf(DataFieldId.BATTERY_CURRENT to -1.5)
+
+        val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
+        composeTestRule.setContent {
+            AppTheme {
+                MainScreenContent(
+                    connected = true,
+                    sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+                    metrics = metrics,
+                    userProfile = null,
+                    wheelsize = config.wheelsize,
+                    poles = config.poles,
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, onSpeedMultiplierChange = {}
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithText("-1.5 A", substring = true).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun `should display temperature in C when metric`() {
+        val metrics = mapOf(DataFieldId.TEMPERATURE to 22.5)
+        val metricProfile = UserProfile(
+            weight = 70f,
+            preferredUnit = PreferredUnit(
+                distance = PreferredUnit.UnitType.METRIC,
+                elevation = PreferredUnit.UnitType.METRIC,
+                temperature = PreferredUnit.UnitType.METRIC,
+                weight = PreferredUnit.UnitType.METRIC
+            ),
+            maxHr = 190,
+            restingHr = 60,
+            heartRateZones = emptyList(),
+            ftp = 250,
+            powerZones = emptyList()
+        )
+
+        val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
+        composeTestRule.setContent {
+            AppTheme {
+                MainScreenContent(
+                    connected = true,
+                    sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+                    metrics = metrics,
+                    userProfile = metricProfile,
+                    wheelsize = config.wheelsize,
+                    poles = config.poles,
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, onSpeedMultiplierChange = {}
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithText("22.5 °C", substring = true).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun `should display temperature in F when imperial`() {
+        val metrics = mapOf(DataFieldId.TEMPERATURE to 22.5)
+        val imperialProfile = UserProfile(
+            weight = 70f,
+            preferredUnit = PreferredUnit(
+                distance = PreferredUnit.UnitType.IMPERIAL,
+                elevation = PreferredUnit.UnitType.IMPERIAL,
+                temperature = PreferredUnit.UnitType.IMPERIAL,
+                weight = PreferredUnit.UnitType.IMPERIAL
+            ),
+            maxHr = 190,
+            restingHr = 60,
+            heartRateZones = emptyList(),
+            ftp = 250,
+            powerZones = emptyList()
+        )
+
+        val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
+        composeTestRule.setContent {
+            AppTheme {
+                MainScreenContent(
+                    connected = true,
+                    sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+                    metrics = metrics,
+                    userProfile = imperialProfile,
+                    wheelsize = config.wheelsize,
+                    poles = config.poles,
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, onSpeedMultiplierChange = {}
+                )
+            }
+        }
+
+        // (22.5 * 9/5) + 32 = 72.5
+        composeTestRule.onNodeWithText("72.5 °F", substring = true).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
     fun `should display configuration values`() {
         val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
         config.wheelsize = 2150

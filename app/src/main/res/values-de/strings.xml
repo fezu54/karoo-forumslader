@@ -6,6 +6,10 @@
     <!-- Datafield names -->
     <string name="datafield_battery_level">Batterieladestand</string>
     <string name="datafield_battery_level_desc">Forumslader Batterieladestand in Prozent</string>
+    <string name="datafield_battery_voltage">Batteriespannung</string>
+    <string name="datafield_battery_voltage_desc">Forumslader Gesamtbatteriespannung in Volt</string>
+    <string name="datafield_battery_current">Batteriestrom</string>
+    <string name="datafield_battery_current_desc">Forumslader Batteriestrom in Ampere</string>
     <string name="datafield_consumer_current">Verbrauchsstrom</string>
     <string name="datafield_consumer_current_desc">Forumslader Verbrauchsstrom in Ampere</string>
     <string name="datafield_speed">Geschwindigkeit</string>
@@ -14,4 +18,6 @@
     <string name="datafield_trip_distance_desc">Forumslader Fahrstrecke in km</string>
     <string name="datafield_frequency">Frequenz</string>
     <string name="datafield_frequency_desc">Rohfrequenz des Dynamos in Hz</string>
+    <string name="datafield_temperature">Temperatur</string>
+    <string name="datafield_temperature_desc">Forumslader Temperatur in Celsius</string>
 </resources>

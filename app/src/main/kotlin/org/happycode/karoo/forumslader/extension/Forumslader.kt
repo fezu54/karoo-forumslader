@@ -54,9 +54,13 @@ class Forumslader(
         uid = "fl-$address",
         dataTypes = listOf(
             DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_battery_level"),
+            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_battery_voltage"),
+            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_battery_current"),
             DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_consumer_current"),
             DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_speed"),
-            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_trip_distance")
+            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_trip_distance"),
+            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_frequency"),
+            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_temperature")
         ),
         displayName = displayName ?: "Forumslader"
     )
@@ -397,10 +401,13 @@ class Forumslader(
 
     private fun emitMetrics(emitter: Emitter<DeviceEvent>, metrics: ForumsladerMetrics) = listOf(
         "fl_battery_level" to metrics.batteryLevelPct.toDouble(),
+        "fl_battery_voltage" to metrics.batteryVoltage.toDouble(),
+        "fl_battery_current" to metrics.batteryCurrent.toDouble(),
         "fl_consumer_current" to metrics.consumerCurrent.toDouble(),
         "fl_speed" to metrics.speedMs.toDouble(),
         "fl_trip_distance" to metrics.tripDistanceMeters,
-        "fl_frequency" to metrics.frequency.toDouble()
+        "fl_frequency" to metrics.frequency.toDouble(),
+        "fl_temperature" to metrics.temperatureCelsius.toDouble()
     ).forEach { (typeId, value) ->
         emitter.onNext(
             OnDataPoint(

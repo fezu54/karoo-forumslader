@@ -6,6 +6,10 @@
     <!-- Datafield names -->
     <string name="datafield_battery_level">Battery Level</string>
     <string name="datafield_battery_level_desc">Forumslader battery level in percentage</string>
+    <string name="datafield_battery_voltage">Battery Voltage</string>
+    <string name="datafield_battery_voltage_desc">Forumslader total battery voltage in Volts</string>
+    <string name="datafield_battery_current">Battery Current</string>
+    <string name="datafield_battery_current_desc">Forumslader battery current in Amperes</string>
     <string name="datafield_consumer_current">Consumer Current</string>
     <string name="datafield_consumer_current_desc">Forumslader consumer current in Amperes</string>
     <string name="datafield_speed">Speed</string>
@@ -14,4 +18,6 @@
     <string name="datafield_trip_distance_desc">Forumslader trip distance in km</string>
     <string name="datafield_frequency">Frequency</string>
     <string name="datafield_frequency_desc">Raw dynamo frequency in Hz</string>
+    <string name="datafield_temperature">Temperature</string>
+    <string name="datafield_temperature_desc">Forumslader temperature in Celsius</string>
 </resources>
