@@ -67,7 +67,7 @@ jobs:
         if: github.ref == 'refs/heads/main'
         id: check_commit
         run: |
-          commit_msg=$(git log -1 --pretty=%B)
+          commit_msg=$(git log -1 --pretty=%B $GITHUB_SHA)
           echo "Commit message:"
           echo "$commit_msg"
           if echo "$commit_msg" | grep -qE '^(feat|fix|refactor)(\(.*\))?(\!)?:'; then
