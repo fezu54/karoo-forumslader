@@ -70,9 +70,41 @@ jobs:
           commit_msg=$(git log -1 --pretty=%B $GITHUB_SHA)
           echo "Commit message:"
           echo "$commit_msg"
-          if echo "$commit_msg" | grep -qE '^(feat|fix|refactor)(\(.*\))?(\!)?:'; then
+          if echo "$commit_msg" | grep -qE '^(feat|fix|refactor)(\(.*\))?!?:|\[BREAKING\]'; then
             echo "should_release=true" >> $GITHUB_ENV
-            echo "Matches release criteria (feat/fix/refactor)."
+            echo "Matches release criteria."
+            
+            git fetch --tags origin
+            prev_tag=$(git describe --tags --abbrev=0 --match "v*" 2>/dev/null || echo "v0.0.0")
+            
+            version=${prev_tag#v}
+            version=${version%%-*}
+            version=${version%%+*}
+            
+            IFS='.' read -r major minor patch <<< "$version" || true
+            
+            major=$(echo "$major" | grep -oE '^[0-9]+' || echo "0")
+            minor=$(echo "$minor" | grep -oE '^[0-9]+' || echo "0")
+            patch=$(echo "$patch" | grep -oE '^[0-9]+' || echo "0")
+            
+            major=$((10#$major))
+            minor=$((10#$minor))
+            patch=$((10#$patch))
+            
+            if echo "$commit_msg" | grep -qE '!:|\[BREAKING\]'; then
+              major=$((major + 1))
+              minor=0
+              patch=0
+            elif echo "$commit_msg" | grep -qE '^(feat|refactor)(\(.*\))?:'; then
+              minor=$((minor + 1))
+              patch=0
+            elif echo "$commit_msg" | grep -qE '^fix(\(.*\))?:'; then
+              patch=$((patch + 1))
+            fi
+            
+            new_tag="v$major.$minor.$patch"
+            echo "new_tag=$new_tag" >> $GITHUB_ENV
+            echo "New version: $new_tag"
           else
             echo "should_release=false" >> $GITHUB_ENV
             echo "Does not match release criteria."
@@ -90,8 +122,8 @@ jobs:
         if: github.ref == 'refs/heads/main' && env.should_release == 'true'
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: v1.0.${{ github.run_number }}
-          name: Release v1.0.${{ github.run_number }}
+          tag_name: ${{ env.new_tag }}
+          name: Release ${{ env.new_tag }}
           draft: false
           prerelease: false
           files: app/build/outputs/apk/release/app-release.apk
