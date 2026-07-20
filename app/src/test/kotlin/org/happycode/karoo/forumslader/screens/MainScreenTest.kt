@@ -434,4 +434,27 @@ class MainScreenTest {
         composeTestRule.onNodeWithText("2150 mm", substring = true).performScrollTo().assertIsDisplayed()
         composeTestRule.onNodeWithText("28").performScrollTo().assertIsDisplayed()
     }
+
+    @Test
+    fun `should display warning banner when there are missing streams`() {
+        composeTestRule.setContent {
+            AppTheme {
+                MainScreenContent(
+                    connected = true,
+                    sensorState = StreamState.Searching,
+                    hasMissingStreams = true,
+                    metrics = emptyMap(),
+                    userProfile = null,
+                    wheelsize = 2200,
+                    poles = 14,
+                    versionKey = "v6",
+                    speedMultiplier = 1.0f,
+                    onSpeedMultiplierChange = {}
+                )
+            }
+        }
+
+        // Verify the warning text is displayed using substring matching because the full string is long
+        composeTestRule.onNodeWithText("Some data fields are unsupported", substring = true).assertIsDisplayed()
+    }
 }

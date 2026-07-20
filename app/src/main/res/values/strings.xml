@@ -20,4 +20,5 @@
     <string name="datafield_frequency_desc">Raw dynamo frequency in Hz</string>
     <string name="datafield_temperature">Temperature</string>
     <string name="datafield_temperature_desc">Forumslader temperature in Celsius</string>
+    <string name="missing_streams_warning">Some data fields are unsupported by your paired device. Please delete and re-pair your Forumslader in the Karoo sensor settings to update its capabilities.</string>
 </resources>
