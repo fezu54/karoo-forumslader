@@ -20,4 +20,5 @@
     <string name="datafield_frequency_desc">Rohfrequenz des Dynamos in Hz</string>
     <string name="datafield_temperature">Temperatur</string>
     <string name="datafield_temperature_desc">Forumslader Temperatur in Celsius</string>
+    <string name="missing_streams_warning">Einige Datenfelder werden von dem gekoppelten Gerät nicht unterstützt. Bitte löschen und koppeln Sie Ihren Forumslader in den Karoo-Sensoreinstellungen neu, um die Fähigkeiten zu aktualisieren.</string>
 </resources>

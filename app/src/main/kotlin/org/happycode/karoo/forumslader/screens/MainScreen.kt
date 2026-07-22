@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.HourglassEmpty
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -58,9 +59,31 @@ fun MainScreen() {
     val context = LocalContext.current
     val karooSystem = remember { KarooSystemService(context) }
     var connected by remember { mutableStateOf(false) }
-    var sensorState by remember { mutableStateOf<StreamState>(StreamState.Idle) }
-    var userProfile by remember { mutableStateOf<UserProfile?>(null) }
     val metrics = remember { mutableStateMapOf<String, Double>() }
+    var userProfile by remember { mutableStateOf<UserProfile?>(null) }
+    val streamStates = remember { mutableStateMapOf<String, StreamState>() }
+    
+    val hasMissingStreams by remember {
+        androidx.compose.runtime.derivedStateOf {
+            val hasActive = streamStates.values.any { it is StreamState.Streaming || it is StreamState.Searching }
+            val hasMissing = streamStates.values.any { it is StreamState.NotAvailable }
+            hasActive && hasMissing
+        }
+    }
+    
+    val sensorState by remember {
+        androidx.compose.runtime.derivedStateOf {
+            when {
+                streamStates.values.any { it is StreamState.Streaming } -> 
+                    streamStates.values.first { it is StreamState.Streaming }
+                streamStates.values.any { it is StreamState.Searching } -> 
+                    StreamState.Searching
+                streamStates.values.isNotEmpty() && streamStates.values.all { it is StreamState.NotAvailable } -> 
+                    StreamState.NotAvailable
+                else -> StreamState.Idle
+            }
+        }
+    }
 
     val prefs = remember { context.getSharedPreferences("forumslader_prefs", Context.MODE_PRIVATE) }
     var wheelsize by remember { mutableIntStateOf(prefs.getInt("wheelsize", 2200)) }
@@ -115,7 +138,7 @@ fun MainScreen() {
         types.forEach { typeId ->
             val dataTypeId = DataType.dataTypeId(extensionId, typeId)
             listeners.add(karooSystem.addConsumer(OnStreamState.StartStreaming(dataTypeId)) { event: OnStreamState ->
-                sensorState = event.state
+                streamStates[typeId] = event.state
                 (event.state as? StreamState.Streaming)?.dataPoint?.values?.get(DataType.Field.SINGLE)
                     ?.let { value ->
                         metrics[typeId] = value
@@ -132,6 +155,7 @@ fun MainScreen() {
     MainScreenContent(
         connected = connected,
         sensorState = sensorState,
+        hasMissingStreams = hasMissingStreams,
         metrics = metrics,
         userProfile = userProfile,
         wheelsize = wheelsize,
@@ -153,6 +177,7 @@ fun MainScreen() {
 fun MainScreenContent(
     connected: Boolean,
     sensorState: StreamState,
+    hasMissingStreams: Boolean = false,
     metrics: Map<String, Double>,
     userProfile: UserProfile?,
     wheelsize: Int,
@@ -170,6 +195,9 @@ fun MainScreenContent(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            if (hasMissingStreams) {
+                MissingStreamsWarning()
+            }
             StatusCard(connected = connected, sensorState = sensorState)
             ConfigCard(
                 wheelsize = wheelsize,
@@ -179,6 +207,32 @@ fun MainScreenContent(
                 onSpeedMultiplierChange = onSpeedMultiplierChange
             )
             MetricsList(metrics = metrics, userProfile = userProfile)
+        }
+    }
+}
+
+@Composable
+fun MissingStreamsWarning() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer,
+            contentColor = MaterialTheme.colorScheme.onErrorContainer
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.Warning,
+                contentDescription = null
+            )
+            Text(
+                text = stringResource(id = R.string.missing_streams_warning),
+                style = MaterialTheme.typography.bodyMedium
+            )
         }
     }
 }
@@ -459,6 +513,7 @@ fun MainScreenPreview() {
                     ""
                 )
             ),
+            hasMissingStreams = false,
             metrics = mapOf(
                 DataFieldId.BATTERY_LEVEL to 85.0,
                 DataFieldId.SPEED to 7.05 // ~25.4 km/h

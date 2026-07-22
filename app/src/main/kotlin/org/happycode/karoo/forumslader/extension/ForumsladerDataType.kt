@@ -12,8 +12,7 @@ class ForumsladerDataType(
     private val formatDataTypeId: String? = null
 ) : DataTypeImpl(extension, typeId) {
     override fun startView(context: Context, config: ViewConfig, emitter: ViewEmitter) {
-        formatDataTypeId?.let {
-            emitter.onNext(UpdateNumericConfig(formatDataTypeId = it))
-        }
+        val formatId = formatDataTypeId ?: dataTypeId
+        emitter.onNext(UpdateNumericConfig(formatId))
     }
 }
