@@ -214,7 +214,7 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
                     speedMs = frequency * freq2speed * multiplier
 
                     val imp2odo = wheelsize.toDouble() / poles.toDouble() / 1000.0 * version.impulseScale
-                    tripDistanceMeters = impulseCounter * imp2odo
+                    tripDistanceMeters = impulseCounter * imp2odo * multiplier.toDouble()
                     totalDistanceMeters = tripDistanceMeters
                     
                     if (DEBUG_SENTENCE_PARSING) {
@@ -274,7 +274,7 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
                     speedMs = frequency * freq2speed * multiplier
 
                     val kmCounter = tokens.getOrNull(14)?.toDoubleOrNull() ?: 0.0
-                    tripDistanceMeters = kmCounter * 1000.0
+                    tripDistanceMeters = kmCounter * 1000.0 * multiplier.toDouble()
                     totalDistanceMeters = tripDistanceMeters
                     
                     if (DEBUG_SENTENCE_PARSING) {
