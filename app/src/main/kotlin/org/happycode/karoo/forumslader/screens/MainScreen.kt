@@ -473,7 +473,7 @@ fun ConfigCard(
                 value = speedMultiplier,
                 onValueChange = onSpeedMultiplierChange,
                 valueRange = 0.5f..2.0f,
-                steps = 29,
+                steps = 149,
                 modifier = Modifier.fillMaxWidth()
             )
         }
