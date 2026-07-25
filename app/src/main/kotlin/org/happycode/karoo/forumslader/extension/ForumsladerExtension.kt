@@ -23,6 +23,7 @@ import kotlinx.coroutines.launch
 import io.hammerhead.karooext.extension.DataTypeImpl
 import io.hammerhead.karooext.models.DataType
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
+import org.happycode.karoo.forumslader.model.ForumsladerConfig
 
 class ForumsladerExtension : KarooExtension(extension = "karoo-forumslader", version = "1.1") {
     private val devices = mutableMapOf<String, Forumslader>()
@@ -59,6 +60,17 @@ class ForumsladerExtension : KarooExtension(extension = "karoo-forumslader", ver
         val bluetoothManager = getSystemService(BLUETOOTH_SERVICE) as BluetoothManager
         val scanner = bluetoothManager.adapter?.takeIf { it.isEnabled }?.bluetoothLeScanner ?: run {
             android.util.Log.w("FL_SCAN", "startScan() failed: bluetooth scanner not available or disabled")
+            emitter.setCancellable { job.cancel() }
+            return
+        }
+
+        val config = ForumsladerConfig(this)
+        val lockedMac = config.lockedMacAddress
+        if (lockedMac != null) {
+            val forumslader = devices.getOrPut(key = lockedMac) {
+                Forumslader(context = this@ForumsladerExtension, address = lockedMac, displayName = "Forumslader")
+            }
+            emitter.onNext(forumslader.device)
             emitter.setCancellable { job.cancel() }
             return
         }

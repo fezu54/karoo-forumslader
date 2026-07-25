@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import io.hammerhead.karooext.models.DataPoint
 import io.hammerhead.karooext.models.StreamState
@@ -38,7 +39,7 @@ class MainScreenTest {
         val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
         composeTestRule.setContent {
             AppTheme {
-                MainScreenContent(connected = false, sensorState = StreamState.Idle, metrics = emptyMap(), userProfile = null, wheelsize = config.wheelsize, poles = config.poles, versionKey = config.version.key, speedMultiplier = config.speedMultiplier, onSpeedMultiplierChange = {})
+                MainScreenContent(connected = false, sensorState = StreamState.Idle, metrics = emptyMap(), userProfile = null, wheelsize = config.wheelsize, poles = config.poles, versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {})
             }
         }
 
@@ -57,7 +58,7 @@ class MainScreenTest {
                     userProfile = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, onSpeedMultiplierChange = {}
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}
                 )
             }
         }
@@ -79,7 +80,7 @@ class MainScreenTest {
                     userProfile = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, onSpeedMultiplierChange = {}
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}
                 )
             }
         }
@@ -115,7 +116,7 @@ class MainScreenTest {
                     userProfile = imperialProfile,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, onSpeedMultiplierChange = {}
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}
                 )
             }
         }
@@ -151,7 +152,7 @@ class MainScreenTest {
                     userProfile = metricProfile,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, onSpeedMultiplierChange = {}
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}
                 )
             }
         }
@@ -171,7 +172,7 @@ class MainScreenTest {
                     userProfile = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, onSpeedMultiplierChange = {}
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}
                 )
             }
         }
@@ -191,7 +192,7 @@ class MainScreenTest {
                     userProfile = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, onSpeedMultiplierChange = {}
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}
                 )
             }
         }
@@ -227,7 +228,7 @@ class MainScreenTest {
                     userProfile = imperialProfile,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, onSpeedMultiplierChange = {}
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}
                 )
             }
         }
@@ -263,7 +264,7 @@ class MainScreenTest {
                     userProfile = metricProfile,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, onSpeedMultiplierChange = {}
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}
                 )
             }
         }
@@ -285,7 +286,7 @@ class MainScreenTest {
                     userProfile = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, onSpeedMultiplierChange = {}
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}
                 )
             }
         }
@@ -307,7 +308,7 @@ class MainScreenTest {
                     userProfile = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, onSpeedMultiplierChange = {}
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}
                 )
             }
         }
@@ -329,7 +330,7 @@ class MainScreenTest {
                     userProfile = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, onSpeedMultiplierChange = {}
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}
                 )
             }
         }
@@ -365,7 +366,7 @@ class MainScreenTest {
                     userProfile = metricProfile,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, onSpeedMultiplierChange = {}
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}
                 )
             }
         }
@@ -401,7 +402,7 @@ class MainScreenTest {
                     userProfile = imperialProfile,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, onSpeedMultiplierChange = {}
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}
                 )
             }
         }
@@ -425,7 +426,7 @@ class MainScreenTest {
                     userProfile = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, onSpeedMultiplierChange = {}
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}
                 )
             }
         }
@@ -448,13 +449,38 @@ class MainScreenTest {
                     wheelsize = 2200,
                     poles = 14,
                     versionKey = "v6",
-                    speedMultiplier = 1.0f,
-                    onSpeedMultiplierChange = {}
+                    speedMultiplier = 1.0f, lockedMacAddress = null, onSpeedMultiplierChange = {}, onForgetDevice = {}
                 )
             }
         }
 
         // Verify the warning text is displayed using substring matching because the full string is long
         composeTestRule.onNodeWithText("Some data fields are unsupported", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun `should invoke onForgetDevice when Forget is clicked`() {
+        val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
+        var forgetClicked = false
+        composeTestRule.setContent {
+            AppTheme {
+                MainScreenContent(
+                    connected = true,
+                    sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+                    metrics = emptyMap(),
+                    userProfile = null,
+                    wheelsize = config.wheelsize,
+                    poles = config.poles,
+                    versionKey = config.version.key, 
+                    speedMultiplier = config.speedMultiplier, 
+                    lockedMacAddress = "00:11:22:33:44:55",
+                    onSpeedMultiplierChange = {},
+                    onForgetDevice = { forgetClicked = true }
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithText("Forget").performScrollTo().performClick()
+        assert(forgetClicked)
     }
 }

@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.LinkOff
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -48,6 +49,12 @@ import io.hammerhead.karooext.models.OnStreamState
 import io.hammerhead.karooext.models.StreamState
 import io.hammerhead.karooext.models.UserProfile
 import org.happycode.karoo.forumslader.R
+import org.happycode.karoo.forumslader.PreferencesConstants.KEY_LOCKED_MAC_ADDRESS
+import org.happycode.karoo.forumslader.PreferencesConstants.KEY_POLES
+import org.happycode.karoo.forumslader.PreferencesConstants.KEY_SPEED_MULTIPLIER
+import org.happycode.karoo.forumslader.PreferencesConstants.KEY_VERSION
+import org.happycode.karoo.forumslader.PreferencesConstants.KEY_WHEEL_SIZE
+import org.happycode.karoo.forumslader.PreferencesConstants.PREFS_NAME
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
 import org.happycode.karoo.forumslader.theme.AppTheme
@@ -85,27 +92,30 @@ fun MainScreen() {
         }
     }
 
-    val prefs = remember { context.getSharedPreferences("forumslader_prefs", Context.MODE_PRIVATE) }
-    var wheelsize by remember { mutableIntStateOf(prefs.getInt("wheelsize", 2200)) }
-    var poles by remember { mutableIntStateOf(prefs.getInt("poles", 14)) }
+    val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
+    var wheelsize by remember { mutableIntStateOf(prefs.getInt(KEY_WHEEL_SIZE, 2200)) }
+    var poles by remember { mutableIntStateOf(prefs.getInt(KEY_POLES, 14)) }
     var versionKey by remember {
         mutableStateOf(
-            prefs.getString("version", "unknown") ?: "unknown"
+            prefs.getString(KEY_VERSION, "unknown") ?: "unknown"
         )
     }
-    var speedMultiplier by remember { mutableFloatStateOf(prefs.getFloat("speedMultiplier", 1.0f)) }
+    var speedMultiplier by remember { mutableFloatStateOf(prefs.getFloat(KEY_SPEED_MULTIPLIER, 1.0f)) }
+    var lockedMacAddress by remember { mutableStateOf(prefs.getString(KEY_LOCKED_MAC_ADDRESS, null)) }
 
     DisposableEffect(prefs) {
         val listener =
             SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, key ->
                 when (key) {
-                    "wheelsize" -> wheelsize = sharedPreferences.getInt("wheelsize", 2200)
-                    "poles" -> poles = sharedPreferences.getInt("poles", 14)
-                    "version" -> versionKey =
-                        sharedPreferences.getString("version", "unknown") ?: "unknown"
+                    KEY_WHEEL_SIZE -> wheelsize = sharedPreferences.getInt(KEY_WHEEL_SIZE, 2200)
+                    KEY_POLES -> poles = sharedPreferences.getInt(KEY_POLES, 14)
+                    KEY_VERSION -> versionKey =
+                        sharedPreferences.getString(KEY_VERSION, "unknown") ?: "unknown"
 
-                    "speedMultiplier" -> speedMultiplier =
-                        sharedPreferences.getFloat("speedMultiplier", 1.0f)
+                    KEY_SPEED_MULTIPLIER -> speedMultiplier =
+                        sharedPreferences.getFloat(KEY_SPEED_MULTIPLIER, 1.0f)
+                    KEY_LOCKED_MAC_ADDRESS -> lockedMacAddress =
+                        sharedPreferences.getString(KEY_LOCKED_MAC_ADDRESS, null)
                 }
             }
         prefs.registerOnSharedPreferenceChangeListener(listener)
@@ -162,14 +172,21 @@ fun MainScreen() {
         poles = poles,
         versionKey = versionKey,
         speedMultiplier = speedMultiplier,
+        lockedMacAddress = lockedMacAddress,
         onSpeedMultiplierChange = {
             prefs.edit {
                 putFloat(
-                    "speedMultiplier",
+                    KEY_SPEED_MULTIPLIER,
                     it
                 )
             }
-        })
+        },
+        onForgetDevice = {
+            prefs.edit {
+                putString(KEY_LOCKED_MAC_ADDRESS, null)
+            }
+        }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -184,7 +201,9 @@ fun MainScreenContent(
     poles: Int,
     versionKey: String,
     speedMultiplier: Float,
-    onSpeedMultiplierChange: (Float) -> Unit
+    lockedMacAddress: String?,
+    onSpeedMultiplierChange: (Float) -> Unit,
+    onForgetDevice: () -> Unit
 ) {
     Scaffold { padding ->
         Column(
@@ -204,7 +223,9 @@ fun MainScreenContent(
                 poles = poles,
                 versionKey = versionKey,
                 speedMultiplier = speedMultiplier,
-                onSpeedMultiplierChange = onSpeedMultiplierChange
+                lockedMacAddress = lockedMacAddress,
+                onSpeedMultiplierChange = onSpeedMultiplierChange,
+                onForgetDevice = onForgetDevice
             )
             MetricsList(metrics = metrics, userProfile = userProfile)
         }
@@ -256,7 +277,7 @@ fun StatusCard(connected: Boolean, sensorState: StreamState) {
                     style = MaterialTheme.typography.titleMedium
                 )
                 Text(
-                    text = if (connected) "Active" else "Inactive",
+                    text = if (connected) stringResource(R.string.status_active) else stringResource(R.string.status_inactive),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
                     color = if (connected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
@@ -269,37 +290,37 @@ fun StatusCard(connected: Boolean, sensorState: StreamState) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Forumslader Device",
+                    text = stringResource(R.string.forumslader_device_label),
                     style = MaterialTheme.typography.bodyLarge
                 )
-                val (statusIcon, statusColor, statusDesc) = when (sensorState) {
+                val (statusIcon, statusColor, statusResId) = when (sensorState) {
                     is StreamState.Streaming -> Triple(
                         Icons.Default.CheckCircle,
                         MaterialTheme.colorScheme.primary,
-                        "Connected"
+                        R.string.status_connected
                     )
 
                     is StreamState.Searching -> Triple(
                         Icons.Default.HourglassEmpty,
                         MaterialTheme.colorScheme.secondary,
-                        "Searching"
+                        R.string.status_searching
                     )
 
                     is StreamState.NotAvailable -> Triple(
                         Icons.Default.Cancel,
                         MaterialTheme.colorScheme.error,
-                        "Not Available"
+                        R.string.status_not_available
                     )
 
                     else -> Triple(
                         Icons.Default.LinkOff,
                         MaterialTheme.colorScheme.outline,
-                        "Disconnected"
+                        R.string.status_disconnected
                     )
                 }
                 Icon(
                     imageVector = statusIcon,
-                    contentDescription = statusDesc,
+                    contentDescription = stringResource(statusResId),
                     tint = statusColor
                 )
             }
@@ -435,7 +456,9 @@ fun ConfigCard(
     poles: Int,
     versionKey: String,
     speedMultiplier: Float,
-    onSpeedMultiplierChange: (Float) -> Unit
+    lockedMacAddress: String?,
+    onSpeedMultiplierChange: (Float) -> Unit,
+    onForgetDevice: () -> Unit
 ) {
     val locale = LocalConfiguration.current.let { config ->
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
@@ -456,17 +479,17 @@ fun ConfigCard(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                text = "Configuration",
+                text = stringResource(R.string.configuration_title),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary
             )
             HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-            ConfigItem(label = "Wheel Size", value = "$wheelsize mm")
-            ConfigItem(label = "Poles", value = "$poles")
-            ConfigItem(label = "Version", value = versionKey)
+            ConfigItem(label = stringResource(R.string.label_wheel_size), value = "$wheelsize mm")
+            ConfigItem(label = stringResource(R.string.label_poles), value = "$poles")
+            ConfigItem(label = stringResource(R.string.label_version), value = versionKey)
             HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
             ConfigItem(
-                label = "Speed Multiplier",
+                label = stringResource(R.string.label_speed_multiplier),
                 value = String.format(locale, "%.2fx", speedMultiplier)
             )
             Slider(
@@ -476,6 +499,30 @@ fun ConfigCard(
                 steps = 149,
                 modifier = Modifier.fillMaxWidth()
             )
+            if (lockedMacAddress != null) {
+                HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = stringResource(R.string.label_locked_device),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = lockedMacAddress,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Button(onClick = onForgetDevice) {
+                        Text(text = stringResource(R.string.forget_device_action))
+                    }
+                }
+            }
         }
     }
 }
@@ -523,7 +570,9 @@ fun MainScreenPreview() {
             poles = 14,
             versionKey = "v6",
             speedMultiplier = 1.0f,
-            onSpeedMultiplierChange = {}
+            lockedMacAddress = "00:11:22:33:44:55",
+            onSpeedMultiplierChange = {},
+            onForgetDevice = {}
         )
     }
 }

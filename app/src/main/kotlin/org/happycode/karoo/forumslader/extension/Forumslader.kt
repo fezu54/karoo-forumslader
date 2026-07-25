@@ -8,6 +8,7 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
+import android.bluetooth.le.ScanCallback
 import android.content.Context
 import android.os.Build
 import android.util.Log
@@ -39,9 +40,11 @@ class Forumslader(
     private val config = ForumsladerConfig(context)
     private val parser = ForumsladerParser(config)
     private var bluetoothGatt: BluetoothGatt? = null
+    private var scanCallback: ScanCallback? = null
     private var uartCharacteristicUuid: java.util.UUID? = null
     private var isClosed = false
     private var isConnecting = false
+    private var shouldFallbackToScan = false
     private var currentEmitter: Emitter<DeviceEvent>? = null
     private val mainHandler by lazy { android.os.Handler(android.os.Looper.getMainLooper()) }
     private var reconnectRunnable: Runnable? = null
@@ -66,7 +69,7 @@ class Forumslader(
     )
 
     private val gattCallback = object : BluetoothGattCallback() {
-        @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+        @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN])
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             mainHandler.post {
                 Log.d("FL_BLE", "onConnectionStateChange: status=$status, newState=$newState")
@@ -75,6 +78,7 @@ class Forumslader(
                 if (status == BluetoothGatt.GATT_SUCCESS && newState == BluetoothProfile.STATE_CONNECTED) {
                     Log.i("FL_BLE", "Connected to Forumslader, discovering services...")
                     isConnecting = false
+                    shouldFallbackToScan = false
                     emitter.onNext(OnConnectionStatus(status = ConnectionStatus.CONNECTED))
                     gatt.discoverServices()
                 } else {
@@ -93,7 +97,7 @@ class Forumslader(
             }
         }
 
-        @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+        @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN])
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
             mainHandler.post {
                 if (status != BluetoothGatt.GATT_SUCCESS) {
@@ -126,7 +130,7 @@ class Forumslader(
             }
         }
 
-        @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+        @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN])
         override fun onDescriptorWrite(
             gatt: BluetoothGatt,
             descriptor: BluetoothGattDescriptor,
@@ -152,6 +156,10 @@ class Forumslader(
                 if (characteristic.uuid == uartCharacteristicUuid) {
                     val emitter = currentEmitter ?: return@post
                     parser.processIncomingBytes(value)?.let { metrics ->
+                        if (config.lockedMacAddress != address) {
+                            Log.i("FL_BLE", "Locking MAC address to $address after first successful data reception")
+                            config.lockedMacAddress = address
+                        }
                         emitMetrics(emitter, metrics)
                     }
                 }
@@ -172,7 +180,7 @@ class Forumslader(
         }
     }
 
-    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN])
     fun connect(emitter: Emitter<DeviceEvent>) {
         Log.i("FL_BLE", "connect() called for Forumslader at $address")
         mainHandler.post {
@@ -193,25 +201,28 @@ class Forumslader(
         }
     }
 
-    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN])
     private fun doConnect() {
-        if (isClosed || isConnecting || bluetoothGatt != null) return
+        if (isClosed || isConnecting || bluetoothGatt != null || scanCallback != null) return
 
         isConnecting = true
         val bluetoothManager =
             context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
         val bluetoothDevice = bluetoothManager.adapter.getRemoteDevice(address)
 
-        Log.i("FL_BLE", "Initiating connection to GATT at $address...")
-
-        scheduleConnectionTimeout()
-
-        @Suppress("DEPRECATION")
-        bluetoothGatt =
-            bluetoothDevice.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
+        if (config.lockedMacAddress == address && shouldFallbackToScan) {
+            Log.i("FL_BLE", "Initiating fallback BLE scan for $address...")
+            startScanForDevice()
+        } else {
+            Log.i("FL_BLE", "Initiating direct GATT connection to $address...")
+            scheduleConnectionTimeout()
+            @Suppress("DEPRECATION")
+            bluetoothGatt =
+                bluetoothDevice.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
+        }
     }
 
-    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN])
     private fun scheduleReconnect() {
         if (isClosed) return
 
@@ -276,7 +287,7 @@ class Forumslader(
         startParameterRequestLoop(gatt)
     }
 
-    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN])
     private fun handleCccdWriteFailure(gatt: BluetoothGatt, status: Int) {
         Log.w("FL_BLE", "Descriptor write failed with status $status (retry $cccdRetryCount/3)")
         if (cccdRetryCount >= 3) {
@@ -297,10 +308,11 @@ class Forumslader(
         }, 1000)
     }
 
-    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN])
     private fun cleanupConnection() {
         cancelConnectionTimeout()
         stopParameterRequestLoop()
+        stopScan()
         isConnecting = false
         cccdRetryCount = 0
         bluetoothGatt?.run {
@@ -311,15 +323,16 @@ class Forumslader(
         parser.resetConfigLoaded()
     }
 
-    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN])
     private fun scheduleConnectionTimeout() {
         cancelConnectionTimeout()
         val runnable = Runnable {
-            if (isConnecting || bluetoothGatt != null) {
+            if (isConnecting || bluetoothGatt != null || scanCallback != null) {
                 Log.w(
                     "FL_BLE",
                     "Connection attempt timed out after 15 seconds. Cleaning up and retrying..."
                 )
+                shouldFallbackToScan = true
                 cleanupConnection()
                 currentEmitter?.onNext(OnConnectionStatus(status = ConnectionStatus.SEARCHING))
                 if (!isClosed) {
@@ -397,6 +410,59 @@ class Forumslader(
             }
             Log.d("FL_BLE", "Forumslader parameter request command bytes written.")
         } ?: Log.w("FL_BLE", "Command characteristic not found for parameter request.")
+    }
+
+    @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN])
+    private fun startScanForDevice() {
+        val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+        val scanner = bluetoothManager.adapter?.takeIf { it.isEnabled }?.bluetoothLeScanner
+        if (scanner == null) {
+            Log.w("FL_BLE", "Scanner not available for fallback, trying GATT connect...")
+            shouldFallbackToScan = false
+            doConnect()
+            return
+        }
+
+        scanCallback = object : ScanCallback() {
+            @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN])
+            override fun onScanResult(callbackType: Int, result: android.bluetooth.le.ScanResult) {
+                if (result.device.address == address) {
+                    Log.i("FL_BLE", "Device found in fallback scan, connecting via GATT...")
+                    stopScan()
+                    scheduleConnectionTimeout()
+                    @Suppress("DEPRECATION")
+                    bluetoothGatt = result.device.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
+                }
+            }
+            @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN])
+            override fun onScanFailed(errorCode: Int) {
+                Log.e("FL_BLE", "Fallback scan failed: $errorCode")
+                shouldFallbackToScan = false
+                isConnecting = false
+                scanCallback = null
+                scheduleReconnect()
+            }
+        }
+        val filters = listOf(android.bluetooth.le.ScanFilter.Builder().setDeviceAddress(address).build())
+        val settings = android.bluetooth.le.ScanSettings.Builder()
+            .setScanMode(android.bluetooth.le.ScanSettings.SCAN_MODE_LOW_LATENCY)
+            .build()
+        scheduleConnectionTimeout()
+        scanner.startScan(filters, settings, scanCallback)
+    }
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_SCAN)
+    private fun stopScan() {
+        scanCallback?.let {
+            try {
+                val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+                val scanner = bluetoothManager.adapter?.takeIf { adapter -> adapter.isEnabled }?.bluetoothLeScanner
+                scanner?.stopScan(it)
+            } catch (e: Exception) {
+                Log.e("FL_BLE", "Error stopping fallback scan", e)
+            }
+            scanCallback = null
+        }
     }
 
     private fun emitMetrics(emitter: Emitter<DeviceEvent>, metrics: ForumsladerMetrics) = listOf(
