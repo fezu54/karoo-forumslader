@@ -23,9 +23,10 @@ import kotlinx.coroutines.launch
 import io.hammerhead.karooext.extension.DataTypeImpl
 import io.hammerhead.karooext.models.DataType
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
+import org.happycode.karoo.forumslader.model.ForumsladerConfig
 
 class ForumsladerExtension : KarooExtension(extension = "karoo-forumslader", version = "1.1") {
-    private val devices = mutableMapOf<String, Forumslader>()
+    private val devices = mutableMapOf<String, ForumsladerKarooAdapter>()
 
     override val types: List<DataTypeImpl> by lazy {
         listOf(
@@ -63,6 +64,17 @@ class ForumsladerExtension : KarooExtension(extension = "karoo-forumslader", ver
             return
         }
 
+        val config = ForumsladerConfig(this)
+        val lockedMac = config.lockedMacAddress
+        if (lockedMac != null) {
+            val forumslader = devices.getOrPut(key = lockedMac) {
+                ForumsladerKarooAdapter(context = this@ForumsladerExtension, address = lockedMac, displayName = "Forumslader")
+            }
+            emitter.onNext(forumslader.device)
+            emitter.setCancellable { job.cancel() }
+            return
+        }
+
         val callback = object : ScanCallback() {
             @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
             override fun onScanResult(callbackType: Int, result: ScanResult) {
@@ -89,7 +101,7 @@ class ForumsladerExtension : KarooExtension(extension = "karoo-forumslader", ver
                 if (hasForumsladerName || hasForumsladerService) {
                     val displayName = name ?: "Forumslader"
                     val forumslader = devices.getOrPut(key = result.device.address) {
-                        Forumslader(context = this@ForumsladerExtension, address = result.device.address, displayName = displayName)
+                        ForumsladerKarooAdapter(context = this@ForumsladerExtension, address = result.device.address, displayName = displayName)
                     }
                     emitter.onNext(forumslader.device)
                 }
@@ -135,7 +147,7 @@ class ForumsladerExtension : KarooExtension(extension = "karoo-forumslader", ver
 
         val address = uid.removePrefix(prefix = "fl-")
         devices.getOrPut(key = address) {
-            Forumslader(context = this, address = address, displayName = null)
+            ForumsladerKarooAdapter(context = this, address = address, displayName = null)
         }.connect(emitter = emitter)
     }
 }

@@ -23,10 +23,15 @@ class ForumsladerConfig(context: Context) {
         get() = prefs.getFloat(KEY_SPEED_MULTIPLIER, 1.0f)
         set(value) = prefs.edit { putFloat(KEY_SPEED_MULTIPLIER, value) }
 
+    var lockedMacAddress: String?
+        get() = prefs.getString(KEY_LOCKED_MAC_ADDRESS, null)
+        set(value) = prefs.edit { putString(KEY_LOCKED_MAC_ADDRESS, value) }
+
     companion object {
         private const val KEY_WHEELSIZE = "wheelsize"
         private const val KEY_POLES = "poles"
         private const val KEY_VERSION = "version"
         private const val KEY_SPEED_MULTIPLIER = "speedMultiplier"
+        private const val KEY_LOCKED_MAC_ADDRESS = "locked_mac_address"
     }
 }

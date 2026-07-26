@@ -27,6 +27,7 @@ class ForumsladerConfigTest {
         assertEquals(2200, config.wheelsize)
         assertEquals(14, config.poles)
         assertEquals(ForumsladerVersion.Unknown, config.version)
+        assertEquals(null, config.lockedMacAddress)
     }
 
     @Test
@@ -51,5 +52,15 @@ class ForumsladerConfigTest {
         
         config.version = ForumsladerVersion.V5
         assertEquals(ForumsladerVersion.V5, ForumsladerConfig(context).version)
+    }
+
+    @Test
+    fun `should persist lockedMacAddress`() {
+        config.lockedMacAddress = "00:11:22:33:44:55"
+        val newConfig = ForumsladerConfig(context)
+        assertEquals("00:11:22:33:44:55", newConfig.lockedMacAddress)
+        
+        config.lockedMacAddress = null
+        assertEquals(null, ForumsladerConfig(context).lockedMacAddress)
     }
 }
