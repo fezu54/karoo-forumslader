@@ -20,6 +20,22 @@
     <string name="datafield_frequency_desc">Raw dynamo frequency in Hz</string>
     <string name="datafield_temperature">Temperature</string>
     <string name="datafield_temperature_desc">Forumslader temperature in Celsius</string>
+    <string name="datafield_generator_gear">Generator Gear</string>
+    <string name="datafield_generator_gear_desc">Current gear of the Forumslader generator (0–10)</string>
+    <string name="datafield_charge_state">Charge State</string>
+    <string name="datafield_charge_state_desc">Current charge state (Standby, Charging, Discharging, Full)</string>
+    <string name="datafield_trip_energy">Trip Energy</string>
+    <string name="datafield_trip_energy_desc">Energy consumed during trip in Wh</string>
+    <string name="datafield_tour_energy">Tour Energy</string>
+    <string name="datafield_tour_energy_desc">Energy consumed during tour in Wh</string>
+    <string name="datafield_dynamo_power">Dynamo Power</string>
+    <string name="datafield_dynamo_power_desc">Calculated dynamo power in W</string>
+    <string name="datafield_odometer">Odometer</string>
+    <string name="datafield_odometer_desc">Total distance traveled in km</string>
+    <string name="datafield_day_distance">Day Distance</string>
+    <string name="datafield_day_distance_desc">Distance traveled today in km</string>
+    <string name="datafield_tour_distance">Tour Distance</string>
+    <string name="datafield_tour_distance_desc">Distance traveled during tour in km</string>
     <string name="missing_streams_warning">Some data fields are unsupported by your paired device. Please delete and re-pair your Forumslader in the Karoo sensor settings to update its capabilities.</string>
 
     <string name="status_active">Active</string>

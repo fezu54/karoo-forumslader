@@ -15,6 +15,14 @@ class ForumsladerDataFieldsAdapter(private val context: Context) {
         const val TRIP_DISTANCE = "fl_trip_distance"
         const val FREQUENCY = "fl_frequency"
         const val TEMPERATURE = "fl_temperature"
+        const val GENERATOR_GEAR = "fl_generator_gear"
+        const val CHARGE_STATE = "fl_charge_state"
+        const val TRIP_ENERGY = "fl_trip_energy"
+        const val TOUR_ENERGY = "fl_tour_energy"
+        const val DYNAMO_POWER = "fl_dynamo_power"
+        const val ODOMETER = "fl_odometer"
+        const val DAY_DISTANCE = "fl_day_distance"
+        const val TOUR_DISTANCE = "fl_tour_distance"
     }
 
     fun getDataFieldNames(): Map<String, String> = mapOf(
@@ -26,18 +34,34 @@ class ForumsladerDataFieldsAdapter(private val context: Context) {
         DataFieldId.TRIP_DISTANCE to context.getString(R.string.datafield_trip_distance),
         DataFieldId.FREQUENCY to context.getString(R.string.datafield_frequency),
         DataFieldId.TEMPERATURE to context.getString(R.string.datafield_temperature),
+        DataFieldId.GENERATOR_GEAR to context.getString(R.string.datafield_generator_gear),
+        DataFieldId.CHARGE_STATE to context.getString(R.string.datafield_charge_state),
+        DataFieldId.TRIP_ENERGY to context.getString(R.string.datafield_trip_energy),
+        DataFieldId.TOUR_ENERGY to context.getString(R.string.datafield_tour_energy),
+        DataFieldId.DYNAMO_POWER to context.getString(R.string.datafield_dynamo_power),
+        DataFieldId.ODOMETER to context.getString(R.string.datafield_odometer),
+        DataFieldId.DAY_DISTANCE to context.getString(R.string.datafield_day_distance),
+        DataFieldId.TOUR_DISTANCE to context.getString(R.string.datafield_tour_distance),
     )
 
     companion object {
         fun metricsToDataFieldValues(metrics: ForumsladerMetrics): Map<String, Any> = mapOf(
-            DataFieldId.BATTERY_LEVEL to metrics.batteryLevelPct,
-            DataFieldId.BATTERY_VOLTAGE to metrics.batteryVoltage,
-            DataFieldId.BATTERY_CURRENT to metrics.batteryCurrent,
-            DataFieldId.CONSUMER_CURRENT to metrics.consumerCurrent,
-            DataFieldId.SPEED to metrics.speedMs,
-            DataFieldId.TRIP_DISTANCE to metrics.tripDistanceMeters,
-            DataFieldId.FREQUENCY to metrics.frequency,
-            DataFieldId.TEMPERATURE to metrics.temperatureCelsius,
+            DataFieldId.BATTERY_LEVEL to metrics.power.batteryLevelPct,
+            DataFieldId.BATTERY_VOLTAGE to metrics.power.batteryVoltage,
+            DataFieldId.BATTERY_CURRENT to metrics.power.batteryCurrent,
+            DataFieldId.CONSUMER_CURRENT to metrics.power.consumerCurrent,
+            DataFieldId.SPEED to metrics.dynamics.speedMs,
+            DataFieldId.TRIP_DISTANCE to metrics.distance.tripMeters,
+            DataFieldId.FREQUENCY to metrics.dynamics.frequency,
+            DataFieldId.TEMPERATURE to metrics.environment.temperatureCelsius,
+            DataFieldId.GENERATOR_GEAR to metrics.dynamics.generatorGear,
+            DataFieldId.CHARGE_STATE to metrics.power.chargeState.name,
+            DataFieldId.TRIP_ENERGY to metrics.energy.tripWh,
+            DataFieldId.TOUR_ENERGY to metrics.energy.tourWh,
+            DataFieldId.DYNAMO_POWER to metrics.power.dynamoPowerW,
+            DataFieldId.ODOMETER to metrics.distance.odometerMeters,
+            DataFieldId.DAY_DISTANCE to metrics.distance.dayMeters,
+            DataFieldId.TOUR_DISTANCE to metrics.distance.tourMeters,
         )
     }
 }

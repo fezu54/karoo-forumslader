@@ -1,19 +1,59 @@
 package org.happycode.karoo.forumslader.domain
 
+/**
+ * Aggregated metrics from the Forumslader device.
+ */
 data class ForumsladerMetrics(
-    // electronics and power management
-    val batteryVoltage: Float,     
-    val batteryCurrent: Float,
-    val consumerCurrent: Float,    
-    val batteryLevelPct: Int,      
+    val power: Power,
+    val dynamics: Dynamics,
+    val environment: Environment,
+    val energy: Energy,
+    val distance: Distance
+) {
+    /**
+     * Electronics and power management metrics.
+     */
+    data class Power(
+        val batteryVoltage: Float,
+        val batteryCurrent: Float,
+        val consumerCurrent: Float,
+        val batteryLevelPct: Int,
+        val chargeState: ChargeState,
+        val dynamoPowerW: Float
+    )
 
-    // Driving dynamics (natively calculated from the dynamo frequency)
-    val frequency: Float,
-    val speedMs: Float,           
-    val tripDistanceMeters: Double,     
-    val totalDistanceMeters: Double,
+    /**
+     * Driving dynamics calculated from dynamo frequency.
+     */
+    data class Dynamics(
+        val frequency: Float,
+        val speedMs: Float,
+        val generatorGear: Int
+    )
 
-    // environmental data
-    val temperatureCelsius: Float,
-    val altitudeMeters: Float 
-)
+    /**
+     * Environmental sensor data.
+     */
+    data class Environment(
+        val temperatureCelsius: Float,
+        val altitudeMeters: Float
+    )
+
+    /**
+     * Cumulative energy consumption/generation.
+     */
+    data class Energy(
+        val tripWh: Double,
+        val tourWh: Double
+    )
+
+    /**
+     * Cumulative distance measurements.
+     */
+    data class Distance(
+        val tripMeters: Double,
+        val dayMeters: Double,
+        val tourMeters: Double,
+        val odometerMeters: Double
+    )
+}

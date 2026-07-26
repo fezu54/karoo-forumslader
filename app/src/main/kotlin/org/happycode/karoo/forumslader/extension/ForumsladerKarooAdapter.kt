@@ -43,7 +43,15 @@ class ForumsladerKarooAdapter(
             DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_speed"),
             DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_trip_distance"),
             DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_frequency"),
-            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_temperature")
+            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_temperature"),
+            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_generator_gear"),
+            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_charge_state"),
+            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_trip_energy"),
+            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_tour_energy"),
+            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_dynamo_power"),
+            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_odometer"),
+            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_day_distance"),
+            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_tour_distance")
         ),
         displayName = displayName ?: "Forumslader"
     )
@@ -91,14 +99,22 @@ class ForumsladerKarooAdapter(
     }
 
     private fun emitMetrics(emitter: Emitter<DeviceEvent>, metrics: ForumsladerMetrics) = listOf(
-        "fl_battery_level" to metrics.batteryLevelPct.toDouble(),
-        "fl_battery_voltage" to metrics.batteryVoltage.toDouble(),
-        "fl_battery_current" to metrics.batteryCurrent.toDouble(),
-        "fl_consumer_current" to metrics.consumerCurrent.toDouble(),
-        "fl_speed" to metrics.speedMs.toDouble(),
-        "fl_trip_distance" to metrics.tripDistanceMeters,
-        "fl_frequency" to metrics.frequency.toDouble(),
-        "fl_temperature" to metrics.temperatureCelsius.toDouble()
+        "fl_battery_level" to metrics.power.batteryLevelPct.toDouble(),
+        "fl_battery_voltage" to metrics.power.batteryVoltage.toDouble(),
+        "fl_battery_current" to metrics.power.batteryCurrent.toDouble(),
+        "fl_consumer_current" to metrics.power.consumerCurrent.toDouble(),
+        "fl_speed" to metrics.dynamics.speedMs.toDouble(),
+        "fl_trip_distance" to metrics.distance.tripMeters,
+        "fl_frequency" to metrics.dynamics.frequency.toDouble(),
+        "fl_temperature" to metrics.environment.temperatureCelsius.toDouble(),
+        "fl_generator_gear" to metrics.dynamics.generatorGear.toDouble(),
+        "fl_charge_state" to metrics.power.chargeState.ordinal.toDouble(),
+        "fl_trip_energy" to metrics.energy.tripWh,
+        "fl_tour_energy" to metrics.energy.tourWh,
+        "fl_dynamo_power" to metrics.power.dynamoPowerW.toDouble(),
+        "fl_odometer" to metrics.distance.odometerMeters,
+        "fl_day_distance" to metrics.distance.dayMeters,
+        "fl_tour_distance" to metrics.distance.tourMeters
     ).forEach { (typeId, value) ->
         emitter.onNext(
             OnDataPoint(
