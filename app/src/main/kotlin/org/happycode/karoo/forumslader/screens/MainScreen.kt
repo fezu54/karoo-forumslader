@@ -136,7 +136,15 @@ fun MainScreen() {
             DataFieldId.SPEED,
             DataFieldId.TRIP_DISTANCE,
             DataFieldId.FREQUENCY,
-            DataFieldId.TEMPERATURE
+            DataFieldId.TEMPERATURE,
+            DataFieldId.GENERATOR_GEAR,
+            DataFieldId.CHARGE_STATE,
+            DataFieldId.TRIP_ENERGY,
+            DataFieldId.TOUR_ENERGY,
+            DataFieldId.DYNAMO_POWER,
+            DataFieldId.ODOMETER,
+            DataFieldId.DAY_DISTANCE,
+            DataFieldId.TOUR_DISTANCE
         )
 
         val listeners = mutableListOf<String>()
@@ -414,6 +422,40 @@ fun MetricsList(metrics: Map<String, Double>, userProfile: UserProfile?) {
                             String.format(locale, "%.1f °F", (it * 9 / 5) + 32)
                         } else {
                             String.format(locale, "%.1f °C", it)
+                        }
+                    } ?: "---"
+
+                    DataFieldId.GENERATOR_GEAR -> rawValue?.let {
+                        String.format(locale, "%d", it.toInt())
+                    } ?: "---"
+
+                    DataFieldId.CHARGE_STATE -> rawValue?.let {
+                        when (it.toInt()) {
+                            0 -> "Standby"
+                            1 -> "Charging"
+                            2 -> "Discharging"
+                            3 -> "Full"
+                            else -> "Unknown"
+                        }
+                    } ?: "---"
+
+                    DataFieldId.TRIP_ENERGY,
+                    DataFieldId.TOUR_ENERGY -> rawValue?.let {
+                        String.format(locale, "%.1f Wh", it)
+                    } ?: "---"
+
+                    DataFieldId.DYNAMO_POWER -> rawValue?.let {
+                        String.format(locale, "%.1f W", it)
+                    } ?: "---"
+
+                    DataFieldId.ODOMETER,
+                    DataFieldId.DAY_DISTANCE,
+                    DataFieldId.TOUR_DISTANCE -> rawValue?.let {
+                        val distanceKm = it / 1000.0
+                        if (isImperial) {
+                            String.format(locale, "%.2f mi", distanceKm * 0.621371)
+                        } else {
+                            String.format(locale, "%.2f km", distanceKm)
                         }
                     } ?: "---"
 

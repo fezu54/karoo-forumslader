@@ -20,6 +20,22 @@
     <string name="datafield_frequency_desc">Rohfrequenz des Dynamos in Hz</string>
     <string name="datafield_temperature">Temperatur</string>
     <string name="datafield_temperature_desc">Forumslader Temperatur in Celsius</string>
+    <string name="datafield_generator_gear">Generatorstufe</string>
+    <string name="datafield_generator_gear_desc">Aktuelle Stufe des Forumslader–Generators (0–10)</string>
+    <string name="datafield_charge_state">Ladezustand</string>
+    <string name="datafield_charge_state_desc">Aktueller Ladezustand (Standby, Laden, Entladen, Voll)</string>
+    <string name="datafield_trip_energy">Tagesenergie</string>
+    <string name="datafield_trip_energy_desc">Verbrauchte Energie während der Fahrt in Wh</string>
+    <string name="datafield_tour_energy">Tourenenergie</string>
+    <string name="datafield_tour_energy_desc">Verbrauchte Energie während der Tour in Wh</string>
+    <string name="datafield_dynamo_power">Dynamoleistung</string>
+    <string name="datafield_dynamo_power_desc">Berechnete Dynamoleistung in W</string>
+    <string name="datafield_odometer">Kilometerzähler</string>
+    <string name="datafield_odometer_desc">Gesamtzurückgelegte Strecke in km</string>
+    <string name="datafield_day_distance">Tagesstrecke</string>
+    <string name="datafield_day_distance_desc">Heute zurückgelegte Strecke in km</string>
+    <string name="datafield_tour_distance">Tourenstrecke</string>
+    <string name="datafield_tour_distance_desc">Während der Tour zurückgelegte Strecke in km</string>
     <string name="missing_streams_warning">Einige Datenfelder werden von dem gekoppelten Gerät nicht unterstützt. Bitte löschen und koppeln Sie Ihren Forumslader in den Karoo-Sensoreinstellungen neu, um die Fähigkeiten zu aktualisieren.</string>
 
     <string name="status_active">Aktiv</string>
