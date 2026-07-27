@@ -24,8 +24,9 @@ import io.hammerhead.karooext.extension.DataTypeImpl
 import io.hammerhead.karooext.models.DataType
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
 import org.happycode.karoo.forumslader.model.ForumsladerConfig
+import org.happycode.karoo.forumslader.BuildConfig
 
-class ForumsladerExtension : KarooExtension(extension = "karoo-forumslader", version = "1.1") {
+class ForumsladerExtension : KarooExtension(extension = "karoo-forumslader", version = BuildConfig.VERSION_NAME) {
     private val devices = mutableMapOf<String, ForumsladerKarooAdapter>()
 
     override val types: List<DataTypeImpl> by lazy {

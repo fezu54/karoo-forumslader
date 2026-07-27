@@ -15,8 +15,9 @@ android {
         applicationId = "org.happycode.karoo.forumslader"
         minSdk = 23
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = (project.findProperty("versionCode") as? String)?.toInt() ?: 1
+        versionName = (project.findProperty("versionName") as? String) ?: "1.0"
+        buildConfigField("String", "VERSION_NAME", "\"${versionName}\"")
     }
 
     buildTypes {
@@ -32,12 +33,23 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     testOptions {
         unitTests.all {
             it.useJUnitPlatform()
         }
         unitTests.isIncludeAndroidResources = true
+    }
+}
+
+kover {
+    reports {
+        filters {
+            excludes {
+                classes("*.BuildConfig", "*.R", "*.R$*")
+            }
+        }
     }
 }
 

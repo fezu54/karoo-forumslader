@@ -117,7 +117,7 @@ jobs:
           USERNAME: ${{ github.actor }}
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          ./gradlew :app:assembleRelease
+          ./gradlew :app:assembleRelease -PversionName=${{ env.new_tag }} -PversionCode=${{ github.run_number }}
 
       - name: Generate Release Notes
         if: github.ref == 'refs/heads/main' && env.should_release == 'true'
