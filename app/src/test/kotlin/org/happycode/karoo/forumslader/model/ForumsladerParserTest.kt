@@ -309,4 +309,35 @@ class ForumsladerParserTest {
         assertEquals(2069.0, result?.distance?.tourMeters ?: 0.0, 0.01)
         assertEquals(2469.0, result?.distance?.odometerMeters ?: 0.0, 0.01)
     }
+
+    @Test
+    fun `should parse charge state from FL6 status when missing 0x prefix`() {
+        // status 0200 (CHARGING without 0x prefix)
+        val payload = $$"$FL6,0200,5,100,4100,4120,4110,-150,250,0,0,0,12345"
+        val data = withChecksum(payload).toByteArray()
+
+        // when
+        val result = parser.processIncomingBytes(data)
+
+        // then
+        assertEquals(org.happycode.karoo.forumslader.domain.ChargeState.CHARGING, result?.power?.chargeState)
+    }
+
+    @Test
+    fun `should not overwrite battery and consumer current in FLD when missing`() {
+        // given: first FL6 with valid currents
+        val fl6Payload = $$"$FL6,0200,5,100,4100,4120,4110,-150,250,0,0,0,12345"
+        parser.processIncomingBytes(withChecksum(fl6Payload).toByteArray())
+        
+        // given: FLD without currents (empty tokens)
+        val fldPayload = $$"$FLD,19,,0,50,,,,,,0,0,0,0,10.2"
+        val data = withChecksum(fldPayload).toByteArray()
+
+        // when
+        val result = parser.processIncomingBytes(data)
+
+        // then: previous values should be preserved (-150 mA = -0.15 A)
+        assertEquals(-0.15f, result?.power?.batteryCurrent ?: 0f, 0.01f)
+        assertEquals(0.25f, result?.power?.consumerCurrent ?: 0f, 0.01f)
+    }
 }
