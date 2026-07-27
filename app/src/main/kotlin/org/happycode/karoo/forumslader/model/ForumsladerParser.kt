@@ -231,7 +231,7 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
                     val statusStr = tokens.getOrNull(1)
                     val statusInt = statusStr?.let {
                         if (it.startsWith("0x", ignoreCase = true)) it.substring(2).toIntOrNull(16)
-                        else it.toIntOrNull()
+                        else it.toIntOrNull(16)
                     } ?: 0
 
                     chargeState = when {
@@ -311,9 +311,18 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
                 }
                 "FLD" -> {
                     val frequency = tokens.getOrNull(4)?.toFloatOrNull() ?: 0f
-                    batteryVoltage = tokens.getOrNull(5)?.toFloatOrNull() ?: 0f
-                    batteryCurrent = tokens.getOrNull(6)?.toFloatOrNull() ?: 0f
-                    consumerCurrent = tokens.getOrNull(7)?.toFloatOrNull() ?: 0f
+                    tokens.getOrNull(5)?.toFloatOrNull()?.let { batteryVoltage = it }
+                    tokens.getOrNull(6)?.toFloatOrNull()?.let { batteryCurrent = it }
+                    tokens.getOrNull(7)?.toFloatOrNull()?.let { consumerCurrent = it }
+                    
+                    tokens.getOrNull(8)?.trim()?.takeIf { it.isNotEmpty() }?.let { statusChar ->
+                        when (statusChar) {
+                            "+" -> chargeState = ChargeState.CHARGING
+                            "-" -> chargeState = ChargeState.DISCHARGING
+                            "V", "*" -> chargeState = ChargeState.FULL
+                            // If it's something else, we can leave it alone or handle it if known
+                        }
+                    }
 
                     val p9 = tokens.getOrNull(9)?.toIntOrNull() ?: 0
                     batteryLevelPct = when (p9) {
