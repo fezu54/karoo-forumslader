@@ -111,11 +111,22 @@ jobs:
             echo "Does not match release criteria."
           fi
 
+      - name: Decode Keystore
+        if: github.ref == 'refs/heads/main' && env.should_release == 'true'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          mkdir -p ~/.keystore
+          echo "$KEYSTORE_BASE64" | base64 -d > ~/.keystore/upload-keystore.jks
+
       - name: Build productive release APK
         if: github.ref == 'refs/heads/main' && env.should_release == 'true'
         env:
           USERNAME: ${{ github.actor }}
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           ./gradlew :app:assembleRelease -PversionName=${{ env.new_tag }} -PversionCode=${{ github.run_number }}
 
