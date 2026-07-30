@@ -22,13 +22,13 @@
     <string name="datafield_temperature_desc">Forumslader temperature in Celsius</string>
     <string name="datafield_generator_gear">Generator Gear</string>
     <string name="datafield_generator_gear_desc">Current gear of the Forumslader generator (0–10)</string>
-    <string name="datafield_charge_state">Charge State</string>
-    <string name="datafield_charge_state_desc">Current charge state (Standby, Charging, Discharging, Full)</string>
-    <string name="datafield_trip_energy">Trip Energy</string>
+    <string name="datafield_charge_state">Charge State (0=Stby,1=Chg,2=Dsc,3=Ful)</string>
+    <string name="datafield_charge_state_desc">Current charge state (0=Standby, 1=Charging, 2=Discharging, 3=Full)</string>
+    <string name="datafield_trip_energy">Trip Energy (Wh)</string>
     <string name="datafield_trip_energy_desc">Energy consumed during trip in Wh</string>
-    <string name="datafield_tour_energy">Tour Energy</string>
+    <string name="datafield_tour_energy">Tour Energy (Wh)</string>
     <string name="datafield_tour_energy_desc">Energy consumed during tour in Wh</string>
-    <string name="datafield_dynamo_power">Dynamo Power</string>
+    <string name="datafield_dynamo_power">Dynamo Power (W)</string>
     <string name="datafield_dynamo_power_desc">Calculated dynamo power in W</string>
     <string name="datafield_odometer">Odometer</string>
     <string name="datafield_odometer_desc">Total distance traveled in km</string>
@@ -52,4 +52,10 @@
     <string name="label_speed_multiplier">Speed Multiplier</string>
     <string name="label_locked_device">Locked Device</string>
     <string name="forget_device_action">Forget</string>
+
+    <!-- Charge State string values -->
+    <string name="charge_state_standby">Standby</string>
+    <string name="charge_state_charging">Charging</string>
+    <string name="charge_state_discharging">Discharging</string>
+    <string name="charge_state_full">Full</string>
 </resources>

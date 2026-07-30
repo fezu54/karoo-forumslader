@@ -121,10 +121,10 @@ class ForumsladerDataFieldsAdapterTest {
         every { mockContext.getString(R.string.datafield_frequency) } returns "Frequency"
         every { mockContext.getString(R.string.datafield_temperature) } returns "Temperature"
         every { mockContext.getString(R.string.datafield_generator_gear) } returns "Generator Gear"
-        every { mockContext.getString(R.string.datafield_charge_state) } returns "Charge State"
-        every { mockContext.getString(R.string.datafield_trip_energy) } returns "Trip Energy"
-        every { mockContext.getString(R.string.datafield_tour_energy) } returns "Tour Energy"
-        every { mockContext.getString(R.string.datafield_dynamo_power) } returns "Dynamo Power"
+        every { mockContext.getString(R.string.datafield_charge_state) } returns "Charge State (0=Stby,1=Chg,2=Dsc,3=Ful)"
+        every { mockContext.getString(R.string.datafield_trip_energy) } returns "Trip Energy (Wh)"
+        every { mockContext.getString(R.string.datafield_tour_energy) } returns "Tour Energy (Wh)"
+        every { mockContext.getString(R.string.datafield_dynamo_power) } returns "Dynamo Power (W)"
         every { mockContext.getString(R.string.datafield_odometer) } returns "Odometer"
         every { mockContext.getString(R.string.datafield_day_distance) } returns "Day Distance"
         every { mockContext.getString(R.string.datafield_tour_distance) } returns "Tour Distance"
@@ -144,10 +144,10 @@ class ForumsladerDataFieldsAdapterTest {
         assertEquals("Frequency", names[DataFieldId.FREQUENCY])
         assertEquals("Temperature", names[DataFieldId.TEMPERATURE])
         assertEquals("Generator Gear", names[DataFieldId.GENERATOR_GEAR])
-        assertEquals("Charge State", names[DataFieldId.CHARGE_STATE])
-        assertEquals("Trip Energy", names[DataFieldId.TRIP_ENERGY])
-        assertEquals("Tour Energy", names[DataFieldId.TOUR_ENERGY])
-        assertEquals("Dynamo Power", names[DataFieldId.DYNAMO_POWER])
+        assertEquals("Charge State (0=Stby,1=Chg,2=Dsc,3=Ful)", names[DataFieldId.CHARGE_STATE])
+        assertEquals("Trip Energy (Wh)", names[DataFieldId.TRIP_ENERGY])
+        assertEquals("Tour Energy (Wh)", names[DataFieldId.TOUR_ENERGY])
+        assertEquals("Dynamo Power (W)", names[DataFieldId.DYNAMO_POWER])
         assertEquals("Odometer", names[DataFieldId.ODOMETER])
         assertEquals("Day Distance", names[DataFieldId.DAY_DISTANCE])
         assertEquals("Tour Distance", names[DataFieldId.TOUR_DISTANCE])

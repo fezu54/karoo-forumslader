@@ -48,6 +48,7 @@ android {
             it.useJUnitPlatform()
         }
         unitTests.isIncludeAndroidResources = true
+        unitTests.isReturnDefaultValues = true
     }
 }
 

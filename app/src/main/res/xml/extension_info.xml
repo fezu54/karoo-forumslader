@@ -60,5 +60,60 @@
         description="@string/datafield_temperature_desc"
         icon="@drawable/ic_launcher_foreground"
         graphical="false" />
+    <DataType
+        typeId="fl_generator_gear"
+        displayName="@string/datafield_generator_gear"
+        description="@string/datafield_generator_gear_desc"
+        icon="@drawable/ic_launcher_foreground"
+        graphical="false" />
+
+    <DataType
+        typeId="fl_charge_state"
+        displayName="@string/datafield_charge_state"
+        description="@string/datafield_charge_state_desc"
+        icon="@drawable/ic_launcher_foreground"
+        graphical="false" />
+
+    <DataType
+        typeId="fl_trip_energy"
+        displayName="@string/datafield_trip_energy"
+        description="@string/datafield_trip_energy_desc"
+        icon="@drawable/ic_launcher_foreground"
+        graphical="false" />
+
+    <DataType
+        typeId="fl_tour_energy"
+        displayName="@string/datafield_tour_energy"
+        description="@string/datafield_tour_energy_desc"
+        icon="@drawable/ic_launcher_foreground"
+        graphical="false" />
+
+    <DataType
+        typeId="fl_dynamo_power"
+        displayName="@string/datafield_dynamo_power"
+        description="@string/datafield_dynamo_power_desc"
+        icon="@drawable/ic_launcher_foreground"
+        graphical="false" />
+
+    <DataType
+        typeId="fl_odometer"
+        displayName="@string/datafield_odometer"
+        description="@string/datafield_odometer_desc"
+        icon="@drawable/ic_launcher_foreground"
+        graphical="false" />
+
+    <DataType
+        typeId="fl_day_distance"
+        displayName="@string/datafield_day_distance"
+        description="@string/datafield_day_distance_desc"
+        icon="@drawable/ic_launcher_foreground"
+        graphical="false" />
+
+    <DataType
+        typeId="fl_tour_distance"
+        displayName="@string/datafield_tour_distance"
+        description="@string/datafield_tour_distance_desc"
+        icon="@drawable/ic_launcher_foreground"
+        graphical="false" />
 
 </ExtensionInfo>
