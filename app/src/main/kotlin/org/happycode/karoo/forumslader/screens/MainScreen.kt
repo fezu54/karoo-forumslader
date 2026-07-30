@@ -403,16 +403,16 @@ fun MetricsList(metrics: Map<String, Double>, userProfile: UserProfile?) {
                     DataFieldId.BATTERY_CURRENT -> rawValue?.let {
                         String.format(
                             locale,
-                            "%.1f A",
-                            it
+                            "%d mA",
+                            it.toInt()
                         )
                     } ?: "---"
 
                     DataFieldId.CONSUMER_CURRENT -> rawValue?.let {
                         String.format(
                             locale,
-                            "%.1f A",
-                            it
+                            "%d mA",
+                            it.toInt()
                         )
                     } ?: "---"
 

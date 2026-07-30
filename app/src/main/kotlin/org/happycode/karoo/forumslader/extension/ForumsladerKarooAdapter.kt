@@ -101,8 +101,8 @@ class ForumsladerKarooAdapter(
     private fun emitMetrics(emitter: Emitter<DeviceEvent>, metrics: ForumsladerMetrics) = listOf(
         "fl_battery_level" to metrics.power.batteryLevelPct.toDouble(),
         "fl_battery_voltage" to metrics.power.batteryVoltage.toDouble(),
-        "fl_battery_current" to metrics.power.batteryCurrent.toDouble(),
-        "fl_consumer_current" to metrics.power.consumerCurrent.toDouble(),
+        "fl_battery_current" to (metrics.power.batteryCurrent * 1000.0),
+        "fl_consumer_current" to (metrics.power.consumerCurrent * 1000.0),
         "fl_speed" to metrics.dynamics.speedMs.toDouble(),
         "fl_trip_distance" to metrics.distance.tripMeters,
         "fl_frequency" to metrics.dynamics.frequency.toDouble(),
