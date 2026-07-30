@@ -274,7 +274,7 @@ class MainScreenTest {
 
     @Test
     fun `should display consumer current`() {
-        val metrics = mapOf(DataFieldId.CONSUMER_CURRENT to 1.25)
+        val metrics = mapOf(DataFieldId.CONSUMER_CURRENT to 1250.0)
         
         val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
         composeTestRule.setContent {
@@ -291,7 +291,7 @@ class MainScreenTest {
             }
         }
 
-        composeTestRule.onNodeWithText("1.3 A", substring = true).performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText("1250 mA", substring = true).performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -318,7 +318,7 @@ class MainScreenTest {
 
     @Test
     fun `should display battery current`() {
-        val metrics = mapOf(DataFieldId.BATTERY_CURRENT to -1.5)
+        val metrics = mapOf(DataFieldId.BATTERY_CURRENT to -1500.0)
 
         val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
         composeTestRule.setContent {
@@ -335,7 +335,7 @@ class MainScreenTest {
             }
         }
 
-        composeTestRule.onNodeWithText("-1.5 A", substring = true).performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText("-1500 mA", substring = true).performScrollTo().assertIsDisplayed()
     }
 
     @Test

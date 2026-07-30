@@ -53,8 +53,8 @@ class ForumsladerDataFieldsAdapterTest {
         // then
         assertEquals(75, values[DataFieldId.BATTERY_LEVEL])
         assertEquals(48.2f, values[DataFieldId.BATTERY_VOLTAGE])
-        assertEquals(1.5f, values[DataFieldId.BATTERY_CURRENT])
-        assertEquals(2.5f, values[DataFieldId.CONSUMER_CURRENT])
+        assertEquals(1500, values[DataFieldId.BATTERY_CURRENT])
+        assertEquals(2500, values[DataFieldId.CONSUMER_CURRENT])
         assertEquals(7.03f, values[DataFieldId.SPEED])
         assertEquals(12700.0, values[DataFieldId.TRIP_DISTANCE])
         assertEquals(17.7f, values[DataFieldId.FREQUENCY])
@@ -114,8 +114,8 @@ class ForumsladerDataFieldsAdapterTest {
         // given
         every { mockContext.getString(R.string.datafield_battery_level) } returns "Battery Level"
         every { mockContext.getString(R.string.datafield_battery_voltage) } returns "Battery Voltage"
-        every { mockContext.getString(R.string.datafield_battery_current) } returns "Battery Current"
-        every { mockContext.getString(R.string.datafield_consumer_current) } returns "Consumer Current"
+        every { mockContext.getString(R.string.datafield_battery_current) } returns "Battery Current (mA)"
+        every { mockContext.getString(R.string.datafield_consumer_current) } returns "Consumer Current (mA)"
         every { mockContext.getString(R.string.datafield_speed) } returns "Speed"
         every { mockContext.getString(R.string.datafield_trip_distance) } returns "Trip Distance"
         every { mockContext.getString(R.string.datafield_frequency) } returns "Frequency"
@@ -137,8 +137,8 @@ class ForumsladerDataFieldsAdapterTest {
         // then
         assertEquals("Battery Level", names[DataFieldId.BATTERY_LEVEL])
         assertEquals("Battery Voltage", names[DataFieldId.BATTERY_VOLTAGE])
-        assertEquals("Battery Current", names[DataFieldId.BATTERY_CURRENT])
-        assertEquals("Consumer Current", names[DataFieldId.CONSUMER_CURRENT])
+        assertEquals("Battery Current (mA)", names[DataFieldId.BATTERY_CURRENT])
+        assertEquals("Consumer Current (mA)", names[DataFieldId.CONSUMER_CURRENT])
         assertEquals("Speed", names[DataFieldId.SPEED])
         assertEquals("Trip Distance", names[DataFieldId.TRIP_DISTANCE])
         assertEquals("Frequency", names[DataFieldId.FREQUENCY])
