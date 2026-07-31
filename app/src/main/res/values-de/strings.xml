@@ -8,10 +8,10 @@
     <string name="datafield_battery_level_desc">Forumslader Batterieladestand in Prozent</string>
     <string name="datafield_battery_voltage">Batteriespannung</string>
     <string name="datafield_battery_voltage_desc">Forumslader Gesamtbatteriespannung in Volt</string>
-    <string name="datafield_battery_current">Batteriestrom</string>
-    <string name="datafield_battery_current_desc">Forumslader Batteriestrom in Ampere</string>
-    <string name="datafield_consumer_current">Verbrauchsstrom</string>
-    <string name="datafield_consumer_current_desc">Forumslader Verbrauchsstrom in Ampere</string>
+    <string name="datafield_battery_current">Batteriestrom (mA)</string>
+    <string name="datafield_battery_current_desc">Forumslader Batteriestrom in Milliampere</string>
+    <string name="datafield_consumer_current">Verbrauchsstrom (mA)</string>
+    <string name="datafield_consumer_current_desc">Forumslader Verbrauchsstrom in Milliampere</string>
     <string name="datafield_speed">Geschwindigkeit</string>
     <string name="datafield_speed_desc">Forumslader aktuelle Geschwindigkeit in km/h</string>
     <string name="datafield_trip_distance">Fahrstrecke</string>
@@ -22,13 +22,13 @@
     <string name="datafield_temperature_desc">Forumslader Temperatur in Celsius</string>
     <string name="datafield_generator_gear">Generatorstufe</string>
     <string name="datafield_generator_gear_desc">Aktuelle Stufe des Forumslader–Generators (0–10)</string>
-    <string name="datafield_charge_state">Ladezustand</string>
-    <string name="datafield_charge_state_desc">Aktueller Ladezustand (Standby, Laden, Entladen, Voll)</string>
-    <string name="datafield_trip_energy">Tagesenergie</string>
+    <string name="datafield_charge_state">Ladezustand (0=Stby,1=Laden,2=Entladen,3=Voll)</string>
+    <string name="datafield_charge_state_desc">Aktueller Ladezustand (0=Standby, 1=Laden, 2=Entladen, 3=Voll)</string>
+    <string name="datafield_trip_energy">Tagesenergie (Wh)</string>
     <string name="datafield_trip_energy_desc">Verbrauchte Energie während der Fahrt in Wh</string>
-    <string name="datafield_tour_energy">Tourenenergie</string>
+    <string name="datafield_tour_energy">Tourenenergie (Wh)</string>
     <string name="datafield_tour_energy_desc">Verbrauchte Energie während der Tour in Wh</string>
-    <string name="datafield_dynamo_power">Dynamoleistung</string>
+    <string name="datafield_dynamo_power">Dynamoleistung (W)</string>
     <string name="datafield_dynamo_power_desc">Berechnete Dynamoleistung in W</string>
     <string name="datafield_odometer">Kilometerzähler</string>
     <string name="datafield_odometer_desc">Gesamtzurückgelegte Strecke in km</string>
@@ -52,4 +52,10 @@
     <string name="label_speed_multiplier">Geschwindigkeitsfaktor</string>
     <string name="label_locked_device">Gekoppeltes Gerät</string>
     <string name="forget_device_action">Löschen</string>
+
+    <!-- Charge State string values -->
+    <string name="charge_state_standby">Standby</string>
+    <string name="charge_state_charging">Laden</string>
+    <string name="charge_state_discharging">Entladen</string>
+    <string name="charge_state_full">Voll</string>
 </resources>
