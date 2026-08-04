@@ -2,20 +2,26 @@ package org.happycode.karoo.forumslader.screens
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.HourglassEmpty
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.LinkOff
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -43,22 +49,24 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.content.edit
 import io.hammerhead.karooext.KarooSystemService
 import io.hammerhead.karooext.models.DataType
 import io.hammerhead.karooext.models.OnStreamState
 import io.hammerhead.karooext.models.StreamState
 import io.hammerhead.karooext.models.UserProfile
-import org.happycode.karoo.forumslader.R
+import org.happycode.karoo.forumslader.PreferencesConstants.KEY_BATTERY_LOW_THRESHOLD
+import org.happycode.karoo.forumslader.PreferencesConstants.KEY_HIGH_TEMP_THRESHOLD
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_LOCKED_MAC_ADDRESS
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_POLES
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_SPEED_MULTIPLIER
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_VERSION
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_WHEEL_SIZE
 import org.happycode.karoo.forumslader.PreferencesConstants.PREFS_NAME
+import org.happycode.karoo.forumslader.R
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
 import org.happycode.karoo.forumslader.theme.AppTheme
-import androidx.core.content.edit
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -102,6 +110,8 @@ fun MainScreen() {
     }
     var speedMultiplier by remember { mutableFloatStateOf(prefs.getFloat(KEY_SPEED_MULTIPLIER, 1.0f)) }
     var lockedMacAddress by remember { mutableStateOf(prefs.getString(KEY_LOCKED_MAC_ADDRESS, null)) }
+    var batteryLowThreshold by remember { mutableIntStateOf(prefs.getInt(KEY_BATTERY_LOW_THRESHOLD, 20)) }
+    var highTempThreshold by remember { mutableFloatStateOf(prefs.getFloat(KEY_HIGH_TEMP_THRESHOLD, 50f)) }
 
     DisposableEffect(prefs) {
         val listener =
@@ -116,6 +126,10 @@ fun MainScreen() {
                         sharedPreferences.getFloat(KEY_SPEED_MULTIPLIER, 1.0f)
                     KEY_LOCKED_MAC_ADDRESS -> lockedMacAddress =
                         sharedPreferences.getString(KEY_LOCKED_MAC_ADDRESS, null)
+                    KEY_BATTERY_LOW_THRESHOLD -> batteryLowThreshold =
+                        sharedPreferences.getInt(KEY_BATTERY_LOW_THRESHOLD, 20)
+                    KEY_HIGH_TEMP_THRESHOLD -> highTempThreshold =
+                        sharedPreferences.getFloat(KEY_HIGH_TEMP_THRESHOLD, 50f)
                 }
             }
         prefs.registerOnSharedPreferenceChangeListener(listener)
@@ -181,18 +195,19 @@ fun MainScreen() {
         versionKey = versionKey,
         speedMultiplier = speedMultiplier,
         lockedMacAddress = lockedMacAddress,
+        batteryLowThreshold = batteryLowThreshold,
+        highTempThreshold = highTempThreshold,
         onSpeedMultiplierChange = {
-            prefs.edit {
-                putFloat(
-                    KEY_SPEED_MULTIPLIER,
-                    it
-                )
-            }
+            prefs.edit { putFloat(KEY_SPEED_MULTIPLIER, it) }
         },
         onForgetDevice = {
-            prefs.edit {
-                putString(KEY_LOCKED_MAC_ADDRESS, null)
-            }
+            prefs.edit { putString(KEY_LOCKED_MAC_ADDRESS, null) }
+        },
+        onBatteryLowThresholdChange = {
+            prefs.edit { putInt(KEY_BATTERY_LOW_THRESHOLD, it) }
+        },
+        onHighTempThresholdChange = {
+            prefs.edit { putFloat(KEY_HIGH_TEMP_THRESHOLD, it) }
         }
     )
 }
@@ -210,32 +225,70 @@ fun MainScreenContent(
     versionKey: String,
     speedMultiplier: Float,
     lockedMacAddress: String?,
+    batteryLowThreshold: Int,
+    highTempThreshold: Float,
     onSpeedMultiplierChange: (Float) -> Unit,
-    onForgetDevice: () -> Unit
+    onForgetDevice: () -> Unit,
+    onBatteryLowThresholdChange: (Int) -> Unit,
+    onHighTempThresholdChange: (Float) -> Unit
 ) {
     Scaffold { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            if (hasMissingStreams) {
-                MissingStreamsWarning()
+        val pagerState = rememberPagerState(pageCount = { 2 })
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.weight(1f)
+            ) { page ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    if (page == 0) {
+                        if (hasMissingStreams) {
+                            MissingStreamsWarning()
+                        }
+                        StatusCard(connected = connected, sensorState = sensorState)
+                        MetricsList(metrics = metrics, userProfile = userProfile)
+                    } else {
+                        ConfigCard(
+                            wheelsize = wheelsize,
+                            poles = poles,
+                            versionKey = versionKey,
+                            speedMultiplier = speedMultiplier,
+                            lockedMacAddress = lockedMacAddress,
+                            onSpeedMultiplierChange = onSpeedMultiplierChange,
+                            onForgetDevice = onForgetDevice
+                        )
+                        AlertsConfigCard(
+                            batteryLowThreshold = batteryLowThreshold,
+                            highTempThreshold = highTempThreshold,
+                            onBatteryLowThresholdChange = onBatteryLowThresholdChange,
+                            onHighTempThresholdChange = onHighTempThresholdChange
+                        )
+                    }
+                }
             }
-            StatusCard(connected = connected, sensorState = sensorState)
-            ConfigCard(
-                wheelsize = wheelsize,
-                poles = poles,
-                versionKey = versionKey,
-                speedMultiplier = speedMultiplier,
-                lockedMacAddress = lockedMacAddress,
-                onSpeedMultiplierChange = onSpeedMultiplierChange,
-                onForgetDevice = onForgetDevice
-            )
-            MetricsList(metrics = metrics, userProfile = userProfile)
+            
+            // Page indicator
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                repeat(2) { iteration ->
+                    val color = if (pagerState.currentPage == iteration) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+                    Box(
+                        modifier = Modifier
+                            .padding(2.dp)
+                            .background(color, CircleShape)
+                            .size(8.dp)
+                    )
+                }
+            }
         }
     }
 }
@@ -589,6 +642,56 @@ fun ConfigItem(label: String, value: String) {
     }
 }
 
+@Composable
+fun AlertsConfigCard(
+    batteryLowThreshold: Int,
+    highTempThreshold: Float,
+    onBatteryLowThresholdChange: (Int) -> Unit,
+    onHighTempThresholdChange: (Float) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.alerts_title),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+            ConfigItem(
+                label = stringResource(R.string.label_battery_low_threshold),
+                value = "$batteryLowThreshold %"
+            )
+            Slider(
+                value = batteryLowThreshold.toFloat(),
+                onValueChange = { onBatteryLowThresholdChange(it.toInt()) },
+                valueRange = 5f..50f,
+                steps = 44,
+                modifier = Modifier.fillMaxWidth()
+            )
+            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+            ConfigItem(
+                label = stringResource(R.string.label_high_temp_threshold),
+                value = "${highTempThreshold.toInt()} °C"
+            )
+            Slider(
+                value = highTempThreshold,
+                onValueChange = onHighTempThresholdChange,
+                valueRange = 30f..80f,
+                steps = 49,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
 @Preview(showBackground = true, widthDp = 256, heightDp = 426)
 @Composable
 fun MainScreenPreview() {
@@ -613,8 +716,12 @@ fun MainScreenPreview() {
             versionKey = "v6",
             speedMultiplier = 1.0f,
             lockedMacAddress = "00:11:22:33:44:55",
+            batteryLowThreshold = 20,
+            highTempThreshold = 50f,
             onSpeedMultiplierChange = {},
-            onForgetDevice = {}
+            onForgetDevice = {},
+            onBatteryLowThresholdChange = {},
+            onHighTempThresholdChange = {}
         )
     }
 }

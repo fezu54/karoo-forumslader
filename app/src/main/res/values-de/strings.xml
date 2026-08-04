@@ -58,4 +58,7 @@
     <string name="charge_state_charging">Laden</string>
     <string name="charge_state_discharging">Entladen</string>
     <string name="charge_state_full">Voll</string>
+    <string name="alerts_title">Alarme</string>
+    <string name="label_battery_low_threshold">Warnschwelle für schwachen Akku (%)</string>
+    <string name="label_high_temp_threshold">Warnschwelle für hohe Temperatur (°C)</string>
 </resources>

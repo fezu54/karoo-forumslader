@@ -17,9 +17,10 @@ data class ForumsladerMetrics(
         val batteryVoltage: Float,
         val batteryCurrent: Float,
         val consumerCurrent: Float,
-        val batteryLevelPct: Int,
+        val batteryLevelPercentage: Int,
         val chargeState: ChargeState,
-        val dynamoPowerW: Float
+        val dynamoPowerWatts: Float,
+        val statusMask: Int
     )
 
     /**
@@ -27,7 +28,7 @@ data class ForumsladerMetrics(
      */
     data class Dynamics(
         val frequency: Float,
-        val speedMs: Float,
+        val speedMetersPerSecond: Float,
         val generatorGear: Int
     )
 
@@ -43,8 +44,8 @@ data class ForumsladerMetrics(
      * Cumulative energy consumption/generation.
      */
     data class Energy(
-        val tripWh: Double,
-        val tourWh: Double
+        val tripWattHours: Double,
+        val tourWattHours: Double
     )
 
     /**

@@ -6,6 +6,9 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeLeft
 import io.hammerhead.karooext.models.DataPoint
 import io.hammerhead.karooext.models.StreamState
 import io.hammerhead.karooext.models.UserProfile
@@ -39,7 +42,7 @@ class MainScreenTest {
         val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
         composeTestRule.setContent {
             AppTheme {
-                MainScreenContent(connected = false, sensorState = StreamState.Idle, metrics = emptyMap(), userProfile = null, wheelsize = config.wheelsize, poles = config.poles, versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {})
+                MainScreenContent(connected = false, sensorState = StreamState.Idle, metrics = emptyMap(), userProfile = null, wheelsize = config.wheelsize, poles = config.poles, versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}, batteryLowThreshold = 20, highTempThreshold = 50f, onBatteryLowThresholdChange = {}, onHighTempThresholdChange = {})
             }
         }
 
@@ -58,7 +61,7 @@ class MainScreenTest {
                     userProfile = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}, batteryLowThreshold = 20, highTempThreshold = 50f, onBatteryLowThresholdChange = {}, onHighTempThresholdChange = {}
                 )
             }
         }
@@ -80,7 +83,7 @@ class MainScreenTest {
                     userProfile = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}, batteryLowThreshold = 20, highTempThreshold = 50f, onBatteryLowThresholdChange = {}, onHighTempThresholdChange = {}
                 )
             }
         }
@@ -116,7 +119,7 @@ class MainScreenTest {
                     userProfile = imperialProfile,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}, batteryLowThreshold = 20, highTempThreshold = 50f, onBatteryLowThresholdChange = {}, onHighTempThresholdChange = {}
                 )
             }
         }
@@ -152,7 +155,7 @@ class MainScreenTest {
                     userProfile = metricProfile,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}, batteryLowThreshold = 20, highTempThreshold = 50f, onBatteryLowThresholdChange = {}, onHighTempThresholdChange = {}
                 )
             }
         }
@@ -172,7 +175,7 @@ class MainScreenTest {
                     userProfile = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}, batteryLowThreshold = 20, highTempThreshold = 50f, onBatteryLowThresholdChange = {}, onHighTempThresholdChange = {}
                 )
             }
         }
@@ -192,7 +195,7 @@ class MainScreenTest {
                     userProfile = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}, batteryLowThreshold = 20, highTempThreshold = 50f, onBatteryLowThresholdChange = {}, onHighTempThresholdChange = {}
                 )
             }
         }
@@ -228,7 +231,7 @@ class MainScreenTest {
                     userProfile = imperialProfile,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}, batteryLowThreshold = 20, highTempThreshold = 50f, onBatteryLowThresholdChange = {}, onHighTempThresholdChange = {}
                 )
             }
         }
@@ -264,7 +267,7 @@ class MainScreenTest {
                     userProfile = metricProfile,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}, batteryLowThreshold = 20, highTempThreshold = 50f, onBatteryLowThresholdChange = {}, onHighTempThresholdChange = {}
                 )
             }
         }
@@ -286,7 +289,7 @@ class MainScreenTest {
                     userProfile = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}, batteryLowThreshold = 20, highTempThreshold = 50f, onBatteryLowThresholdChange = {}, onHighTempThresholdChange = {}
                 )
             }
         }
@@ -308,7 +311,7 @@ class MainScreenTest {
                     userProfile = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}, batteryLowThreshold = 20, highTempThreshold = 50f, onBatteryLowThresholdChange = {}, onHighTempThresholdChange = {}
                 )
             }
         }
@@ -330,7 +333,7 @@ class MainScreenTest {
                     userProfile = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}, batteryLowThreshold = 20, highTempThreshold = 50f, onBatteryLowThresholdChange = {}, onHighTempThresholdChange = {}
                 )
             }
         }
@@ -366,7 +369,7 @@ class MainScreenTest {
                     userProfile = metricProfile,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}, batteryLowThreshold = 20, highTempThreshold = 50f, onBatteryLowThresholdChange = {}, onHighTempThresholdChange = {}
                 )
             }
         }
@@ -402,7 +405,7 @@ class MainScreenTest {
                     userProfile = imperialProfile,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}, batteryLowThreshold = 20, highTempThreshold = 50f, onBatteryLowThresholdChange = {}, onHighTempThresholdChange = {}
                 )
             }
         }
@@ -426,11 +429,12 @@ class MainScreenTest {
                     userProfile = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}
+                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}, batteryLowThreshold = 20, highTempThreshold = 50f, onBatteryLowThresholdChange = {}, onHighTempThresholdChange = {}
                 )
             }
         }
 
+        composeTestRule.onRoot().performTouchInput { swipeLeft() }
         composeTestRule.onNodeWithText("Configuration").performScrollTo().assertIsDisplayed()
         composeTestRule.onNodeWithText("2150 mm", substring = true).performScrollTo().assertIsDisplayed()
         composeTestRule.onNodeWithText("28").performScrollTo().assertIsDisplayed()
@@ -449,7 +453,7 @@ class MainScreenTest {
                     wheelsize = 2200,
                     poles = 14,
                     versionKey = "v6",
-                    speedMultiplier = 1.0f, lockedMacAddress = null, onSpeedMultiplierChange = {}, onForgetDevice = {}
+                    speedMultiplier = 1.0f, lockedMacAddress = null, onSpeedMultiplierChange = {}, onForgetDevice = {}, batteryLowThreshold = 20, highTempThreshold = 50f, onBatteryLowThresholdChange = {}, onHighTempThresholdChange = {}
                 )
             }
         }
@@ -475,11 +479,16 @@ class MainScreenTest {
                     speedMultiplier = config.speedMultiplier, 
                     lockedMacAddress = "00:11:22:33:44:55",
                     onSpeedMultiplierChange = {},
-                    onForgetDevice = { forgetClicked = true }
+                    onForgetDevice = { forgetClicked = true },
+                    batteryLowThreshold = 20,
+                    highTempThreshold = 50f,
+                    onBatteryLowThresholdChange = {},
+                    onHighTempThresholdChange = {}
                 )
             }
         }
 
+        composeTestRule.onRoot().performTouchInput { swipeLeft() }
         composeTestRule.onNodeWithText("Forget").performScrollTo().performClick()
         assert(forgetClicked)
     }
