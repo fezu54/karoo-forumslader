@@ -59,14 +59,14 @@ class ForumsladerParserTest {
         // batteryVoltage = (4100 + 4120 + 4110) / 1000 = 12.33
         // batteryCurrent = -150 / 1000 = -0.15
         // consumerCurrent = 250 / 1000 = 0.25
-        // freq2speed = 2200 / 14 / 1000 * 0.1 = 0.01571428
-        // speedMs = 100 * 0.01571428 = 1.571428
-        // imp2odo = 2200 / 14 / 1000.0 * 1.0 = 0.15714
+        // frequencyToSpeedFactor = 2200 / 14 / 1000 * 0.1 = 0.01571428
+        // speedMetersPerSecond = 100 * 0.01571428 = 1.571428
+        // impulsesToOdometerFactor = 2200 / 14 / 1000.0 * 1.0 = 0.15714
         // tripDistanceMeters = 12345 * 0.15714 = 1939.8571
         assertEquals(12.33f, result?.power?.batteryVoltage ?: 0f, 0.01f)
         assertEquals(-0.15f, result?.power?.batteryCurrent ?: 0f, 0.01f)
         assertEquals(0.25f, result?.power?.consumerCurrent ?: 0f, 0.01f)
-        assertEquals(1.57f, result?.dynamics?.speedMs ?: 0f, 0.01f)
+        assertEquals(1.57f, result?.dynamics?.speedMetersPerSecond ?: 0f, 0.01f)
         assertEquals(1939.93, result?.distance?.tripMeters ?: 0.0, 0.01)
         assertEquals(ForumsladerVersion.V6, parser.version)
     }
@@ -97,7 +97,7 @@ class ForumsladerParserTest {
         val result = parser.processIncomingBytes(data)
 
         // then
-        assertEquals(85, result?.power?.batteryLevelPct)
+        assertEquals(85, result?.power?.batteryLevelPercentage)
     }
 
     @Test
@@ -111,11 +111,11 @@ class ForumsladerParserTest {
         val result = parser.processIncomingBytes(withChecksum(fl6Payload).toByteArray())
 
         // then: wheelsize=2000, poles=10, isV6=true
-        // freq2speed = 2000 / 10 / 1000 / 10 = 0.02
-        // speedMs = 100 * 0.02 = 2.0
-        // imp2odo = 2000 / 10 / 1000.0 * 1.0 = 0.2
+        // frequencyToSpeedFactor = 2000 / 10 / 1000 / 10 = 0.02
+        // speedMetersPerSecond = 100 * 0.02 = 2.0
+        // impulsesToOdometerFactor = 2000 / 10 / 1000.0 * 1.0 = 0.2
         // tripDistanceMeters = 12345 * 0.2 = 2469.0
-        assertEquals(2.0f, result?.dynamics?.speedMs ?: 0f, 0.01f)
+        assertEquals(2.0f, result?.dynamics?.speedMetersPerSecond ?: 0f, 0.01f)
         assertEquals(2469.0, result?.distance?.tripMeters ?: 0.0, 0.01)
     }
 
@@ -153,7 +153,7 @@ class ForumsladerParserTest {
         // then
         assertEquals(25.0f, result?.environment?.temperatureCelsius ?: 0f, 0.01f)
         assertEquals(95.0f, result?.environment?.altitudeMeters ?: 0f, 0.01f)
-        assertEquals(90, result?.power?.batteryLevelPct)
+        assertEquals(90, result?.power?.batteryLevelPercentage)
     }
 
     @Test
@@ -181,7 +181,7 @@ class ForumsladerParserTest {
         assertEquals(12.5f, result?.power?.batteryVoltage ?: 0f, 0.01f)
         assertEquals(0.8f, result?.power?.batteryCurrent ?: 0f, 0.01f)
         assertEquals(0.2f, result?.power?.consumerCurrent ?: 0f, 0.01f)
-        assertEquals(65, result?.power?.batteryLevelPct) // stage 5 = 65%
+        assertEquals(65, result?.power?.batteryLevelPercentage) // stage 5 = 65%
         assertEquals(10200.0, result?.distance?.tripMeters ?: 0.0, 0.01)
         // Assume V6 default for FLD if not detected otherwise
         assertEquals(ForumsladerVersion.Unknown, parser.version)
@@ -198,11 +198,11 @@ class ForumsladerParserTest {
         val result = parser.processIncomingBytes(data)
 
         // then: wheelsize=2200, poles=14, V5 scaling (1.0f freq, 4096.0 impulse)
-        // freq2speed = 2200 / 14 / 1000 * 1.0 = 0.1571428
-        // speedMs = 100 * 0.1571428 = 15.71428
-        // imp2odo = 2200 / 14 / 1000.0 * 4096.0 = 643.6571
+        // frequencyToSpeedFactor = 2200 / 14 / 1000 * 1.0 = 0.1571428
+        // speedMetersPerSecond = 100 * 0.1571428 = 15.71428
+        // impulsesToOdometerFactor = 2200 / 14 / 1000.0 * 4096.0 = 643.6571
         // tripDistanceMeters = 12345 * 643.6571 = 7945947.43
-        assertEquals(15.71f, result?.dynamics?.speedMs ?: 0f, 0.01f)
+        assertEquals(15.71f, result?.dynamics?.speedMetersPerSecond ?: 0f, 0.01f)
         assertEquals(7945947.43, result?.distance?.tripMeters ?: 0.0, 1.0)
         assertEquals(ForumsladerVersion.V5, parser.version)
     }
@@ -268,8 +268,8 @@ class ForumsladerParserTest {
         val result = parser.processIncomingBytes(data)
 
         // then
-        assertEquals(123.4, result?.energy?.tourWh ?: 0.0, 0.01)
-        assertEquals(45.6, result?.energy?.tripWh ?: 0.0, 0.01)
+        assertEquals(123.4, result?.energy?.tourWattHours ?: 0.0, 0.01)
+        assertEquals(45.6, result?.energy?.tripWattHours ?: 0.0, 0.01)
     }
 
     @Test
@@ -287,7 +287,7 @@ class ForumsladerParserTest {
         
         // dynamo power = batteryVoltage * abs(batteryCurrent + consumerCurrent)
         // V = 12.33, I = -0.15 + 0.25 = 0.1, P = 1.233
-        assertEquals(1.233f, result?.power?.dynamoPowerW ?: 0f, 0.01f)
+        assertEquals(1.233f, result?.power?.dynamoPowerWatts ?: 0f, 0.01f)
     }
 
     @Test
@@ -301,7 +301,7 @@ class ForumsladerParserTest {
         val result = parser.processIncomingBytes(data)
 
         // then
-        // imp2odo = 2000 / 10 / 1000.0 * 1.0 = 0.2
+        // impulsesToOdometerFactor = 2000 / 10 / 1000.0 * 1.0 = 0.2
         // dayDistance = (12345 - 1000) * 0.2 = 2269.0
         // tourDistance = (12345 - 2000) * 0.2 = 2069.0
         // odometer = 12345 * 0.2 = 2469.0

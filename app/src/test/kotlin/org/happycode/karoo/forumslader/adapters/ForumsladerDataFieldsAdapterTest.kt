@@ -22,13 +22,14 @@ class ForumsladerDataFieldsAdapterTest {
                 batteryVoltage = 48.2f,
                 batteryCurrent = 1.5f,
                 consumerCurrent = 2.5f,
-                batteryLevelPct = 75,
+                batteryLevelPercentage = 75,
                 chargeState = CHARGING,
-                dynamoPowerW = 3.0f
+                dynamoPowerWatts = 3.0f,
+                statusMask = 0
             ),
             dynamics = ForumsladerMetrics.Dynamics(
                 frequency = 17.7f,
-                speedMs = 7.03f, // 25.3 km/h / 3.6
+                speedMetersPerSecond = 7.03f, // 25.3 km/h / 3.6
                 generatorGear = 3
             ),
             environment = ForumsladerMetrics.Environment(
@@ -36,8 +37,8 @@ class ForumsladerDataFieldsAdapterTest {
                 altitudeMeters = 150f
             ),
             energy = ForumsladerMetrics.Energy(
-                tripWh = 12.5,
-                tourWh = 55.0
+                tripWattHours = 12.5,
+                tourWattHours = 55.0
             ),
             distance = ForumsladerMetrics.Distance(
                 tripMeters = 12700.0,
@@ -77,13 +78,14 @@ class ForumsladerDataFieldsAdapterTest {
                 batteryVoltage = 48.2f,
                 batteryCurrent = 1.5f,
                 consumerCurrent = 2.5f,
-                batteryLevelPct = 75,
+                batteryLevelPercentage = 75,
                 chargeState = CHARGING,
-                dynamoPowerW = 3.0f
+                dynamoPowerWatts = 3.0f,
+                statusMask = 0
             ),
             dynamics = ForumsladerMetrics.Dynamics(
                 frequency = 17.7f,
-                speedMs = 7.03f,
+                speedMetersPerSecond = 7.03f,
                 generatorGear = 3
             ),
             environment = ForumsladerMetrics.Environment(
@@ -91,8 +93,8 @@ class ForumsladerDataFieldsAdapterTest {
                 altitudeMeters = 150f
             ),
             energy = ForumsladerMetrics.Energy(
-                tripWh = 12.5,
-                tourWh = 55.0
+                tripWattHours = 12.5,
+                tourWattHours = 55.0
             ),
             distance = ForumsladerMetrics.Distance(
                 tripMeters = 12700.0,

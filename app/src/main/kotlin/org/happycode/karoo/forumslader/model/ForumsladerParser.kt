@@ -17,9 +17,9 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
     private var batteryVoltage: Float = 0f
     private var batteryCurrent: Float = 0f
     private var consumerCurrent: Float = 0f
-    private var batteryLevelPct: Int = 0
+    private var batteryLevelPercentage: Int = 0
     private var currentFrequency: Float = 0f
-    private var speedMs: Float = 0f
+    private var speedMetersPerSecond: Float = 0f
     private var tripDistanceMeters: Double = 0.0
     private var totalDistanceMeters: Double = 0.0
     private var temperatureCelsius: Float = 0f
@@ -27,14 +27,15 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
 
     private var generatorGear: Int = 0
     private var chargeState: ChargeState = ChargeState.STANDBY
-    private var tripEnergyWh: Double = 0.0
-    private var tourEnergyWh: Double = 0.0
+    private var tripEnergyWattHours: Double = 0.0
+    private var tourEnergyWattHours: Double = 0.0
     private var dayPulseOffset: Double = 0.0
     private var tourPulseOffset: Double = 0.0
     private var currentImpulseCounter: Double = 0.0
     private var odometerMeters: Double = 0.0
     private var dayDistanceMeters: Double = 0.0
     private var tourDistanceMeters: Double = 0.0
+    private var currentStatusMask: Int = 0
 
     // Configuration parameters
     private var wheelsize: Int = config?.wheelsize ?: 2200 // default fallback in mm
@@ -97,21 +98,22 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
         }
 
         // Only return metrics if we've received a telemetry sentence in this batch
-        // (configuration-only frames like FLP, FLC, FLB don't trigger emissions)
+        // (configuration-only frames like FLP, FLC, FLB) don't trigger emissions
         return if (parsedTelemetry && hasReceivedTelemetry) {
-            val dynamoPowerW = batteryVoltage * kotlin.math.abs(batteryCurrent + consumerCurrent)
+            val dynamoPowerWatts = batteryVoltage * kotlin.math.abs(batteryCurrent + consumerCurrent)
             val metrics = ForumsladerMetrics(
                 power = ForumsladerMetrics.Power(
                     batteryVoltage = batteryVoltage,
                     batteryCurrent = batteryCurrent,
                     consumerCurrent = consumerCurrent,
-                    batteryLevelPct = batteryLevelPct,
+                    batteryLevelPercentage = batteryLevelPercentage,
                     chargeState = chargeState,
-                    dynamoPowerW = dynamoPowerW
+                    dynamoPowerWatts = dynamoPowerWatts,
+                    statusMask = currentStatusMask
                 ),
                 dynamics = ForumsladerMetrics.Dynamics(
                     frequency = currentFrequency,
-                    speedMs = speedMs,
+                    speedMetersPerSecond = speedMetersPerSecond,
                     generatorGear = generatorGear
                 ),
                 environment = ForumsladerMetrics.Environment(
@@ -119,8 +121,8 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
                     altitudeMeters = altitudeMeters
                 ),
                 energy = ForumsladerMetrics.Energy(
-                    tripWh = tripEnergyWh,
-                    tourWh = tourEnergyWh
+                    tripWattHours = tripEnergyWattHours,
+                    tourWattHours = tourEnergyWattHours
                 ),
                 distance = ForumsladerMetrics.Distance(
                     tripMeters = tripDistanceMeters,
@@ -133,8 +135,8 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
             
             Log.i(TAG, "Metrics emitted (#$totalMetricsEmitted) from $parsedSentenceType | " +
                 "V=${String.format("%.2f", batteryVoltage)}V I=${String.format("%.2f", batteryCurrent)}A " +
-                "Speed=${String.format("%.1f", speedMs * 3.6f)}km/h Trip=${String.format("%.2f", tripDistanceMeters / 1000.0)}km " +
-                "Batt=$batteryLevelPct% Temp=${String.format("%.1f", temperatureCelsius)}°C " +
+                "Speed=${String.format("%.1f", speedMetersPerSecond * 3.6f)}km/h Trip=${String.format("%.2f", tripDistanceMeters / 1000.0)}km " +
+                "Batt=$batteryLevelPercentage% Temp=${String.format("%.1f", temperatureCelsius)}°C " +
                 "[Config: WS=$wheelsize poles=$poles version=${version.key}]")
             
             metrics
@@ -233,6 +235,7 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
                         if (it.startsWith("0x", ignoreCase = true)) it.substring(2).toIntOrNull(16)
                         else it.toIntOrNull(16)
                     } ?: 0
+                    currentStatusMask = statusInt
 
                     chargeState = when {
                         (statusInt and 0x8000) != 0 -> ChargeState.FULL
@@ -254,22 +257,22 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
                     val impulseCounter = tokens.getOrNull(version.impulseIndex)?.toDoubleOrNull() ?: 0.0
                     currentImpulseCounter = impulseCounter
 
-                    val freq2speed = wheelsize.toFloat() / poles.toFloat() / 1000f * version.frequencyScale
+                    val frequencyToSpeedFactor = wheelsize.toFloat() / poles.toFloat() / 1000f * version.frequencyScale
                     currentFrequency = frequency
                     val multiplier = config?.speedMultiplier ?: 1.0f
-                    speedMs = frequency * freq2speed * multiplier
+                    speedMetersPerSecond = frequency * frequencyToSpeedFactor * multiplier
 
-                    val imp2odo = wheelsize.toDouble() / poles.toDouble() / 1000.0 * version.impulseScale
-                    tripDistanceMeters = impulseCounter * imp2odo * multiplier.toDouble()
+                    val impulsesToOdometerFactor = wheelsize.toDouble() / poles.toDouble() / 1000.0 * version.impulseScale
+                    tripDistanceMeters = impulseCounter * impulsesToOdometerFactor * multiplier.toDouble()
                     totalDistanceMeters = tripDistanceMeters
                     
-                    odometerMeters = impulseCounter * imp2odo * multiplier.toDouble()
-                    dayDistanceMeters = (impulseCounter - dayPulseOffset) * imp2odo * multiplier.toDouble()
-                    tourDistanceMeters = (impulseCounter - tourPulseOffset) * imp2odo * multiplier.toDouble()
+                    odometerMeters = impulseCounter * impulsesToOdometerFactor * multiplier.toDouble()
+                    dayDistanceMeters = (impulseCounter - dayPulseOffset) * impulsesToOdometerFactor * multiplier.toDouble()
+                    tourDistanceMeters = (impulseCounter - tourPulseOffset) * impulsesToOdometerFactor * multiplier.toDouble()
                     
                     if (DEBUG_SENTENCE_PARSING) {
                         Log.d(TAG, "$header: freq=$frequency impulse=$impulseCounter " +
-                            "-> speed=${String.format("%.1f", speedMs * 3.6f)}km/h trip=${String.format("%.2f", tripDistanceMeters / 1000.0)}km")
+                            "-> speed=${String.format("%.1f", speedMetersPerSecond * 3.6f)}km/h trip=${String.format("%.2f", tripDistanceMeters / 1000.0)}km")
                     }
                     true
                 }
@@ -285,16 +288,16 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
                 "FLC" -> {
                     when (tokens.getOrNull(1)) {
                         "5" -> {
-                            batteryLevelPct = tokens.getOrNull(3)?.toIntOrNull() ?: batteryLevelPct
+                            batteryLevelPercentage = tokens.getOrNull(3)?.toIntOrNull() ?: batteryLevelPercentage
                             if (DEBUG_SENTENCE_PARSING) {
-                                Log.d(TAG, "FLC: battery level set to $batteryLevelPct%")
+                                Log.d(TAG, "FLC: battery level set to $batteryLevelPercentage%")
                             }
                         }
                         "3" -> {
-                            tourEnergyWh = tokens.getOrNull(3)?.toDoubleOrNull() ?: tourEnergyWh
-                            tripEnergyWh = tokens.getOrNull(4)?.toDoubleOrNull() ?: tripEnergyWh
+                            tourEnergyWattHours = tokens.getOrNull(3)?.toDoubleOrNull() ?: tourEnergyWattHours
+                            tripEnergyWattHours = tokens.getOrNull(4)?.toDoubleOrNull() ?: tripEnergyWattHours
                             if (DEBUG_SENTENCE_PARSING) {
-                                Log.d(TAG, "FLC: tripEnergy=$tripEnergyWh Wh, tourEnergy=$tourEnergyWh Wh")
+                                Log.d(TAG, "FLC: tripEnergy=$tripEnergyWattHours Wh, tourEnergy=$tourEnergyWattHours Wh")
                             }
                         }
                     }
@@ -325,7 +328,7 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
                     }
 
                     val p9 = tokens.getOrNull(9)?.toIntOrNull() ?: 0
-                    batteryLevelPct = when (p9) {
+                    batteryLevelPercentage = when (p9) {
                         0 -> 5
                         1 -> 10
                         2 -> 20
@@ -334,24 +337,24 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
                         5 -> 65
                         6 -> 80
                         7 -> 95
-                        else -> batteryLevelPct
+                        else -> batteryLevelPercentage
                     }
 
-                    val freq2speed = wheelsize.toFloat() / poles.toFloat() / 1000f * version.frequencyScale
+                    val frequencyToSpeedFactor = wheelsize.toFloat() / poles.toFloat() / 1000f * version.frequencyScale
                     currentFrequency = frequency
                     val multiplier = config?.speedMultiplier ?: 1.0f
-                    speedMs = frequency * freq2speed * multiplier
+                    speedMetersPerSecond = frequency * frequencyToSpeedFactor * multiplier
 
-                    val kmCounter = tokens.getOrNull(14)?.toDoubleOrNull() ?: 0.0
-                    tripDistanceMeters = kmCounter * 1000.0 * multiplier.toDouble()
+                    val kilometersCounter = tokens.getOrNull(14)?.toDoubleOrNull() ?: 0.0
+                    tripDistanceMeters = kilometersCounter * 1000.0 * multiplier.toDouble()
                     totalDistanceMeters = tripDistanceMeters
                     odometerMeters = totalDistanceMeters
                     dayDistanceMeters = 0.0
                     tourDistanceMeters = 0.0
                     
                     if (DEBUG_SENTENCE_PARSING) {
-                        Log.d(TAG, "FLD: freq=$frequency -> speed=${String.format("%.1f", speedMs * 3.6f)}km/h " +
-                            "distance=${String.format("%.2f", kmCounter)}km battery=$batteryLevelPct%")
+                        Log.d(TAG, "FLD: freq=$frequency -> speed=${String.format("%.1f", speedMetersPerSecond * 3.6f)}km/h " +
+                            "distance=${String.format("%.2f", kilometersCounter)}km battery=$batteryLevelPercentage%")
                     }
                     true
                 }

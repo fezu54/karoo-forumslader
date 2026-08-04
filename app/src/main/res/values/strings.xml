@@ -58,4 +58,7 @@
     <string name="charge_state_charging">Charging</string>
     <string name="charge_state_discharging">Discharging</string>
     <string name="charge_state_full">Full</string>
+    <string name="alerts_title">Alerts</string>
+    <string name="label_battery_low_threshold">Low Battery Threshold (%)</string>
+    <string name="label_high_temp_threshold">High Temperature Threshold (°C)</string>
 </resources>

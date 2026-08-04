@@ -7,4 +7,6 @@ object PreferencesConstants {
     const val KEY_VERSION = "version"
     const val KEY_SPEED_MULTIPLIER = "speedMultiplier"
     const val KEY_LOCKED_MAC_ADDRESS = "locked_mac_address"
+    const val KEY_BATTERY_LOW_THRESHOLD = "battery_low_threshold"
+    const val KEY_HIGH_TEMP_THRESHOLD = "high_temp_threshold"
 }
