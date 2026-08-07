@@ -24,9 +24,11 @@ import io.hammerhead.karooext.extension.DataTypeImpl
 import io.hammerhead.karooext.models.DataType
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
 import org.happycode.karoo.forumslader.model.ForumsladerConfig
+import io.hammerhead.karooext.models.FitEffect
 import org.happycode.karoo.forumslader.BuildConfig
 
 class ForumsladerExtension : KarooExtension(extension = "karoo-forumslader", version = BuildConfig.VERSION_NAME) {
+    private var fitEmitter: Emitter<FitEffect>? = null
     private val devices = mutableMapOf<String, ForumsladerKarooAdapter>()
 
     override val types: List<DataTypeImpl> by lazy {
@@ -77,7 +79,9 @@ class ForumsladerExtension : KarooExtension(extension = "karoo-forumslader", ver
         val lockedMac = config.lockedMacAddress
         if (lockedMac != null) {
             val forumslader = devices.getOrPut(key = lockedMac) {
-                ForumsladerKarooAdapter(context = this@ForumsladerExtension, address = lockedMac, displayName = "Forumslader")
+                ForumsladerKarooAdapter(context = this@ForumsladerExtension, address = lockedMac, displayName = "Forumslader").apply {
+                    setFitEmitter(fitEmitter)
+                }
             }
             emitter.onNext(forumslader.device)
             emitter.setCancellable { job.cancel() }
@@ -110,7 +114,9 @@ class ForumsladerExtension : KarooExtension(extension = "karoo-forumslader", ver
                 if (hasForumsladerName || hasForumsladerService) {
                     val displayName = name ?: "Forumslader"
                     val forumslader = devices.getOrPut(key = result.device.address) {
-                        ForumsladerKarooAdapter(context = this@ForumsladerExtension, address = result.device.address, displayName = displayName)
+                        ForumsladerKarooAdapter(context = this@ForumsladerExtension, address = result.device.address, displayName = displayName).apply {
+                            setFitEmitter(fitEmitter)
+                        }
                     }
                     emitter.onNext(forumslader.device)
                 }
@@ -156,7 +162,20 @@ class ForumsladerExtension : KarooExtension(extension = "karoo-forumslader", ver
 
         val address = uid.removePrefix(prefix = "fl-")
         devices.getOrPut(key = address) {
-            ForumsladerKarooAdapter(context = this, address = address, displayName = null)
+            ForumsladerKarooAdapter(context = this, address = address, displayName = null).apply {
+                setFitEmitter(fitEmitter)
+            }
         }.connect(emitter = emitter)
+    }
+
+    override fun startFit(emitter: Emitter<FitEffect>) {
+        fitEmitter = emitter
+        devices.values.forEach { it.setFitEmitter(emitter) }
+        emitter.setCancellable {
+            if (fitEmitter == emitter) {
+                fitEmitter = null
+                devices.values.forEach { it.setFitEmitter(null) }
+            }
+        }
     }
 }
