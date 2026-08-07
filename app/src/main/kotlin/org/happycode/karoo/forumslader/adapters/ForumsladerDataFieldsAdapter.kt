@@ -45,23 +45,28 @@ class ForumsladerDataFieldsAdapter(private val context: Context) {
     )
 
     companion object {
-        fun metricsToDataFieldValues(metrics: ForumsladerMetrics): Map<String, Any> = mapOf(
-            DataFieldId.BATTERY_LEVEL to metrics.power.batteryLevelPercentage,
-            DataFieldId.BATTERY_VOLTAGE to metrics.power.batteryVoltage,
-            DataFieldId.BATTERY_CURRENT to (metrics.power.batteryCurrent * 1000).toInt(),
-            DataFieldId.CONSUMER_CURRENT to (metrics.power.consumerCurrent * 1000).toInt(),
-            DataFieldId.SPEED to metrics.dynamics.speedMetersPerSecond,
-            DataFieldId.TRIP_DISTANCE to metrics.distance.tripMeters,
-            DataFieldId.FREQUENCY to metrics.dynamics.frequency,
-            DataFieldId.TEMPERATURE to metrics.environment.temperatureCelsius,
-            DataFieldId.GENERATOR_GEAR to metrics.dynamics.generatorGear,
-            DataFieldId.CHARGE_STATE to metrics.power.chargeState.name,
-            DataFieldId.TRIP_ENERGY to metrics.energy.tripWattHours,
-            DataFieldId.TOUR_ENERGY to metrics.energy.tourWattHours,
-            DataFieldId.DYNAMO_POWER to metrics.power.dynamoPowerWatts,
-            DataFieldId.ODOMETER to metrics.distance.odometerMeters,
-            DataFieldId.DAY_DISTANCE to metrics.distance.dayMeters,
-            DataFieldId.TOUR_DISTANCE to metrics.distance.tourMeters,
-        )
+        fun metricsToDataFieldValues(metrics: ForumsladerMetrics): Map<String, Any> {
+            val map = mutableMapOf<String, Any>(
+                DataFieldId.BATTERY_VOLTAGE to metrics.power.batteryVoltage,
+                DataFieldId.BATTERY_CURRENT to (metrics.power.batteryCurrent * 1000).toInt(),
+                DataFieldId.CONSUMER_CURRENT to (metrics.power.consumerCurrent * 1000).toInt(),
+                DataFieldId.SPEED to metrics.dynamics.speedMetersPerSecond,
+                DataFieldId.TRIP_DISTANCE to metrics.distance.tripMeters,
+                DataFieldId.FREQUENCY to metrics.dynamics.frequency,
+                DataFieldId.TEMPERATURE to metrics.environment.temperatureCelsius,
+                DataFieldId.GENERATOR_GEAR to metrics.dynamics.generatorGear,
+                DataFieldId.CHARGE_STATE to metrics.power.chargeState.name,
+                DataFieldId.TRIP_ENERGY to metrics.energy.tripWattHours,
+                DataFieldId.TOUR_ENERGY to metrics.energy.tourWattHours,
+                DataFieldId.DYNAMO_POWER to metrics.power.dynamoPowerWatts,
+                DataFieldId.ODOMETER to metrics.distance.odometerMeters,
+                DataFieldId.DAY_DISTANCE to metrics.distance.dayMeters,
+                DataFieldId.TOUR_DISTANCE to metrics.distance.tourMeters,
+            )
+            metrics.power.batteryLevelPercentage?.let {
+                map[DataFieldId.BATTERY_LEVEL] = it
+            }
+            return map
+        }
     }
 }

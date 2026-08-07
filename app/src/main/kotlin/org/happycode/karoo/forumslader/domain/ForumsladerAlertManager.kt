@@ -46,7 +46,7 @@ class BatteryLowRule(
     }
 
     override fun evaluate(metrics: ForumsladerMetrics, currentTime: Duration): ForumsladerAlert? {
-        val batteryPercentage = metrics.power.batteryLevelPercentage
+        val batteryPercentage = metrics.power.batteryLevelPercentage ?: return null
         val threshold = thresholdProvider()
         
         if (!batteryLowTriggered && batteryPercentage < threshold) {
