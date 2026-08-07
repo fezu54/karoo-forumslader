@@ -28,6 +28,7 @@ import org.happycode.karoo.forumslader.domain.StatusBitmaskRule
 import org.happycode.karoo.forumslader.model.ForumsladerConfig
 import org.happycode.karoo.forumslader.model.ForumsladerParser
 import org.happycode.karoo.forumslader.model.ForumsladerVersion
+import io.hammerhead.karooext.models.FitEffect
 
 class ForumsladerKarooAdapter(
     context: Context,
@@ -78,6 +79,8 @@ class ForumsladerKarooAdapter(
             StatusBitmaskRule(0x800000, ForumsladerAlert.SystemInterrupt)
         )
     )
+    
+    private val fitRecorder = ForumsladerFitRecorder(karooSystem)
 
     init {
         karooSystem.connect {}
@@ -137,6 +140,7 @@ class ForumsladerKarooAdapter(
             }
             emitMetrics(emitter, metrics)
             evaluateAlerts(metrics)
+            fitRecorder.onMetricsReceived(metrics)
         }
     }
 
@@ -174,5 +178,9 @@ class ForumsladerKarooAdapter(
                 )
             }
             .forEach(emitter::onNext)
+    }
+
+    fun setFitEmitter(emitter: Emitter<FitEffect>?) {
+        fitRecorder.fitEmitter = emitter
     }
 }
