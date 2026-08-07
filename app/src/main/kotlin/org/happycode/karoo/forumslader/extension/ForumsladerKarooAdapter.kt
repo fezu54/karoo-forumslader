@@ -34,6 +34,29 @@ class ForumsladerKarooAdapter(
     val address: String,
     displayName: String? = null
 ) : ForumsladerBleListener {
+    companion object {
+        private const val EXTENSION_ID = "karoo-forumslader"
+
+        private val METRICS_REGISTRY = listOf<Pair<String, ForumsladerMetrics.() -> Number?>>(
+            "fl_battery_voltage" to { power.batteryVoltage },
+            "fl_battery_current" to { power.batteryCurrent * 1000.0 },
+            "fl_consumer_current" to { power.consumerCurrent * 1000.0 },
+            "fl_speed" to { dynamics.speedMetersPerSecond },
+            "fl_trip_distance" to { distance.tripMeters },
+            "fl_frequency" to { dynamics.frequency },
+            "fl_temperature" to { environment.temperatureCelsius },
+            "fl_generator_gear" to { dynamics.generatorGear },
+            "fl_charge_state" to { power.chargeState.ordinal },
+            "fl_trip_energy" to { energy.tripWattHours },
+            "fl_tour_energy" to { energy.tourWattHours },
+            "fl_dynamo_power" to { power.dynamoPowerWatts },
+            "fl_odometer" to { distance.odometerMeters },
+            "fl_day_distance" to { distance.dayMeters },
+            "fl_tour_distance" to { distance.tourMeters },
+            "fl_battery_level" to { power.batteryLevelPercentage }
+        )
+    }
+
     private val config = ForumsladerConfig(context)
     private val parser = ForumsladerParser(config)
     private var currentEmitter: Emitter<DeviceEvent>? = null
@@ -61,26 +84,11 @@ class ForumsladerKarooAdapter(
     }
 
     val device: Device = Device(
-        extension = "karoo-forumslader",
+        extension = EXTENSION_ID,
         uid = "fl-$address",
-        dataTypes = listOf(
-            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_battery_level"),
-            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_battery_voltage"),
-            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_battery_current"),
-            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_consumer_current"),
-            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_speed"),
-            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_trip_distance"),
-            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_frequency"),
-            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_temperature"),
-            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_generator_gear"),
-            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_charge_state"),
-            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_trip_energy"),
-            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_tour_energy"),
-            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_dynamo_power"),
-            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_odometer"),
-            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_day_distance"),
-            DataType.dataTypeId(extension = "karoo-forumslader", typeId = "fl_tour_distance")
-        ),
+        dataTypes = METRICS_REGISTRY.map { (id, _) ->
+            DataType.dataTypeId(extension = EXTENSION_ID, typeId = id)
+        },
         displayName = displayName ?: "Forumslader"
     )
 
@@ -150,35 +158,21 @@ class ForumsladerKarooAdapter(
         }
     }
 
-    private fun emitMetrics(emitter: Emitter<DeviceEvent>, metrics: ForumsladerMetrics) = listOf(
-        "fl_battery_level" to metrics.power.batteryLevelPercentage.toDouble(),
-        "fl_battery_voltage" to metrics.power.batteryVoltage.toDouble(),
-        "fl_battery_current" to (metrics.power.batteryCurrent * 1000.0),
-        "fl_consumer_current" to (metrics.power.consumerCurrent * 1000.0),
-        "fl_speed" to metrics.dynamics.speedMetersPerSecond.toDouble(),
-        "fl_trip_distance" to metrics.distance.tripMeters,
-        "fl_frequency" to metrics.dynamics.frequency.toDouble(),
-        "fl_temperature" to metrics.environment.temperatureCelsius.toDouble(),
-        "fl_generator_gear" to metrics.dynamics.generatorGear.toDouble(),
-        "fl_charge_state" to metrics.power.chargeState.ordinal.toDouble(),
-        "fl_trip_energy" to metrics.energy.tripWattHours,
-        "fl_tour_energy" to metrics.energy.tourWattHours,
-        "fl_dynamo_power" to metrics.power.dynamoPowerWatts.toDouble(),
-        "fl_odometer" to metrics.distance.odometerMeters,
-        "fl_day_distance" to metrics.distance.dayMeters,
-        "fl_tour_distance" to metrics.distance.tourMeters
-    ).forEach { (typeId, value) ->
-        emitter.onNext(
-            OnDataPoint(
-                dataPoint = DataPoint(
-                    dataTypeId = DataType.dataTypeId(
-                        extension = "karoo-forumslader",
-                        typeId = typeId
-                    ),
-                    values = mapOf(DataType.Field.SINGLE to value),
-                    sourceId = device.uid
+    private fun emitMetrics(emitter: Emitter<DeviceEvent>, metrics: ForumsladerMetrics) {
+        METRICS_REGISTRY.asSequence()
+            .mapNotNull { (typeId, extract) -> metrics.extract()?.let { typeId to it } }
+            .map { (typeId, value) ->
+                OnDataPoint(
+                    dataPoint = DataPoint(
+                        dataTypeId = DataType.dataTypeId(
+                            extension = EXTENSION_ID,
+                            typeId = typeId
+                        ),
+                        values = mapOf(DataType.Field.SINGLE to value.toDouble()),
+                        sourceId = device.uid
+                    )
                 )
-            )
-        )
+            }
+            .forEach(emitter::onNext)
     }
 }
