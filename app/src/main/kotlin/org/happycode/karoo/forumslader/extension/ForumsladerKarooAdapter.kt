@@ -13,9 +13,17 @@ import io.hammerhead.karooext.models.DataPoint
 import io.hammerhead.karooext.models.DataType
 import io.hammerhead.karooext.models.Device
 import io.hammerhead.karooext.models.DeviceEvent
+import io.hammerhead.karooext.models.FitEffect
 import io.hammerhead.karooext.models.InRideAlert
 import io.hammerhead.karooext.models.OnConnectionStatus
 import io.hammerhead.karooext.models.OnDataPoint
+import io.hammerhead.karooext.models.RideState
+import io.hammerhead.karooext.models.RideState.Params
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import org.happycode.karoo.forumslader.adapters.rideHistoryDataStore
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_BATTERY_LOW_THRESHOLD
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_HIGH_TEMP_THRESHOLD
 import org.happycode.karoo.forumslader.R
@@ -28,7 +36,7 @@ import org.happycode.karoo.forumslader.domain.StatusBitmaskRule
 import org.happycode.karoo.forumslader.model.ForumsladerConfig
 import org.happycode.karoo.forumslader.model.ForumsladerParser
 import org.happycode.karoo.forumslader.model.ForumsladerVersion
-import io.hammerhead.karooext.models.FitEffect
+
 
 class ForumsladerKarooAdapter(
     context: Context,
@@ -58,6 +66,7 @@ class ForumsladerKarooAdapter(
         )
     }
 
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val config = ForumsladerConfig(context)
     private val parser = ForumsladerParser(config)
     private var currentEmitter: Emitter<DeviceEvent>? = null
@@ -81,9 +90,25 @@ class ForumsladerKarooAdapter(
     )
     
     private val fitRecorder = ForumsladerFitRecorder(karooSystem)
+    private val rideEnergyOrchestrator = org.happycode.karoo.forumslader.application.RideEnergyOrchestrator(
+        accumulator = org.happycode.karoo.forumslader.domain.RideEnergyAccumulator(),
+        historyGateway = org.happycode.karoo.forumslader.adapters.DataStoreRideHistoryGateway(context.rideHistoryDataStore)
+    )
+    private var rideState: RideState = RideState.Idle
+    private var lastMetricsTimeMs: Long = 0L
 
     init {
         karooSystem.connect {}
+        karooSystem.addConsumer<RideState>(Params) { event ->
+            rideState = event
+            if (event is RideState.Recording) {
+                rideEnergyOrchestrator.onRecordingStarted()
+            } else if (event is RideState.Idle) {
+                scope.launch {
+                    rideEnergyOrchestrator.onRideIdle()
+                }
+            }
+        }
     }
 
     val device: Device = Device(
@@ -138,6 +163,15 @@ class ForumsladerKarooAdapter(
                 )
                 config.lockedMacAddress = address
             }
+            
+            val now = System.currentTimeMillis()
+            val deltaSec = if (lastMetricsTimeMs > 0) (now - lastMetricsTimeMs) / 1000f else 1f
+            lastMetricsTimeMs = now
+            
+            if (rideState is RideState.Recording) {
+                rideEnergyOrchestrator.onMetricsReceived(metrics, deltaSec)
+            }
+
             emitMetrics(emitter, metrics)
             evaluateAlerts(metrics)
             fitRecorder.onMetricsReceived(metrics)
