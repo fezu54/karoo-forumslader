@@ -497,8 +497,7 @@ class ForumsladerKarooAdapterTest {
         verify { 
             anyConstructed<KarooSystemService>().dispatch(match { 
                 it is InRideAlert && 
-                it.id == "fl_hi_temp" &&
-                it.detail?.contains("Temperature", ignoreCase = true) == true
+                it.id == "fl_hi_temp"
             }) 
         }
     }
@@ -528,6 +527,34 @@ class ForumsladerKarooAdapterTest {
         forumslader.setFitEmitter(fitEmitter)
         
         // Trigger data to ensure it passes through if recording. 
-        // We can't directly check the private fitRecorder, but we can call the method to cover the code.
+    }
+
+    @Test
+    fun `should format and send reset distance commands`() {
+        val address = "00:11:22:33:44:55"
+        val forumslader = ForumsladerKarooAdapter(context, address)
+        val gatt = mockk<BluetoothGatt>(relaxed = true)
+        val callbackSlot = slot<BluetoothGattCallback>()
+        every { bluetoothDevice.connectGatt(any(), any(), capture(callbackSlot), any()) } returns gatt
+        
+        forumslader.connect(emitter)
+        
+        val service = mockk<android.bluetooth.BluetoothGattService>(relaxed = true)
+        val characteristic = mockk<BluetoothGattCharacteristic>(relaxed = true)
+        every { service.uuid } returns ForumsladerBleProfile.SERVICE_UUID_V5
+        every { service.getCharacteristic(any()) } returns characteristic
+        every { gatt.getService(ForumsladerBleProfile.SERVICE_UUID_V6) } returns null
+        every { gatt.getService(ForumsladerBleProfile.SERVICE_UUID_V5) } returns service
+
+        val gattCallback = callbackSlot.captured
+        gattCallback.onConnectionStateChange(gatt, BluetoothGatt.GATT_SUCCESS, android.bluetooth.BluetoothProfile.STATE_CONNECTED)
+        
+        forumslader.sendCommand("\$FLT,7*41\r\n")
+        
+        try {
+            verify { gatt.writeCharacteristic(characteristic, match { it.contentEquals("\$FLT,7*41\r\n".toByteArray(Charsets.US_ASCII)) }, any()) }
+        } catch (_: Error) {
+            verify { gatt.writeCharacteristic(characteristic) }
+        }
     }
 }

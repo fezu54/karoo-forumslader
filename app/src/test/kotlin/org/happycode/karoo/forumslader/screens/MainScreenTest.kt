@@ -4,19 +4,24 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
+import androidx.test.core.app.ApplicationProvider
 import io.hammerhead.karooext.models.DataPoint
 import io.hammerhead.karooext.models.StreamState
 import io.hammerhead.karooext.models.UserProfile
 import io.hammerhead.karooext.models.UserProfile.PreferredUnit
-import androidx.test.core.app.ApplicationProvider
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.runTest
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
 import org.happycode.karoo.forumslader.model.ForumsladerConfig
 import org.happycode.karoo.forumslader.theme.AppTheme
+import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -42,7 +47,23 @@ class MainScreenTest {
         val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
         composeTestRule.setContent {
             AppTheme {
-                MainScreenContent(connected = false, sensorState = StreamState.Idle, metrics = emptyMap(), userProfile = null, wheelsize = config.wheelsize, poles = config.poles, versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}, batteryLowThreshold = 20, highTempThreshold = 50f, onBatteryLowThresholdChange = {}, onHighTempThresholdChange = {})
+                MainScreenContent(
+                    connected = false,
+                    sensorState = StreamState.Idle,
+                    metrics = emptyMap(),
+                    userProfile = null,
+                    wheelsize = config.wheelsize,
+                    poles = config.poles,
+                    versionKey = config.version.key,
+                    speedMultiplier = config.speedMultiplier,
+                    lockedMacAddress = config.lockedMacAddress,
+                    onSpeedMultiplierChange = {},
+                    onForgetDevice = {},
+                    batteryLowThreshold = 20,
+                    highTempThreshold = 50f,
+                    onBatteryLowThresholdChange = {},
+                    onHighTempThresholdChange = {}
+                )
             }
         }
 
@@ -61,7 +82,15 @@ class MainScreenTest {
                     userProfile = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}, batteryLowThreshold = 20, highTempThreshold = 50f, onBatteryLowThresholdChange = {}, onHighTempThresholdChange = {}
+                    versionKey = config.version.key,
+                    speedMultiplier = config.speedMultiplier,
+                    lockedMacAddress = config.lockedMacAddress,
+                    onSpeedMultiplierChange = {},
+                    onForgetDevice = {},
+                    batteryLowThreshold = 20,
+                    highTempThreshold = 50f,
+                    onBatteryLowThresholdChange = {},
+                    onHighTempThresholdChange = {}
                 )
             }
         }
@@ -72,7 +101,7 @@ class MainScreenTest {
     @Test
     fun `should display metric value when provided`() {
         val metrics = mapOf(DataFieldId.BATTERY_LEVEL to 85.0)
-        
+
         val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
         composeTestRule.setContent {
             AppTheme {
@@ -83,7 +112,15 @@ class MainScreenTest {
                     userProfile = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}, batteryLowThreshold = 20, highTempThreshold = 50f, onBatteryLowThresholdChange = {}, onHighTempThresholdChange = {}
+                    versionKey = config.version.key,
+                    speedMultiplier = config.speedMultiplier,
+                    lockedMacAddress = config.lockedMacAddress,
+                    onSpeedMultiplierChange = {},
+                    onForgetDevice = {},
+                    batteryLowThreshold = 20,
+                    highTempThreshold = 50f,
+                    onBatteryLowThresholdChange = {},
+                    onHighTempThresholdChange = {}
                 )
             }
         }
@@ -108,7 +145,7 @@ class MainScreenTest {
             ftp = 250,
             powerZones = emptyList()
         )
-        
+
         val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
         composeTestRule.setContent {
             AppTheme {
@@ -119,7 +156,15 @@ class MainScreenTest {
                     userProfile = imperialProfile,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}, batteryLowThreshold = 20, highTempThreshold = 50f, onBatteryLowThresholdChange = {}, onHighTempThresholdChange = {}
+                    versionKey = config.version.key,
+                    speedMultiplier = config.speedMultiplier,
+                    lockedMacAddress = config.lockedMacAddress,
+                    onSpeedMultiplierChange = {},
+                    onForgetDevice = {},
+                    batteryLowThreshold = 20,
+                    highTempThreshold = 50f,
+                    onBatteryLowThresholdChange = {},
+                    onHighTempThresholdChange = {}
                 )
             }
         }
@@ -144,7 +189,7 @@ class MainScreenTest {
             ftp = 250,
             powerZones = emptyList()
         )
-        
+
         val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
         composeTestRule.setContent {
             AppTheme {
@@ -155,7 +200,15 @@ class MainScreenTest {
                     userProfile = metricProfile,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}, batteryLowThreshold = 20, highTempThreshold = 50f, onBatteryLowThresholdChange = {}, onHighTempThresholdChange = {}
+                    versionKey = config.version.key,
+                    speedMultiplier = config.speedMultiplier,
+                    lockedMacAddress = config.lockedMacAddress,
+                    onSpeedMultiplierChange = {},
+                    onForgetDevice = {},
+                    batteryLowThreshold = 20,
+                    highTempThreshold = 50f,
+                    onBatteryLowThresholdChange = {},
+                    onHighTempThresholdChange = {}
                 )
             }
         }
@@ -175,7 +228,15 @@ class MainScreenTest {
                     userProfile = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}, batteryLowThreshold = 20, highTempThreshold = 50f, onBatteryLowThresholdChange = {}, onHighTempThresholdChange = {}
+                    versionKey = config.version.key,
+                    speedMultiplier = config.speedMultiplier,
+                    lockedMacAddress = config.lockedMacAddress,
+                    onSpeedMultiplierChange = {},
+                    onForgetDevice = {},
+                    batteryLowThreshold = 20,
+                    highTempThreshold = 50f,
+                    onBatteryLowThresholdChange = {},
+                    onHighTempThresholdChange = {}
                 )
             }
         }
@@ -195,7 +256,15 @@ class MainScreenTest {
                     userProfile = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}, batteryLowThreshold = 20, highTempThreshold = 50f, onBatteryLowThresholdChange = {}, onHighTempThresholdChange = {}
+                    versionKey = config.version.key,
+                    speedMultiplier = config.speedMultiplier,
+                    lockedMacAddress = config.lockedMacAddress,
+                    onSpeedMultiplierChange = {},
+                    onForgetDevice = {},
+                    batteryLowThreshold = 20,
+                    highTempThreshold = 50f,
+                    onBatteryLowThresholdChange = {},
+                    onHighTempThresholdChange = {}
                 )
             }
         }
@@ -220,7 +289,7 @@ class MainScreenTest {
             ftp = 250,
             powerZones = emptyList()
         )
-        
+
         val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
         composeTestRule.setContent {
             AppTheme {
@@ -231,7 +300,15 @@ class MainScreenTest {
                     userProfile = imperialProfile,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}, batteryLowThreshold = 20, highTempThreshold = 50f, onBatteryLowThresholdChange = {}, onHighTempThresholdChange = {}
+                    versionKey = config.version.key,
+                    speedMultiplier = config.speedMultiplier,
+                    lockedMacAddress = config.lockedMacAddress,
+                    onSpeedMultiplierChange = {},
+                    onForgetDevice = {},
+                    batteryLowThreshold = 20,
+                    highTempThreshold = 50f,
+                    onBatteryLowThresholdChange = {},
+                    onHighTempThresholdChange = {}
                 )
             }
         }
@@ -256,7 +333,7 @@ class MainScreenTest {
             ftp = 250,
             powerZones = emptyList()
         )
-        
+
         val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
         composeTestRule.setContent {
             AppTheme {
@@ -267,7 +344,15 @@ class MainScreenTest {
                     userProfile = metricProfile,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}, batteryLowThreshold = 20, highTempThreshold = 50f, onBatteryLowThresholdChange = {}, onHighTempThresholdChange = {}
+                    versionKey = config.version.key,
+                    speedMultiplier = config.speedMultiplier,
+                    lockedMacAddress = config.lockedMacAddress,
+                    onSpeedMultiplierChange = {},
+                    onForgetDevice = {},
+                    batteryLowThreshold = 20,
+                    highTempThreshold = 50f,
+                    onBatteryLowThresholdChange = {},
+                    onHighTempThresholdChange = {}
                 )
             }
         }
@@ -278,7 +363,7 @@ class MainScreenTest {
     @Test
     fun `should display consumer current`() {
         val metrics = mapOf(DataFieldId.CONSUMER_CURRENT to 1250.0)
-        
+
         val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
         composeTestRule.setContent {
             AppTheme {
@@ -289,7 +374,15 @@ class MainScreenTest {
                     userProfile = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}, batteryLowThreshold = 20, highTempThreshold = 50f, onBatteryLowThresholdChange = {}, onHighTempThresholdChange = {}
+                    versionKey = config.version.key,
+                    speedMultiplier = config.speedMultiplier,
+                    lockedMacAddress = config.lockedMacAddress,
+                    onSpeedMultiplierChange = {},
+                    onForgetDevice = {},
+                    batteryLowThreshold = 20,
+                    highTempThreshold = 50f,
+                    onBatteryLowThresholdChange = {},
+                    onHighTempThresholdChange = {}
                 )
             }
         }
@@ -311,7 +404,15 @@ class MainScreenTest {
                     userProfile = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}, batteryLowThreshold = 20, highTempThreshold = 50f, onBatteryLowThresholdChange = {}, onHighTempThresholdChange = {}
+                    versionKey = config.version.key,
+                    speedMultiplier = config.speedMultiplier,
+                    lockedMacAddress = config.lockedMacAddress,
+                    onSpeedMultiplierChange = {},
+                    onForgetDevice = {},
+                    batteryLowThreshold = 20,
+                    highTempThreshold = 50f,
+                    onBatteryLowThresholdChange = {},
+                    onHighTempThresholdChange = {}
                 )
             }
         }
@@ -333,7 +434,15 @@ class MainScreenTest {
                     userProfile = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}, batteryLowThreshold = 20, highTempThreshold = 50f, onBatteryLowThresholdChange = {}, onHighTempThresholdChange = {}
+                    versionKey = config.version.key,
+                    speedMultiplier = config.speedMultiplier,
+                    lockedMacAddress = config.lockedMacAddress,
+                    onSpeedMultiplierChange = {},
+                    onForgetDevice = {},
+                    batteryLowThreshold = 20,
+                    highTempThreshold = 50f,
+                    onBatteryLowThresholdChange = {},
+                    onHighTempThresholdChange = {}
                 )
             }
         }
@@ -369,7 +478,15 @@ class MainScreenTest {
                     userProfile = metricProfile,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}, batteryLowThreshold = 20, highTempThreshold = 50f, onBatteryLowThresholdChange = {}, onHighTempThresholdChange = {}
+                    versionKey = config.version.key,
+                    speedMultiplier = config.speedMultiplier,
+                    lockedMacAddress = config.lockedMacAddress,
+                    onSpeedMultiplierChange = {},
+                    onForgetDevice = {},
+                    batteryLowThreshold = 20,
+                    highTempThreshold = 50f,
+                    onBatteryLowThresholdChange = {},
+                    onHighTempThresholdChange = {}
                 )
             }
         }
@@ -405,7 +522,15 @@ class MainScreenTest {
                     userProfile = imperialProfile,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}, batteryLowThreshold = 20, highTempThreshold = 50f, onBatteryLowThresholdChange = {}, onHighTempThresholdChange = {}
+                    versionKey = config.version.key,
+                    speedMultiplier = config.speedMultiplier,
+                    lockedMacAddress = config.lockedMacAddress,
+                    onSpeedMultiplierChange = {},
+                    onForgetDevice = {},
+                    batteryLowThreshold = 20,
+                    highTempThreshold = 50f,
+                    onBatteryLowThresholdChange = {},
+                    onHighTempThresholdChange = {}
                 )
             }
         }
@@ -419,7 +544,7 @@ class MainScreenTest {
         val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
         config.wheelsize = 2150
         config.poles = 28
-        
+
         composeTestRule.setContent {
             AppTheme {
                 MainScreenContent(
@@ -429,7 +554,15 @@ class MainScreenTest {
                     userProfile = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, speedMultiplier = config.speedMultiplier, lockedMacAddress = config.lockedMacAddress, onSpeedMultiplierChange = {}, onForgetDevice = {}, batteryLowThreshold = 20, highTempThreshold = 50f, onBatteryLowThresholdChange = {}, onHighTempThresholdChange = {}
+                    versionKey = config.version.key,
+                    speedMultiplier = config.speedMultiplier,
+                    lockedMacAddress = config.lockedMacAddress,
+                    onSpeedMultiplierChange = {},
+                    onForgetDevice = {},
+                    batteryLowThreshold = 20,
+                    highTempThreshold = 50f,
+                    onBatteryLowThresholdChange = {},
+                    onHighTempThresholdChange = {}
                 )
             }
         }
@@ -453,7 +586,14 @@ class MainScreenTest {
                     wheelsize = 2200,
                     poles = 14,
                     versionKey = "v6",
-                    speedMultiplier = 1.0f, lockedMacAddress = null, onSpeedMultiplierChange = {}, onForgetDevice = {}, batteryLowThreshold = 20, highTempThreshold = 50f, onBatteryLowThresholdChange = {}, onHighTempThresholdChange = {}
+                    speedMultiplier = 1.0f,
+                    lockedMacAddress = null,
+                    onSpeedMultiplierChange = {},
+                    onForgetDevice = {},
+                    batteryLowThreshold = 20,
+                    highTempThreshold = 50f,
+                    onBatteryLowThresholdChange = {},
+                    onHighTempThresholdChange = {}
                 )
             }
         }
@@ -475,8 +615,8 @@ class MainScreenTest {
                     userProfile = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
-                    versionKey = config.version.key, 
-                    speedMultiplier = config.speedMultiplier, 
+                    versionKey = config.version.key,
+                    speedMultiplier = config.speedMultiplier,
                     lockedMacAddress = "00:11:22:33:44:55",
                     onSpeedMultiplierChange = {},
                     onForgetDevice = { forgetClicked = true },
@@ -491,5 +631,79 @@ class MainScreenTest {
         composeTestRule.onRoot().performTouchInput { swipeLeft() }
         composeTestRule.onNodeWithText("Forget").performScrollTo().performClick()
         assert(forgetClicked)
+    }
+
+    @Test
+    fun `should send reset day distance command when reset button is clicked and confirmed`() = runTest {
+        val metrics = mapOf(DataFieldId.DAY_DISTANCE to 1000.0)
+
+        val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
+        composeTestRule.setContent {
+            AppTheme {
+                MainScreenContent(
+                    connected = true,
+                    sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+                    metrics = metrics,
+                    userProfile = null,
+                    wheelsize = config.wheelsize,
+                    poles = config.poles,
+                    versionKey = config.version.key,
+                    speedMultiplier = config.speedMultiplier,
+                    lockedMacAddress = config.lockedMacAddress,
+                    onSpeedMultiplierChange = {},
+                    onForgetDevice = {},
+                    batteryLowThreshold = 20,
+                    highTempThreshold = 50f,
+                    onBatteryLowThresholdChange = {},
+                    onHighTempThresholdChange = {}
+                )
+            }
+        }
+
+        val deferred = async(start = CoroutineStart.UNDISPATCHED) {
+            org.happycode.karoo.forumslader.domain.CommandBus.commands.first()
+        }
+
+        composeTestRule.onNodeWithContentDescription("Reset Day Distance", substring = true).performScrollTo().performClick()
+        composeTestRule.onNodeWithText("OK").performClick()
+
+        assertEquals($$"$FLT,7*41\r\n", deferred.await())
+    }
+
+    @Test
+    fun `should send reset tour distance command when reset button is clicked and confirmed`() = runTest {
+        val metrics = mapOf(DataFieldId.TOUR_DISTANCE to 2000.0)
+
+        val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
+        composeTestRule.setContent {
+            AppTheme {
+                MainScreenContent(
+                    connected = true,
+                    sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+                    metrics = metrics,
+                    userProfile = null,
+                    wheelsize = config.wheelsize,
+                    poles = config.poles,
+                    versionKey = config.version.key,
+                    speedMultiplier = config.speedMultiplier,
+                    lockedMacAddress = config.lockedMacAddress,
+                    onSpeedMultiplierChange = {},
+                    onForgetDevice = {},
+                    batteryLowThreshold = 20,
+                    highTempThreshold = 50f,
+                    onBatteryLowThresholdChange = {},
+                    onHighTempThresholdChange = {}
+                )
+            }
+        }
+
+        val deferred = async(start = CoroutineStart.UNDISPATCHED) {
+            org.happycode.karoo.forumslader.domain.CommandBus.commands.first()
+        }
+
+        composeTestRule.onNodeWithContentDescription("Reset Tour Distance", substring = true).performScrollTo().performClick()
+        composeTestRule.onNodeWithText("OK").performClick()
+
+        assertEquals($$"$FLT,6*42\r\n", deferred.await())
     }
 }

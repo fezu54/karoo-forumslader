@@ -17,21 +17,28 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import org.happycode.karoo.forumslader.domain.CommandBus
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -251,7 +258,7 @@ fun MainScreenContent(
                             MissingStreamsWarning()
                         }
                         StatusCard(connected = connected, sensorState = sensorState)
-                        MetricsList(metrics = metrics, userProfile = userProfile)
+                        MetricsList(metrics = metrics, userProfile = userProfile, connected = connected)
                     } else {
                         ConfigCard(
                             wheelsize = wheelsize,
@@ -390,7 +397,7 @@ fun StatusCard(connected: Boolean, sensorState: StreamState) {
 }
 
 @Composable
-fun MetricsList(metrics: Map<String, Double>, userProfile: UserProfile?) {
+fun MetricsList(metrics: Map<String, Double>, userProfile: UserProfile?, connected: Boolean) {
     val context = LocalContext.current
     val locale = LocalConfiguration.current.let { config ->
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
@@ -404,6 +411,9 @@ fun MetricsList(metrics: Map<String, Double>, userProfile: UserProfile?) {
     val names = remember { adapter.getDataFieldNames() }
     val isImperial =
         userProfile?.preferredUnit?.distance == UserProfile.PreferredUnit.UnitType.IMPERIAL
+
+    var resetDayDistanceDialog by remember { mutableStateOf(false) }
+    var resetTourDistanceDialog by remember { mutableStateOf(false) }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -484,11 +494,11 @@ fun MetricsList(metrics: Map<String, Double>, userProfile: UserProfile?) {
 
                     DataFieldId.CHARGE_STATE -> rawValue?.let {
                         when (it.toInt()) {
-                            0 -> "Standby"
-                            1 -> "Charging"
-                            2 -> "Discharging"
-                            3 -> "Full"
-                            else -> "Unknown"
+                            0 -> stringResource(R.string.charge_state_standby)
+                            1 -> stringResource(R.string.charge_state_charging)
+                            2 -> stringResource(R.string.charge_state_discharging)
+                            3 -> stringResource(R.string.charge_state_full)
+                            else -> "---"
                         }
                     } ?: "---"
 
@@ -517,7 +527,13 @@ fun MetricsList(metrics: Map<String, Double>, userProfile: UserProfile?) {
                 }
                 MetricItem(
                     label = name,
-                    value = formattedValue
+                    value = formattedValue,
+                    onResetClick = when (id) {
+                        DataFieldId.DAY_DISTANCE -> { { resetDayDistanceDialog = true } }
+                        DataFieldId.TOUR_DISTANCE -> { { resetTourDistanceDialog = true } }
+                        else -> null
+                    },
+                    connected = connected
                 )
                 if (id != names.keys.last()) {
                     HorizontalDivider(
@@ -527,21 +543,80 @@ fun MetricsList(metrics: Map<String, Double>, userProfile: UserProfile?) {
                 }
             }
         }
+        
+        if (resetDayDistanceDialog) {
+            AlertDialog(
+                onDismissRequest = { resetDayDistanceDialog = false },
+                title = { Text(stringResource(R.string.reset_day_distance_title)) },
+                text = { Text(stringResource(R.string.reset_day_distance_message)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        CommandBus.sendCommand($$"$FLT,7*41\r\n")
+                        resetDayDistanceDialog = false
+                    }) {
+                        Text(stringResource(android.R.string.ok))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { resetDayDistanceDialog = false }) {
+                        Text(stringResource(android.R.string.cancel))
+                    }
+                }
+            )
+        }
+
+        if (resetTourDistanceDialog) {
+            AlertDialog(
+                onDismissRequest = { resetTourDistanceDialog = false },
+                title = { Text(stringResource(R.string.reset_tour_distance_title)) },
+                text = { Text(stringResource(R.string.reset_tour_distance_message)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        CommandBus.sendCommand($$"$FLT,6*42\r\n")
+                        resetTourDistanceDialog = false
+                    }) {
+                        Text(stringResource(android.R.string.ok))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { resetTourDistanceDialog = false }) {
+                        Text(stringResource(android.R.string.cancel))
+                    }
+                }
+            )
+        }
     }
 }
 
 @Composable
-fun MetricItem(label: String, value: String) {
+fun MetricItem(label: String, value: String, onResetClick: (() -> Unit)? = null, connected: Boolean = false) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Text(text = label, style = MaterialTheme.typography.bodyMedium)
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium
+            )
+            if (onResetClick != null) {
+                Spacer(modifier = Modifier.width(8.dp))
+                IconButton(
+                    onClick = onResetClick,
+                    enabled = connected,
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "Reset $label",
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
     }
 }
 

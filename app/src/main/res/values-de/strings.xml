@@ -61,4 +61,14 @@
     <string name="alerts_title">Alarme</string>
     <string name="label_battery_low_threshold">Warnschwelle für schwachen Akku (%)</string>
     <string name="label_high_temp_threshold">Warnschwelle für hohe Temperatur (°C)</string>
+    <string name="reset_day_distance_title">Tagesstrecke zurücksetzen</string>
+    <string name="reset_day_distance_message">Möchten Sie die Tagesstrecke wirklich auf 0 zurücksetzen?</string>
+    <string name="reset_tour_distance_title">Tourenstrecke zurücksetzen</string>
+    <string name="reset_tour_distance_message">Möchten Sie die Tourenstrecke wirklich auf 0 zurücksetzen?</string>
+
+    <!-- Alarme -->
+    <string name="alert_battery_low_detail">Akku schwach (%1$d%%)</string>
+    <string name="alert_short_circuit_detail">Kurzschluss!</string>
+    <string name="alert_system_interrupt_detail">System-Unterbrechung!</string>
+    <string name="alert_high_temperature_detail">Hohe Temperatur (%1$d°C)</string>
 </resources>
