@@ -7,6 +7,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.core.content.ContextCompat
+import org.happycode.karoo.forumslader.adapters.DataStoreRideHistoryGateway
+import org.happycode.karoo.forumslader.adapters.rideHistoryDataStore
 import org.happycode.karoo.forumslader.screens.MainScreen
 import org.happycode.karoo.forumslader.theme.AppTheme
 
@@ -15,10 +17,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         requestNeededPermissions()
+        
+        val historyGateway = DataStoreRideHistoryGateway(rideHistoryDataStore)
 
         setContent {
             AppTheme {
-                MainScreen()
+                MainScreen(rideHistoryGateway = historyGateway)
             }
         }
     }

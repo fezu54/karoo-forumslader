@@ -66,17 +66,24 @@ import org.happycode.karoo.forumslader.PreferencesConstants.PREFS_NAME
 import org.happycode.karoo.forumslader.R
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
+import androidx.compose.runtime.produceState
+import org.happycode.karoo.forumslader.domain.RideEnergySummary
+import org.happycode.karoo.forumslader.domain.RideHistoryGateway
 import org.happycode.karoo.forumslader.theme.AppTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen() {
+fun MainScreen(rideHistoryGateway: RideHistoryGateway) {
     val context = LocalContext.current
     val karooSystem = remember { KarooSystemService(context) }
     var connected by remember { mutableStateOf(false) }
     val metrics = remember { mutableStateMapOf<String, Double>() }
     var userProfile by remember { mutableStateOf<UserProfile?>(null) }
     val streamStates = remember { mutableStateMapOf<String, StreamState>() }
+    val history by produceState(emptyList()) {
+        value = rideHistoryGateway.getHistory()
+    }
+
     
     val hasMissingStreams by remember {
         androidx.compose.runtime.derivedStateOf {
@@ -208,9 +215,11 @@ fun MainScreen() {
         },
         onHighTempThresholdChange = {
             prefs.edit { putFloat(KEY_HIGH_TEMP_THRESHOLD, it) }
-        }
+        },
+        history = history
     )
 }
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -230,10 +239,11 @@ fun MainScreenContent(
     onSpeedMultiplierChange: (Float) -> Unit,
     onForgetDevice: () -> Unit,
     onBatteryLowThresholdChange: (Int) -> Unit,
-    onHighTempThresholdChange: (Float) -> Unit
+    onHighTempThresholdChange: (Float) -> Unit,
+    history: List<RideEnergySummary>
 ) {
     Scaffold { padding ->
-        val pagerState = rememberPagerState(pageCount = { 2 })
+        val pagerState = rememberPagerState(pageCount = { 3 })
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             HorizontalPager(
                 state = pagerState,
@@ -246,28 +256,34 @@ fun MainScreenContent(
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    if (page == 0) {
-                        if (hasMissingStreams) {
-                            MissingStreamsWarning()
+                    when (page) {
+                        0 -> {
+                            if (hasMissingStreams) {
+                                MissingStreamsWarning()
+                            }
+                            StatusCard(connected = connected, sensorState = sensorState)
+                            MetricsList(metrics = metrics, userProfile = userProfile)
                         }
-                        StatusCard(connected = connected, sensorState = sensorState)
-                        MetricsList(metrics = metrics, userProfile = userProfile)
-                    } else {
-                        ConfigCard(
-                            wheelsize = wheelsize,
-                            poles = poles,
-                            versionKey = versionKey,
-                            speedMultiplier = speedMultiplier,
-                            lockedMacAddress = lockedMacAddress,
-                            onSpeedMultiplierChange = onSpeedMultiplierChange,
-                            onForgetDevice = onForgetDevice
-                        )
-                        AlertsConfigCard(
-                            batteryLowThreshold = batteryLowThreshold,
-                            highTempThreshold = highTempThreshold,
-                            onBatteryLowThresholdChange = onBatteryLowThresholdChange,
-                            onHighTempThresholdChange = onHighTempThresholdChange
-                        )
+                        1 -> {
+                            ConfigCard(
+                                wheelsize = wheelsize,
+                                poles = poles,
+                                versionKey = versionKey,
+                                speedMultiplier = speedMultiplier,
+                                lockedMacAddress = lockedMacAddress,
+                                onSpeedMultiplierChange = onSpeedMultiplierChange,
+                                onForgetDevice = onForgetDevice
+                            )
+                            AlertsConfigCard(
+                                batteryLowThreshold = batteryLowThreshold,
+                                highTempThreshold = highTempThreshold,
+                                onBatteryLowThresholdChange = onBatteryLowThresholdChange,
+                                onHighTempThresholdChange = onHighTempThresholdChange
+                            )
+                        }
+                        2 -> {
+                            RideHistoryList(history = history)
+                        }
                     }
                 }
             }
@@ -279,7 +295,7 @@ fun MainScreenContent(
                     .padding(bottom = 16.dp),
                 horizontalArrangement = Arrangement.Center
             ) {
-                repeat(2) { iteration ->
+                repeat(3) { iteration ->
                     val color = if (pagerState.currentPage == iteration) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
                     Box(
                         modifier = Modifier
@@ -721,7 +737,8 @@ fun MainScreenPreview() {
             onSpeedMultiplierChange = {},
             onForgetDevice = {},
             onBatteryLowThresholdChange = {},
-            onHighTempThresholdChange = {}
+            onHighTempThresholdChange = {},
+            history = emptyList()
         )
     }
 }
