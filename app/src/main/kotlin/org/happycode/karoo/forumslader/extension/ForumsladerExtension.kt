@@ -26,10 +26,35 @@ import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.Dat
 import org.happycode.karoo.forumslader.model.ForumsladerConfig
 import io.hammerhead.karooext.models.FitEffect
 import org.happycode.karoo.forumslader.BuildConfig
+import kotlinx.coroutines.SupervisorJob
+import org.happycode.karoo.forumslader.domain.CommandBus
 
 class ForumsladerExtension : KarooExtension(extension = "karoo-forumslader", version = BuildConfig.VERSION_NAME) {
     private var fitEmitter: Emitter<FitEffect>? = null
     private val devices = mutableMapOf<String, ForumsladerKarooAdapter>()
+    private val serviceJob = SupervisorJob()
+    private val serviceScope = CoroutineScope(Dispatchers.Main + serviceJob)
+
+    override fun onCreate() {
+        super.onCreate()
+        serviceScope.launch {
+            CommandBus.commands.collect { command ->
+                val hasConnectPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+                } else {
+                    true
+                }
+                if (hasConnectPermission) {
+                    devices.values.forEach { it.sendCommand(command) }
+                }
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        serviceJob.cancel()
+    }
 
     override val types: List<DataTypeImpl> by lazy {
         listOf(

@@ -61,4 +61,14 @@
     <string name="alerts_title">Alerts</string>
     <string name="label_battery_low_threshold">Low Battery Threshold (%)</string>
     <string name="label_high_temp_threshold">High Temperature Threshold (°C)</string>
+    <string name="reset_day_distance_title">Reset Day Distance</string>
+    <string name="reset_day_distance_message">Are you sure you want to reset the day distance to 0?</string>
+    <string name="reset_tour_distance_title">Reset Tour Distance</string>
+    <string name="reset_tour_distance_message">Are you sure you want to reset the tour distance to 0?</string>
+
+    <!-- Alerts -->
+    <string name="alert_battery_low_detail">Battery Low (%1$d%%)</string>
+    <string name="alert_short_circuit_detail">Short Circuit!</string>
+    <string name="alert_system_interrupt_detail">System Interrupt!</string>
+    <string name="alert_high_temperature_detail">High Temperature (%1$d°C)</string>
 </resources>

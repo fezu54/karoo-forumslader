@@ -31,7 +31,7 @@ import org.happycode.karoo.forumslader.model.ForumsladerVersion
 import io.hammerhead.karooext.models.FitEffect
 
 class ForumsladerKarooAdapter(
-    context: Context,
+    private val context: Context,
     val address: String,
     displayName: String? = null
 ) : ForumsladerBleListener {
@@ -79,7 +79,7 @@ class ForumsladerKarooAdapter(
             StatusBitmaskRule(0x800000, ForumsladerAlert.SystemInterrupt)
         )
     )
-    
+
     private val fitRecorder = ForumsladerFitRecorder(karooSystem)
 
     init {
@@ -148,12 +148,18 @@ class ForumsladerKarooAdapter(
         val alerts = alertManager.evaluate(metrics)
 
         alerts.forEach { alert ->
+            val detail = when (alert) {
+                is ForumsladerAlert.BatteryLow -> context.getString(R.string.alert_battery_low_detail, alert.percentage)
+                is ForumsladerAlert.ShortCircuit -> context.getString(R.string.alert_short_circuit_detail)
+                is ForumsladerAlert.SystemInterrupt -> context.getString(R.string.alert_system_interrupt_detail)
+                is ForumsladerAlert.HighTemperature -> context.getString(R.string.alert_high_temperature_detail, alert.temperature.toInt())
+            }
             karooSystem.dispatch(
                 InRideAlert(
                     id = alert.id,
                     icon = R.drawable.ic_alert,
-                    title = alert.title,
-                    detail = alert.detail,
+                    title = "Forumslader",
+                    detail = detail,
                     autoDismissMs = 5000L,
                     backgroundColor = android.R.color.holo_red_dark,
                     textColor = android.R.color.white
@@ -183,4 +189,8 @@ class ForumsladerKarooAdapter(
     fun setFitEmitter(emitter: Emitter<FitEffect>?) {
         fitRecorder.fitEmitter = emitter
     }
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    fun sendCommand(command: String) =
+        bleManager.writeCommand(command.toByteArray(Charsets.US_ASCII))
 }
