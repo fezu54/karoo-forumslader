@@ -7,7 +7,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.core.content.ContextCompat
-import org.happycode.karoo.forumslader.screens.MainScreen
+import org.happycode.karoo.forumslader.ui.main.MainScreen
 import org.happycode.karoo.forumslader.theme.AppTheme
 
 class MainActivity : ComponentActivity() {

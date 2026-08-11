@@ -1,4 +1,4 @@
-package org.happycode.karoo.forumslader.screens
+package org.happycode.karoo.forumslader.ui.main
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -62,7 +62,9 @@ class MainScreenTest {
                     batteryLowThreshold = 20,
                     highTempThreshold = 50f,
                     onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {}
+                    onHighTempThresholdChange = {},
+                    onResetDayDistance = {},
+                    onResetTourDistance = {}
                 )
             }
         }
@@ -90,7 +92,9 @@ class MainScreenTest {
                     batteryLowThreshold = 20,
                     highTempThreshold = 50f,
                     onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {}
+                    onHighTempThresholdChange = {},
+                    onResetDayDistance = {},
+                    onResetTourDistance = {}
                 )
             }
         }
@@ -120,7 +124,9 @@ class MainScreenTest {
                     batteryLowThreshold = 20,
                     highTempThreshold = 50f,
                     onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {}
+                    onHighTempThresholdChange = {},
+                    onResetDayDistance = {},
+                    onResetTourDistance = {}
                 )
             }
         }
@@ -164,7 +170,9 @@ class MainScreenTest {
                     batteryLowThreshold = 20,
                     highTempThreshold = 50f,
                     onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {}
+                    onHighTempThresholdChange = {},
+                    onResetDayDistance = {},
+                    onResetTourDistance = {}
                 )
             }
         }
@@ -208,7 +216,9 @@ class MainScreenTest {
                     batteryLowThreshold = 20,
                     highTempThreshold = 50f,
                     onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {}
+                    onHighTempThresholdChange = {},
+                    onResetDayDistance = {},
+                    onResetTourDistance = {}
                 )
             }
         }
@@ -236,7 +246,9 @@ class MainScreenTest {
                     batteryLowThreshold = 20,
                     highTempThreshold = 50f,
                     onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {}
+                    onHighTempThresholdChange = {},
+                    onResetDayDistance = {},
+                    onResetTourDistance = {}
                 )
             }
         }
@@ -264,7 +276,9 @@ class MainScreenTest {
                     batteryLowThreshold = 20,
                     highTempThreshold = 50f,
                     onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {}
+                    onHighTempThresholdChange = {},
+                    onResetDayDistance = {},
+                    onResetTourDistance = {}
                 )
             }
         }
@@ -308,7 +322,9 @@ class MainScreenTest {
                     batteryLowThreshold = 20,
                     highTempThreshold = 50f,
                     onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {}
+                    onHighTempThresholdChange = {},
+                    onResetDayDistance = {},
+                    onResetTourDistance = {}
                 )
             }
         }
@@ -352,7 +368,9 @@ class MainScreenTest {
                     batteryLowThreshold = 20,
                     highTempThreshold = 50f,
                     onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {}
+                    onHighTempThresholdChange = {},
+                    onResetDayDistance = {},
+                    onResetTourDistance = {}
                 )
             }
         }
@@ -382,7 +400,9 @@ class MainScreenTest {
                     batteryLowThreshold = 20,
                     highTempThreshold = 50f,
                     onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {}
+                    onHighTempThresholdChange = {},
+                    onResetDayDistance = {},
+                    onResetTourDistance = {}
                 )
             }
         }
@@ -412,7 +432,9 @@ class MainScreenTest {
                     batteryLowThreshold = 20,
                     highTempThreshold = 50f,
                     onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {}
+                    onHighTempThresholdChange = {},
+                    onResetDayDistance = {},
+                    onResetTourDistance = {}
                 )
             }
         }
@@ -442,7 +464,9 @@ class MainScreenTest {
                     batteryLowThreshold = 20,
                     highTempThreshold = 50f,
                     onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {}
+                    onHighTempThresholdChange = {},
+                    onResetDayDistance = {},
+                    onResetTourDistance = {}
                 )
             }
         }
@@ -486,7 +510,9 @@ class MainScreenTest {
                     batteryLowThreshold = 20,
                     highTempThreshold = 50f,
                     onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {}
+                    onHighTempThresholdChange = {},
+                    onResetDayDistance = {},
+                    onResetTourDistance = {}
                 )
             }
         }
@@ -530,7 +556,9 @@ class MainScreenTest {
                     batteryLowThreshold = 20,
                     highTempThreshold = 50f,
                     onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {}
+                    onHighTempThresholdChange = {},
+                    onResetDayDistance = {},
+                    onResetTourDistance = {}
                 )
             }
         }
@@ -562,7 +590,9 @@ class MainScreenTest {
                     batteryLowThreshold = 20,
                     highTempThreshold = 50f,
                     onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {}
+                    onHighTempThresholdChange = {},
+                    onResetDayDistance = {},
+                    onResetTourDistance = {}
                 )
             }
         }
@@ -593,7 +623,9 @@ class MainScreenTest {
                     batteryLowThreshold = 20,
                     highTempThreshold = 50f,
                     onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {}
+                    onHighTempThresholdChange = {},
+                    onResetDayDistance = {},
+                    onResetTourDistance = {}
                 )
             }
         }
@@ -623,7 +655,9 @@ class MainScreenTest {
                     batteryLowThreshold = 20,
                     highTempThreshold = 50f,
                     onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {}
+                    onHighTempThresholdChange = {},
+                    onResetDayDistance = {},
+                    onResetTourDistance = {}
                 )
             }
         }
@@ -655,7 +689,11 @@ class MainScreenTest {
                     batteryLowThreshold = 20,
                     highTempThreshold = 50f,
                     onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {}
+                    onHighTempThresholdChange = {},
+                    onResetDayDistance = { org.happycode.karoo.forumslader.domain.CommandBus.sendCommand(
+                        $$"$FLT,7*41\r\n"
+                    ) },
+                    onResetTourDistance = {}
                 )
             }
         }
@@ -692,7 +730,11 @@ class MainScreenTest {
                     batteryLowThreshold = 20,
                     highTempThreshold = 50f,
                     onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {}
+                    onHighTempThresholdChange = {},
+                    onResetDayDistance = {},
+                    onResetTourDistance = { org.happycode.karoo.forumslader.domain.CommandBus.sendCommand(
+                        $$"$FLT,6*42\r\n"
+                    ) }
                 )
             }
         }
