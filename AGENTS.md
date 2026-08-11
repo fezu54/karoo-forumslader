@@ -11,6 +11,8 @@ High-level rules
 - Use clear, self-explaining names for classes, functions and variables; avoid comments when names suffice.
 - Follow Kotlin coding conventions (package and file names, camelCase for functions/variables, PascalCase for types).
 - Keep code short and focused: small functions and single-responsibility classes.
+- Follow object-oriented principles. Write small single purpose objects. Do not write procedural code.
+- Follow YAGNI principles. Do not overengineer. Only implement what is really necessary. Less code is always better.
 - Prefer onion architecture (domain → application → adapters → frameworks) over layered architecture.
 - Always add tests for production code. Tests must run on CI and be included in the same PR as the implementation.
 

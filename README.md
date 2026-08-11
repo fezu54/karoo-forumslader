@@ -17,7 +17,7 @@ The extension allows Karoo users to monitor real-time data from their Forumslade
 
 ## Architecture
 
-Following the project's [Agents Guidelines](agents.md), the codebase is organized using a clean architecture approach:
+Following the project's [Agents Guidelines](AGENTS.md), the codebase is organized using a clean architecture approach:
 - **Domain**: Pure Kotlin logic for parsing the Forumslader data protocol.
 - **Adapters/Framework**: BLE connection management and integration with the Hammerhead Karoo SDK.
 
