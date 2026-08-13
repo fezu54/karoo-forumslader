@@ -52,6 +52,7 @@ class MainScreenTest {
                     sensorState = StreamState.Idle,
                     metrics = emptyMap(),
                     userProfile = null,
+                    estimate = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
                     versionKey = config.version.key,
@@ -73,6 +74,44 @@ class MainScreenTest {
     }
 
     @Test
+    fun `should display battery estimate when available`() {
+        val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
+        val estimate = org.happycode.karoo.forumslader.domain.BatteryEstimate(
+            remainingCapacityPct = 85,
+            avgDischargeRatePctPerKm = 0.5f,
+            estimatedRangeKm = 170.0f,
+            routeRemainingKm = 50.0f,
+            isSufficientForRoute = true
+        )
+        composeTestRule.setContent {
+            AppTheme {
+                MainScreenContent(
+                    connected = true,
+                    sensorState = StreamState.Idle,
+                    metrics = emptyMap(),
+                    userProfile = null,
+                    estimate = estimate,
+                    wheelsize = config.wheelsize,
+                    poles = config.poles,
+                    versionKey = config.version.key,
+                    speedMultiplier = config.speedMultiplier,
+                    lockedMacAddress = config.lockedMacAddress,
+                    onSpeedMultiplierChange = {},
+                    onForgetDevice = {},
+                    batteryLowThreshold = 20,
+                    highTempThreshold = 50f,
+                    onBatteryLowThresholdChange = {},
+                    onHighTempThresholdChange = {},
+                    onResetDayDistance = {},
+                    onResetTourDistance = {}
+                )
+            }
+        }
+        composeTestRule.onNodeWithText("0.5%/km").assertIsDisplayed()
+        composeTestRule.onNodeWithText("~170 km remaining").assertIsDisplayed()
+    }
+
+    @Test
     fun `should display connected status when connected`() {
         val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
         composeTestRule.setContent {
@@ -82,6 +121,7 @@ class MainScreenTest {
                     sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
                     metrics = emptyMap(),
                     userProfile = null,
+                    estimate = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
                     versionKey = config.version.key,
@@ -114,6 +154,7 @@ class MainScreenTest {
                     sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
                     metrics = metrics,
                     userProfile = null,
+                    estimate = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
                     versionKey = config.version.key,
@@ -160,6 +201,7 @@ class MainScreenTest {
                     sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
                     metrics = metrics,
                     userProfile = imperialProfile,
+                    estimate = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
                     versionKey = config.version.key,
@@ -206,6 +248,7 @@ class MainScreenTest {
                     sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
                     metrics = metrics,
                     userProfile = metricProfile,
+                    estimate = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
                     versionKey = config.version.key,
@@ -236,6 +279,7 @@ class MainScreenTest {
                     sensorState = StreamState.Searching,
                     metrics = emptyMap(),
                     userProfile = null,
+                    estimate = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
                     versionKey = config.version.key,
@@ -266,6 +310,7 @@ class MainScreenTest {
                     sensorState = StreamState.NotAvailable,
                     metrics = emptyMap(),
                     userProfile = null,
+                    estimate = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
                     versionKey = config.version.key,
@@ -312,6 +357,7 @@ class MainScreenTest {
                     sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
                     metrics = metrics,
                     userProfile = imperialProfile,
+                    estimate = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
                     versionKey = config.version.key,
@@ -358,6 +404,7 @@ class MainScreenTest {
                     sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
                     metrics = metrics,
                     userProfile = metricProfile,
+                    estimate = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
                     versionKey = config.version.key,
@@ -390,6 +437,7 @@ class MainScreenTest {
                     sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
                     metrics = metrics,
                     userProfile = null,
+                    estimate = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
                     versionKey = config.version.key,
@@ -422,6 +470,7 @@ class MainScreenTest {
                     sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
                     metrics = metrics,
                     userProfile = null,
+                    estimate = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
                     versionKey = config.version.key,
@@ -454,6 +503,7 @@ class MainScreenTest {
                     sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
                     metrics = metrics,
                     userProfile = null,
+                    estimate = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
                     versionKey = config.version.key,
@@ -500,6 +550,7 @@ class MainScreenTest {
                     sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
                     metrics = metrics,
                     userProfile = metricProfile,
+                    estimate = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
                     versionKey = config.version.key,
@@ -546,6 +597,7 @@ class MainScreenTest {
                     sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
                     metrics = metrics,
                     userProfile = imperialProfile,
+                    estimate = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
                     versionKey = config.version.key,
@@ -580,6 +632,7 @@ class MainScreenTest {
                     sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
                     metrics = emptyMap(),
                     userProfile = null,
+                    estimate = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
                     versionKey = config.version.key,
@@ -613,6 +666,7 @@ class MainScreenTest {
                     hasMissingStreams = true,
                     metrics = emptyMap(),
                     userProfile = null,
+                    estimate = null,
                     wheelsize = 2200,
                     poles = 14,
                     versionKey = "v6",
@@ -645,6 +699,7 @@ class MainScreenTest {
                     sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
                     metrics = emptyMap(),
                     userProfile = null,
+                    estimate = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
                     versionKey = config.version.key,
@@ -679,6 +734,7 @@ class MainScreenTest {
                     sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
                     metrics = metrics,
                     userProfile = null,
+                    estimate = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
                     versionKey = config.version.key,
@@ -720,6 +776,7 @@ class MainScreenTest {
                     sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
                     metrics = metrics,
                     userProfile = null,
+                    estimate = null,
                     wheelsize = config.wheelsize,
                     poles = config.poles,
                     versionKey = config.version.key,

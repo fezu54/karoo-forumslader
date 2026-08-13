@@ -21,6 +21,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -48,9 +49,12 @@ import org.happycode.karoo.forumslader.PreferencesConstants.KEY_VERSION
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_WHEEL_SIZE
 import org.happycode.karoo.forumslader.PreferencesConstants.PREFS_NAME
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
+import org.happycode.karoo.forumslader.application.BatteryEstimateStore
+import org.happycode.karoo.forumslader.domain.BatteryEstimate
 import org.happycode.karoo.forumslader.domain.CommandBus
 import org.happycode.karoo.forumslader.theme.AppTheme
 import org.happycode.karoo.forumslader.ui.main.components.AlertsConfigCard
+import org.happycode.karoo.forumslader.ui.main.components.BatteryEstimateCard
 import org.happycode.karoo.forumslader.ui.main.components.ConfigCard
 import org.happycode.karoo.forumslader.ui.main.components.MetricsList
 import org.happycode.karoo.forumslader.ui.main.components.MissingStreamsWarning
@@ -65,6 +69,7 @@ fun MainScreen() {
     val metrics = remember { mutableStateMapOf<String, Double>() }
     var userProfile by remember { mutableStateOf<UserProfile?>(null) }
     val streamStates = remember { mutableStateMapOf<String, StreamState>() }
+    val estimate by BatteryEstimateStore.estimateFlow.collectAsState(null)
 
     val hasMissingStreams by remember {
         derivedStateOf {
@@ -177,6 +182,7 @@ fun MainScreen() {
         hasMissingStreams = hasMissingStreams,
         metrics = metrics,
         userProfile = userProfile,
+        estimate = estimate,
         wheelsize = wheelsize,
         poles = poles,
         versionKey = versionKey,
@@ -212,6 +218,7 @@ fun MainScreenContent(
     hasMissingStreams: Boolean = false,
     metrics: Map<String, Double>,
     userProfile: UserProfile?,
+    estimate: BatteryEstimate?,
     wheelsize: Int,
     poles: Int,
     versionKey: String,
@@ -245,6 +252,7 @@ fun MainScreenContent(
                             MissingStreamsWarning()
                         }
                         StatusCard(connected = connected, sensorState = sensorState)
+                        BatteryEstimateCard(estimate = estimate)
                         MetricsList(
                             metrics = metrics, 
                             userProfile = userProfile, 
@@ -312,6 +320,7 @@ fun MainScreenPreview() {
                 DataFieldId.SPEED to 7.05 // ~25.4 km/h
             ),
             userProfile = null,
+            estimate = null,
             wheelsize = 2200,
             poles = 14,
             versionKey = "v6",

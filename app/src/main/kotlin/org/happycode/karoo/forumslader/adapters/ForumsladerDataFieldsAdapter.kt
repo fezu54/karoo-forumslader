@@ -23,6 +23,7 @@ class ForumsladerDataFieldsAdapter(private val context: Context) {
         const val ODOMETER = "fl_odometer"
         const val DAY_DISTANCE = "fl_day_distance"
         const val TOUR_DISTANCE = "fl_tour_distance"
+        const val BATTERY_RANGE = "fl_battery_range"
     }
 
     fun getDataFieldNames(): Map<String, String> = mapOf(
@@ -42,6 +43,7 @@ class ForumsladerDataFieldsAdapter(private val context: Context) {
         DataFieldId.ODOMETER to context.getString(R.string.datafield_odometer),
         DataFieldId.DAY_DISTANCE to context.getString(R.string.datafield_day_distance),
         DataFieldId.TOUR_DISTANCE to context.getString(R.string.datafield_tour_distance),
+        DataFieldId.BATTERY_RANGE to context.getString(R.string.datafield_battery_range),
     )
 
     companion object {

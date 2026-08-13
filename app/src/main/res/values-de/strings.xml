@@ -36,6 +36,18 @@
     <string name="datafield_day_distance_desc">Heute zurückgelegte Strecke in km</string>
     <string name="datafield_tour_distance">Tourenstrecke</string>
     <string name="datafield_tour_distance_desc">Während der Tour zurückgelegte Strecke in km</string>
+    <string name="datafield_battery_range">Akkureichweite</string>
+    <string name="datafield_battery_range_desc">Geschätzte verbleibende Akkureichweite basierend auf aktueller Entladung</string>
+
+    <string name="battery_range_estimate_title">Geschätzte Akkureichweite</string>
+    <string name="battery_range_calculating">Berechne…</string>
+    <string name="battery_range_charging">Ladevorgang — Reichweite unbegrenzt</string>
+    <string name="battery_range_not_enough_data">Zu wenig Daten…</string>
+    <string name="battery_range_remaining">~%1$d km verbleibend</string>
+    <string name="battery_range_rate">%1$.1f%%/km</string>
+    <string name="battery_range_sufficient">✅ Ausreichend für Route</string>
+    <string name="battery_range_insufficient">⚠️ Akku könnte vorzeitig leer sein</string>
+
     <string name="missing_streams_warning">Einige Datenfelder werden von dem gekoppelten Gerät nicht unterstützt. Bitte löschen und koppeln Sie Ihren Forumslader in den Karoo-Sensoreinstellungen neu, um die Fähigkeiten zu aktualisieren.</string>
 
     <string name="status_active">Aktiv</string>

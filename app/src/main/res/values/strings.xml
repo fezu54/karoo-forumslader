@@ -36,6 +36,18 @@
     <string name="datafield_day_distance_desc">Distance traveled today in km</string>
     <string name="datafield_tour_distance">Tour Distance</string>
     <string name="datafield_tour_distance_desc">Distance traveled during tour in km</string>
+    <string name="datafield_battery_range">Battery Range</string>
+    <string name="datafield_battery_range_desc">Estimated remaining battery range based on current discharge rate</string>
+
+    <string name="battery_range_estimate_title">Battery Range Estimate</string>
+    <string name="battery_range_calculating">Calculating…</string>
+    <string name="battery_range_charging">Charging — range unlimited</string>
+    <string name="battery_range_not_enough_data">Not enough data…</string>
+    <string name="battery_range_remaining">~%1$d km remaining</string>
+    <string name="battery_range_rate">%1$.1f%%/km</string>
+    <string name="battery_range_sufficient">✅ Sufficient for route</string>
+    <string name="battery_range_insufficient">⚠️ Battery may run out early</string>
+
     <string name="missing_streams_warning">Some data fields are unsupported by your paired device. Please delete and re-pair your Forumslader in the Karoo sensor settings to update its capabilities.</string>
 
     <string name="status_active">Active</string>

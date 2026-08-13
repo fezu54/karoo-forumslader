@@ -18,6 +18,8 @@ import io.hammerhead.karooext.models.OnConnectionStatus
 import io.hammerhead.karooext.models.OnDataPoint
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_BATTERY_LOW_THRESHOLD
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_HIGH_TEMP_THRESHOLD
+import org.happycode.karoo.forumslader.application.BatteryEstimateStore
+import org.happycode.karoo.forumslader.domain.BatteryEstimator
 import org.happycode.karoo.forumslader.R
 import org.happycode.karoo.forumslader.domain.BatteryLowRule
 import org.happycode.karoo.forumslader.domain.ForumsladerAlert
@@ -29,6 +31,9 @@ import org.happycode.karoo.forumslader.model.ForumsladerConfig
 import org.happycode.karoo.forumslader.model.ForumsladerParser
 import org.happycode.karoo.forumslader.model.ForumsladerVersion
 import io.hammerhead.karooext.models.FitEffect
+import io.hammerhead.karooext.models.OnNavigationState
+import io.hammerhead.karooext.models.OnStreamState
+import io.hammerhead.karooext.models.StreamState
 
 class ForumsladerKarooAdapter(
     private val context: Context,
@@ -54,7 +59,8 @@ class ForumsladerKarooAdapter(
             "fl_odometer" to { distance.odometerMeters },
             "fl_day_distance" to { distance.dayMeters },
             "fl_tour_distance" to { distance.tourMeters },
-            "fl_battery_level" to { power.batteryLevelPercentage }
+            "fl_battery_level" to { power.batteryLevelPercentage },
+            "fl_battery_range" to { null } // Handled dynamically in emitMetrics
         )
     }
 
@@ -81,9 +87,32 @@ class ForumsladerKarooAdapter(
     )
 
     private val fitRecorder = ForumsladerFitRecorder(karooSystem)
+    private val batteryEstimator = BatteryEstimator()
 
     init {
         karooSystem.connect {}
+        
+        karooSystem.addConsumer { event: OnNavigationState ->
+            val state = event.state
+            if (state is OnNavigationState.NavigationState.NavigatingRoute) {
+                val totalElevation = state.climbs.sumOf { it.totalElevation }
+                batteryEstimator.onRouteRemaining(state.routeDistance, totalElevation)
+            } else {
+                batteryEstimator.onRouteRemaining(null, null)
+            }
+            BatteryEstimateStore.updateEstimate(batteryEstimator.getEstimate())
+        }
+        
+        karooSystem.addConsumer(OnStreamState.StartStreaming(DataType.dataTypeId("karoo-headwind", "headwindSpeed"))) { event: OnStreamState ->
+            val state = event.state
+            if (state is StreamState.Streaming) {
+                val windSpeed = state.dataPoint.values[DataType.Field.SINGLE]
+                batteryEstimator.onHeadwindSpeed(windSpeed?.toFloat())
+            } else {
+                batteryEstimator.onHeadwindSpeed(null)
+            }
+            BatteryEstimateStore.updateEstimate(batteryEstimator.getEstimate())
+        }
     }
 
     val device: Device = Device(
@@ -104,6 +133,7 @@ class ForumsladerKarooAdapter(
             parser.resetConfigLoaded()
             bleManager.stop()
             karooSystem.disconnect()
+            BatteryEstimateStore.clear()
         }
         bleManager.start()
     }
@@ -115,6 +145,7 @@ class ForumsladerKarooAdapter(
         if (!connected) {
             protocol.stopParameterRequestLoop()
             parser.resetConfigLoaded()
+            BatteryEstimateStore.clear()
         }
     }
 
@@ -138,6 +169,8 @@ class ForumsladerKarooAdapter(
                 )
                 config.lockedMacAddress = address
             }
+            batteryEstimator.onMetrics(metrics)
+            BatteryEstimateStore.updateEstimate(batteryEstimator.getEstimate())
             emitMetrics(emitter, metrics)
             evaluateAlerts(metrics)
             fitRecorder.onMetricsReceived(metrics)
@@ -170,7 +203,13 @@ class ForumsladerKarooAdapter(
 
     private fun emitMetrics(emitter: Emitter<DeviceEvent>, metrics: ForumsladerMetrics) {
         METRICS_REGISTRY.asSequence()
-            .mapNotNull { (typeId, extract) -> metrics.extract()?.let { typeId to it } }
+            .mapNotNull { (typeId, extract) -> 
+                if (typeId == "fl_battery_range") {
+                    batteryEstimator.getEstimate()?.estimatedRangeKm?.let { typeId to it }
+                } else {
+                    metrics.extract()?.let { typeId to it }
+                }
+            }
             .map { (typeId, value) ->
                 OnDataPoint(
                     dataPoint = DataPoint(

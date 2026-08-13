@@ -73,7 +73,8 @@ class ForumsladerExtension : KarooExtension(extension = "karoo-forumslader", ver
             ForumsladerDataType(extension, DataFieldId.DYNAMO_POWER, DataType.Type.POWER),
             ForumsladerDataType(extension, DataFieldId.ODOMETER, DataType.Type.DISTANCE),
             ForumsladerDataType(extension, DataFieldId.DAY_DISTANCE, DataType.Type.DISTANCE),
-            ForumsladerDataType(extension, DataFieldId.TOUR_DISTANCE, DataType.Type.DISTANCE)
+            ForumsladerDataType(extension, DataFieldId.TOUR_DISTANCE, DataType.Type.DISTANCE),
+            ForumsladerDataType(extension, DataFieldId.BATTERY_RANGE, DataType.Type.DISTANCE)
         )
     }
 
