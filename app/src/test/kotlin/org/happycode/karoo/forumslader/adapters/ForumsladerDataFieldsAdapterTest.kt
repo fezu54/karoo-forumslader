@@ -130,6 +130,7 @@ class ForumsladerDataFieldsAdapterTest {
         every { mockContext.getString(R.string.datafield_odometer) } returns "Odometer"
         every { mockContext.getString(R.string.datafield_day_distance) } returns "Day Distance"
         every { mockContext.getString(R.string.datafield_tour_distance) } returns "Tour Distance"
+        every { mockContext.getString(R.string.datafield_battery_range) } returns "Battery Range"
 
         val adapter = ForumsladerDataFieldsAdapter(mockContext)
 
@@ -153,5 +154,6 @@ class ForumsladerDataFieldsAdapterTest {
         assertEquals("Odometer", names[DataFieldId.ODOMETER])
         assertEquals("Day Distance", names[DataFieldId.DAY_DISTANCE])
         assertEquals("Tour Distance", names[DataFieldId.TOUR_DISTANCE])
+        assertEquals("Battery Range", names[DataFieldId.BATTERY_RANGE])
     }
 }
