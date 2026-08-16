@@ -80,6 +80,31 @@ class ForumsladerFitRecorderTest {
         assertEquals(10.0 * 3.6, speedValue?.value) // 36.0 km/h
     }
 
+    @Test
+    fun `should not emit metrics when fitEmitter is null`() {
+        // given
+        recorder.rideState = RideState.Recording
+        recorder.fitEmitter = null
+
+        // when
+        recorder.onMetricsReceived(createDummyMetrics())
+
+        // then
+        verify(exactly = 0) { emitter.onNext(any()) }
+    }
+
+    @Test
+    fun `should not emit metrics when ride state is paused`() {
+        // given
+        recorder.rideState = RideState.Paused(auto = false)
+
+        // when
+        recorder.onMetricsReceived(createDummyMetrics())
+
+        // then
+        verify(exactly = 0) { emitter.onNext(any()) }
+    }
+
     private fun createDummyMetrics() = ForumsladerMetrics(
         power = Power(
             batteryVoltage = 12.5f,

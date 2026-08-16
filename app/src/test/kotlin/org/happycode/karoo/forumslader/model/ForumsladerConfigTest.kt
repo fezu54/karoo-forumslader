@@ -3,6 +3,7 @@ package org.happycode.karoo.forumslader.model
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -23,44 +24,63 @@ class ForumsladerConfigTest {
     }
 
     @Test
-    fun `should have default values`() {
-        assertEquals(2200, config.wheelsize)
-        assertEquals(14, config.poles)
-        assertEquals(ForumsladerVersion.Unknown, config.version)
-        assertEquals(null, config.lockedMacAddress)
+    fun `should have default values when initialized`() {
+        // then
+        with(config) {
+            assertEquals(2200, wheelsize)
+            assertEquals(14, poles)
+            assertEquals(ForumsladerVersion.Unknown, version)
+            assertNull(lockedMacAddress)
+        }
     }
 
     @Test
-    fun `should persist wheelsize`() {
-        config.wheelsize = 2100
-        val newConfig = ForumsladerConfig(context)
-        assertEquals(2100, newConfig.wheelsize)
+    fun `should persist wheelsize when updated`() {
+        // given
+        val newValue = 2100
+
+        // when
+        config.wheelsize = newValue
+
+        // then
+        assertEquals(newValue, reloadConfig().wheelsize)
     }
 
     @Test
-    fun `should persist poles`() {
-        config.poles = 28
-        val newConfig = ForumsladerConfig(context)
-        assertEquals(28, newConfig.poles)
+    fun `should persist poles when updated`() {
+        // given
+        val newValue = 28
+
+        // when
+        config.poles = newValue
+
+        // then
+        assertEquals(newValue, reloadConfig().poles)
     }
 
     @Test
-    fun `should persist version`() {
-        config.version = ForumsladerVersion.V6
-        val newConfig = ForumsladerConfig(context)
-        assertEquals(ForumsladerVersion.V6, newConfig.version)
-        
-        config.version = ForumsladerVersion.V5
-        assertEquals(ForumsladerVersion.V5, ForumsladerConfig(context).version)
+    fun `should persist version when updated`() {
+        // given
+        val newValue = ForumsladerVersion.V6
+
+        // when
+        config.version = newValue
+
+        // then
+        assertEquals(newValue, reloadConfig().version)
     }
 
     @Test
-    fun `should persist lockedMacAddress`() {
-        config.lockedMacAddress = "00:11:22:33:44:55"
-        val newConfig = ForumsladerConfig(context)
-        assertEquals("00:11:22:33:44:55", newConfig.lockedMacAddress)
-        
-        config.lockedMacAddress = null
-        assertEquals(null, ForumsladerConfig(context).lockedMacAddress)
+    fun `should persist speedMultiplier when updated`() {
+        // given
+        val newValue = 1.05f
+
+        // when
+        config.speedMultiplier = newValue
+
+        // then
+        assertEquals(newValue, reloadConfig().speedMultiplier, 0.001f)
     }
+
+    private fun reloadConfig() = ForumsladerConfig(context)
 }

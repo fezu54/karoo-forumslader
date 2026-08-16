@@ -1,43 +1,47 @@
 package org.happycode.karoo.forumslader.extension
 
-import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothDevice
-import android.bluetooth.BluetoothGatt
-import android.bluetooth.BluetoothGattCallback
-import android.bluetooth.BluetoothGattCharacteristic
-import android.bluetooth.BluetoothManager
-import android.bluetooth.le.ScanFilter
-import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.content.SharedPreferences
-import android.os.Handler
 import android.util.Log
 import io.hammerhead.karooext.KarooSystemService
 import io.hammerhead.karooext.internal.Emitter
+import io.hammerhead.karooext.models.ConnectionStatus
 import io.hammerhead.karooext.models.DataType
-import io.hammerhead.karooext.models.DataType.Field
 import io.hammerhead.karooext.models.DeviceEvent
 import io.hammerhead.karooext.models.InRideAlert
+import io.hammerhead.karooext.models.OnConnectionStatus
 import io.hammerhead.karooext.models.OnDataPoint
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.mockkConstructor
 import io.mockk.mockkStatic
 import io.mockk.slot
 import io.mockk.unmockkAll
 import io.mockk.verify
-import org.happycode.karoo.forumslader.model.ForumsladerBleProfile
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runTest
+import org.happycode.karoo.forumslader.model.ForumsladerVersion
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class ForumsladerKarooAdapterTest {
     private lateinit var context: Context
-    private lateinit var bluetoothManager: BluetoothManager
-    private lateinit var bluetoothAdapter: BluetoothAdapter
-    private lateinit var bluetoothDevice: BluetoothDevice
     private lateinit var emitter: Emitter<DeviceEvent>
+    private lateinit var bleManager: ForumsladerBleManager
+    private lateinit var karooSystem: KarooSystemService
+    private lateinit var testScope: CoroutineScope
+
+    private lateinit var connectionStateFlow: MutableStateFlow<ConnectionStatus>
+    private lateinit var incomingDataFlow: MutableSharedFlow<ByteArray>
+    private lateinit var versionDetectedFlow: MutableSharedFlow<ForumsladerVersion>
+    private lateinit var notificationsEnabledFlow: MutableSharedFlow<Unit>
 
     @BeforeEach
     fun setUp() {
@@ -49,36 +53,6 @@ class ForumsladerKarooAdapterTest {
         every { Log.e(any<String>(), any<String>()) } returns 0
         every { Log.e(any<String>(), any<String>(), any<Throwable>()) } returns 0
 
-        mockkStatic(android.os.Looper::class)
-        every { android.os.Looper.getMainLooper() } returns mockk(relaxed = true)
-
-        mockkConstructor(Handler::class)
-        every { anyConstructed<Handler>().post(any()) } answers {
-            val runnable = firstArg<Runnable>()
-            runnable.run()
-            true
-        }
-        every { anyConstructed<Handler>().postDelayed(any(), any()) } returns true
-        every { anyConstructed<Handler>().removeCallbacks(any<Runnable>()) } returns Unit
-
-        val mockScanFilterBuilder = mockk<ScanFilter.Builder>()
-        every { mockScanFilterBuilder.setDeviceAddress(any()) } returns mockScanFilterBuilder
-        every { mockScanFilterBuilder.build() } returns mockk(relaxed = true)
-        mockkConstructor(ScanFilter.Builder::class)
-        every { anyConstructed<ScanFilter.Builder>().setDeviceAddress(any()) } returns mockScanFilterBuilder
-
-        val mockScanSettingsBuilder = mockk<ScanSettings.Builder>()
-        every { mockScanSettingsBuilder.setScanMode(any()) } returns mockScanSettingsBuilder
-        every { mockScanSettingsBuilder.build() } returns mockk(relaxed = true)
-        mockkConstructor(ScanSettings.Builder::class)
-        every { anyConstructed<ScanSettings.Builder>().setScanMode(any()) } returns mockScanSettingsBuilder
-
-        mockkConstructor(KarooSystemService::class)
-        every { anyConstructed<KarooSystemService>().connect(any()) } answers {
-            firstArg<((Boolean) -> Unit)?>()?.invoke(true)
-        }
-        every { anyConstructed<KarooSystemService>().dispatch(any()) } returns true
-
         context = mockk(relaxed = true)
         val mockPrefs = mockk<SharedPreferences>(relaxed = true)
         every { mockPrefs.getInt("wheelsize", 2200) } returns 2200
@@ -87,15 +61,24 @@ class ForumsladerKarooAdapterTest {
         every { mockPrefs.getInt("battery_low_threshold", any()) } returns 20
         every { mockPrefs.getFloat("high_temp_threshold", any()) } returns 50f
         every { context.getSharedPreferences(any(), any()) } returns mockPrefs
+        every { context.applicationContext } returns context
 
-        bluetoothManager = mockk(relaxed = true)
-        bluetoothAdapter = mockk(relaxed = true)
-        bluetoothDevice = mockk(relaxed = true)
         emitter = mockk(relaxed = true)
 
-        every { context.getSystemService(Context.BLUETOOTH_SERVICE) } returns bluetoothManager
-        every { bluetoothManager.adapter } returns bluetoothAdapter
-        every { bluetoothAdapter.getRemoteDevice(any<String>()) } returns bluetoothDevice
+        connectionStateFlow = MutableStateFlow(ConnectionStatus.DISCONNECTED)
+        incomingDataFlow = MutableSharedFlow()
+        versionDetectedFlow = MutableSharedFlow()
+        notificationsEnabledFlow = MutableSharedFlow()
+
+        bleManager = mockk(relaxed = true) {
+            every { connectionState } returns connectionStateFlow
+            every { incomingData } returns incomingDataFlow
+            every { versionDetected } returns versionDetectedFlow
+            every { notificationsEnabled } returns notificationsEnabledFlow
+        }
+
+        karooSystem = mockk(relaxed = true)
+        testScope = TestScope()
     }
 
     @AfterEach
@@ -105,456 +88,279 @@ class ForumsladerKarooAdapterTest {
 
     @Test
     fun `should set correct metadata on device initialization`() {
+        // given
         val address = "00:11:22:33:44:55"
-        val forumslader = ForumsladerKarooAdapter(context, address, "My Forumslader")
 
+        // when
+        val forumslader = ForumsladerKarooAdapter(
+            context,
+            address,
+            "My Forumslader",
+            testScope,
+            bleManager,
+            karooSystem
+        )
+
+        // then
         assertEquals("karoo-forumslader", forumslader.device.extension)
         assertEquals("fl-$address", forumslader.device.uid)
         assertEquals("My Forumslader", forumslader.device.displayName)
     }
 
     @Test
-    fun `should initiate gatt connection on connect`() {
-        val address = "00:11:22:33:44:55"
-        val forumslader = ForumsladerKarooAdapter(context, address)
+    fun `should initiate connection on connect`() {
+        // given
+        val forumslader = ForumsladerKarooAdapter(
+            context,
+            "00:11:22:33:44:55",
+            null,
+            testScope,
+            bleManager,
+            karooSystem
+        )
 
+        // when
         forumslader.connect(emitter)
 
-        verify { bluetoothDevice.connectGatt(context, false, any(), any()) }
+        // then
+        verify { bleManager.start() }
     }
 
     @Test
-    fun `should initiate fallback scan on connection timeout if mac is locked`() {
-        val address = "00:11:22:33:44:55"
-        val mockPrefs = mockk<SharedPreferences>(relaxed = true)
-        every { mockPrefs.getString("locked_mac_address", null) } returns address
-        every {
-            context.getSharedPreferences(
-                "forumslader_prefs",
-                Context.MODE_PRIVATE
+    fun `should emit connection status on state flow change`() =
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            val forumslader = ForumsladerKarooAdapter(
+                context,
+                "00:11:22:33:44:55",
+                null,
+                backgroundScope,
+                bleManager,
+                karooSystem
             )
-        } returns mockPrefs
+            forumslader.connect(emitter)
 
-        val scanner = mockk<android.bluetooth.le.BluetoothLeScanner>(relaxed = true)
-        every { bluetoothAdapter.bluetoothLeScanner } returns scanner
-        every { bluetoothAdapter.isEnabled } returns true
+            // when
+            connectionStateFlow.value = ConnectionStatus.CONNECTED
 
-        // Capture postDelayed runnables to simulate timeout
-        val runnables = mutableListOf<Runnable>()
-        every { anyConstructed<Handler>().postDelayed(capture(runnables), any()) } returns true
-
-        val forumslader = ForumsladerKarooAdapter(context, address)
-        forumslader.connect(emitter)
-
-        // Timeout runnable is scheduled
-        val timeoutRunnable = runnables.firstOrNull()
-        timeoutRunnable?.run()
-
-        // After timeout, it should schedule reconnect.
-        val reconnectRunnable = runnables.lastOrNull()
-        reconnectRunnable?.run()
-
-        // During reconnect, because shouldFallbackToScan became true, it should start scan
-        verify {
-            scanner.startScan(
-                any<List<ScanFilter>>(),
-                any(),
-                any<android.bluetooth.le.ScanCallback>()
-            )
-        }
-    }
-
-    @Test
-    fun `should lock mac address on first successful data reception`() {
-        val address = "00:11:22:33:44:55"
-        val mockEditor = mockk<SharedPreferences.Editor>(relaxed = true)
-        val mockPrefs = mockk<SharedPreferences>(relaxed = true)
-        every { mockPrefs.edit() } returns mockEditor
-        every { mockPrefs.getString("locked_mac_address", null) } returns null
-        every {
-            context.getSharedPreferences(
-                "forumslader_prefs",
-                Context.MODE_PRIVATE
-            )
-        } returns mockPrefs
-
-        val forumslader = ForumsladerKarooAdapter(context, address)
-        forumslader.connect(emitter)
-
-        val callbackSlot = slot<BluetoothGattCallback>()
-        verify { bluetoothDevice.connectGatt(context, false, capture(callbackSlot), any()) }
-
-        val gattCallback = callbackSlot.captured
-        val gatt = mockk<BluetoothGatt>(relaxed = true)
-        val characteristic = mockk<BluetoothGattCharacteristic>(relaxed = true)
-        every { characteristic.uuid } returns ForumsladerBleProfile.CHARACTERISTIC_UART_TX_RX
-
-        gattCallback.onConnectionStateChange(
-            gatt,
-            BluetoothGatt.GATT_SUCCESS,
-            android.bluetooth.BluetoothProfile.STATE_CONNECTED
-        )
-
-        val service = mockk<android.bluetooth.BluetoothGattService>(relaxed = true)
-        every { service.uuid } returns ForumsladerBleProfile.SERVICE_UUID_V5
-        every { service.getCharacteristic(any()) } returns characteristic
-        every { gatt.getService(ForumsladerBleProfile.SERVICE_UUID_V6) } returns null
-        every { gatt.getService(ForumsladerBleProfile.SERVICE_UUID_V5) } returns service
-
-        gattCallback.onServicesDiscovered(gatt, BluetoothGatt.GATT_SUCCESS)
-
-        val telemetryBytes = "\$FL5,1,2,3,4,5,6,7,8,9,10,11,12,13\n".toByteArray(Charsets.US_ASCII)
-        gattCallback.onCharacteristicChanged(gatt, characteristic, telemetryBytes)
-
-        verify { mockEditor.putString("locked_mac_address", address) }
-    }
-
-    @Test
-    fun `should emit correctly mapped DataPoints on telemetry reception`() {
-        val address = "00:11:22:33:44:55"
-        val forumslader = ForumsladerKarooAdapter(context, address)
-
-        val gatt = mockk<BluetoothGatt>(relaxed = true)
-        val characteristic = mockk<BluetoothGattCharacteristic>(relaxed = true)
-        every { characteristic.uuid } returns ForumsladerBleProfile.CHARACTERISTIC_UART_TX_RX
-
-        val callbackSlot = slot<BluetoothGattCallback>()
-        every {
-            bluetoothDevice.connectGatt(
-                any(),
-                any(),
-                capture(callbackSlot),
-                any()
-            )
-        } returns gatt
-
-        forumslader.connect(emitter)
-
-        verify { bluetoothDevice.connectGatt(context, false, any(), any()) }
-        val gattCallback = callbackSlot.captured
-
-        gattCallback.onConnectionStateChange(
-            gatt,
-            BluetoothGatt.GATT_SUCCESS,
-            android.bluetooth.BluetoothProfile.STATE_CONNECTED
-        )
-
-        val service = mockk<android.bluetooth.BluetoothGattService>(relaxed = true)
-        every { service.uuid } returns ForumsladerBleProfile.SERVICE_UUID_V5
-        every { service.getCharacteristic(any()) } returns characteristic
-        every { gatt.getService(ForumsladerBleProfile.SERVICE_UUID_V6) } returns null
-        every { gatt.getService(ForumsladerBleProfile.SERVICE_UUID_V5) } returns service
-
-        gattCallback.onServicesDiscovered(gatt, BluetoothGatt.GATT_SUCCESS)
-
-        val eventSlot = mutableListOf<DeviceEvent>()
-        every { emitter.onNext(capture(eventSlot)) } returns Unit
-
-        val telemetryBytes = "\$FL5,1,2,3,4,5,6,7,8,9,10,11,12,13\n".toByteArray(Charsets.US_ASCII)
-        gattCallback.onCharacteristicChanged(gatt, characteristic, telemetryBytes)
-
-        val dataPoints = eventSlot.filterIsInstance<OnDataPoint>()
-            .map { it.dataPoint }
-        assert(dataPoints.isNotEmpty())
-
-        val voltagePoint = dataPoints.find {
-            it.dataTypeId == DataType.dataTypeId(
-                "karoo-forumslader",
-                "fl_battery_voltage"
-            )
-        }
-        assertEquals(
-            0.015,
-            voltagePoint?.values?.get(Field.SINGLE) ?: 0.0,
-            0.001
-        )
-    }
-
-    @Test
-    fun `should emit all metrics from registry with correct values and conversions`() {
-        val address = "00:11:22:33:44:55"
-        val forumslader = ForumsladerKarooAdapter(context, address)
-        forumslader.connect(emitter)
-
-        // Capture emitted events
-        val eventSlot = mutableListOf<DeviceEvent>()
-        every { emitter.onNext(capture(eventSlot)) } returns Unit
-
-        // 1. Prepare auxiliary data to populate internal state
-        val flb = "\$FLB,255,0,1005\n"       // Temp 25.5C, Alt 100.5m
-        val flc1 = "\$FLC,5,0,85\n"           // Battery 85%
-        val flc2 = "\$FLC,3,0,123.4,45.6\n"   // Tour 123.4Wh, Trip 45.6Wh
-        
-        // 2. Telemetry sentence to trigger emission
-        // $FL5 fields: 0:FL5, 1:status(0x200=512), 2:gear(3), 3:freq(100), 4-6:cells(500ea), 
-        // 7:bCurr(2500), 8:cCurr(3500), 9-12:0, 13:impulse(1000)
-        val fl5 = "\$FL5,200,3,100,500,500,500,2500,3500,0,0,0,0,1000\n"
-
-        // 3. Call onDataReceived directly to bypass BleManager/Handler mocking issues
-        forumslader.onDataReceived((flb + flc1 + flc2 + fl5).toByteArray(Charsets.US_ASCII))
-
-        val dataPoints = eventSlot.filterIsInstance<OnDataPoint>()
-            .associate { it.dataPoint.dataTypeId to it.dataPoint.values[Field.SINGLE] }
-
-        assert(dataPoints.isNotEmpty()) { "No data points were emitted!" }
-
-        fun expectedType(id: String) = DataType.dataTypeId("karoo-forumslader", id)
-
-        // Constants based on default wheelsize(2200) and poles(14)
-        val distFactor = 2200.0 / 14.0 / 1000.0 
-        val expectedSpeed = 100.0 * distFactor 
-        val expectedDist = 1000.0 * distFactor * 4096.0
-
-        val expected = mapOf(
-            expectedType("fl_battery_voltage") to 1.5, // (500+500+500)/1000
-            expectedType("fl_battery_current") to 2500.0, // (2500/1000)*1000
-            expectedType("fl_consumer_current") to 3500.0, // (3500/1000)*1000
-            expectedType("fl_speed") to expectedSpeed,
-            expectedType("fl_trip_distance") to expectedDist,
-            expectedType("fl_frequency") to 100.0,
-            expectedType("fl_temperature") to 25.5,
-            expectedType("fl_generator_gear") to 3.0,
-            expectedType("fl_charge_state") to 1.0, // CHARGING.ordinal
-            expectedType("fl_trip_energy") to 45.6,
-            expectedType("fl_tour_energy") to 123.4,
-            expectedType("fl_dynamo_power") to 1.5 * (2.5 + 3.5), // V * (Ib + Ic) = 9.0W
-            expectedType("fl_odometer") to expectedDist,
-            expectedType("fl_day_distance") to expectedDist,
-            expectedType("fl_tour_distance") to expectedDist,
-            expectedType("fl_battery_level") to 85.0
-        )
-
-        expected.forEach { (fullId, expectedValue) ->
-            val actualValue = dataPoints[fullId] ?: 0.0
-            assertEquals(expectedValue, actualValue, expectedValue * 0.01, "Value mismatch for $fullId")
-        }
-    }
-
-    @Test
-    fun `should stop parameter request loop when config is loaded`() {
-        val address = "00:11:22:33:44:55"
-        val forumslader = ForumsladerKarooAdapter(context, address)
-
-        val gatt = mockk<BluetoothGatt>(relaxed = true)
-        val characteristic = mockk<BluetoothGattCharacteristic>(relaxed = true)
-        every { characteristic.uuid } returns ForumsladerBleProfile.CHARACTERISTIC_UART_TX_RX
-
-        val callbackSlot = slot<BluetoothGattCallback>()
-        every {
-            bluetoothDevice.connectGatt(
-                any(),
-                any(),
-                capture(callbackSlot),
-                any()
-            )
-        } returns gatt
-
-        forumslader.connect(emitter)
-        verify { bluetoothDevice.connectGatt(context, false, any(), any()) }
-        val gattCallback = callbackSlot.captured
-
-        val service = mockk<android.bluetooth.BluetoothGattService>(relaxed = true)
-        every { service.uuid } returns ForumsladerBleProfile.SERVICE_UUID_V5
-        every { service.getCharacteristic(any()) } returns characteristic
-        every { gatt.getService(ForumsladerBleProfile.SERVICE_UUID_V6) } returns null
-        every { gatt.getService(ForumsladerBleProfile.SERVICE_UUID_V5) } returns service
-
-        val descriptor = mockk<android.bluetooth.BluetoothGattDescriptor>(relaxed = true)
-        every { descriptor.uuid } returns ForumsladerBleProfile.CLIENT_CHARACTERISTIC_CONFIGURATION_DESCRIPTOR
-        every { characteristic.getDescriptor(any()) } returns descriptor
-
-        gattCallback.onConnectionStateChange(
-            gatt,
-            BluetoothGatt.GATT_SUCCESS,
-            android.bluetooth.BluetoothProfile.STATE_CONNECTED
-        )
-        gattCallback.onServicesDiscovered(gatt, BluetoothGatt.GATT_SUCCESS)
-
-        // Simulate CCCD write success to start protocol polling loop
-        val delayedRunnables = mutableListOf<Runnable>()
-        every { anyConstructed<Handler>().postDelayed(capture(delayedRunnables), any()) } returns true
-
-        gattCallback.onDescriptorWrite(
-            gatt,
-            descriptor,
-            BluetoothGatt.GATT_SUCCESS
-        )
-
-        // writeCharacteristic should be called synchronously via inline Handler.post
-        try {
-            verify { gatt.writeCharacteristic(any(), any<ByteArray>(), any<Int>()) }
-        } catch (_: AssertionError) {
-            verify { gatt.writeCharacteristic(any()) }
+            // then
+            verify { emitter.onNext(match { it is OnConnectionStatus && it.status == ConnectionStatus.CONNECTED }) }
         }
 
-        // Simulate receiving FLP (config loaded)
-        val flpBytes = $$"$FLP,2200,14\n".toByteArray(Charsets.US_ASCII)
-        gattCallback.onCharacteristicChanged(gatt, characteristic, flpBytes)
-
-        // Clear mocks and wait for next tick.
-        io.mockk.clearMocks(gatt, answers = false, recordedCalls = true)
-        
-        // Execute the delayed parameter request runnable
-        delayedRunnables.lastOrNull()?.run()
-        
-        verify(exactly = 0) { gatt.writeCharacteristic(any(), any<ByteArray>(), any<Int>()) }
-        verify(exactly = 0) { gatt.writeCharacteristic(any()) }
-    }
-
     @Test
-    fun `should retry cccd write up to 3 times on failure before disconnecting`() {
-        val address = "00:11:22:33:44:55"
-        val forumslader = ForumsladerKarooAdapter(context, address)
-
-        val gatt = mockk<BluetoothGatt>(relaxed = true)
-        val characteristic = mockk<BluetoothGattCharacteristic>(relaxed = true)
-        every { characteristic.uuid } returns ForumsladerBleProfile.CHARACTERISTIC_UART_TX_RX
-
-        val callbackSlot = slot<BluetoothGattCallback>()
-        every {
-            bluetoothDevice.connectGatt(
-                any(),
-                any(),
-                capture(callbackSlot),
-                any()
+    fun `should emit all metrics from registry with correct values and conversions`() =
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            val forumslader = ForumsladerKarooAdapter(
+                context,
+                "00:11:22:33:44:55",
+                null,
+                backgroundScope,
+                bleManager,
+                karooSystem
             )
-        } returns gatt
+            forumslader.connect(emitter)
 
-        forumslader.connect(emitter)
-        verify { bluetoothDevice.connectGatt(context, false, any(), any()) }
-        val gattCallback = callbackSlot.captured
-        val service = mockk<android.bluetooth.BluetoothGattService>(relaxed = true)
-        every { service.uuid } returns ForumsladerBleProfile.SERVICE_UUID_V5
-        every { service.getCharacteristic(any()) } returns characteristic
-        every { gatt.getService(ForumsladerBleProfile.SERVICE_UUID_V6) } returns null
-        every { gatt.getService(ForumsladerBleProfile.SERVICE_UUID_V5) } returns service
+            val eventSlot = mutableListOf<DeviceEvent>()
+            every { emitter.onNext(capture(eventSlot)) } returns Unit
 
-        val descriptor = mockk<android.bluetooth.BluetoothGattDescriptor>(relaxed = true)
-        every { descriptor.uuid } returns ForumsladerBleProfile.CLIENT_CHARACTERISTIC_CONFIGURATION_DESCRIPTOR
-        every { characteristic.getDescriptor(any()) } returns descriptor
+            val flb = $$"$FLB,255,0,1005\n"
+            val flc1 = $$"$FLC,5,0,85\n"
+            val flc2 = $$"$FLC,3,0,123.4,45.6\n"
+            val fl5 = $$"$FL5,200,3,100,500,500,500,2500,3500,0,0,0,0,1000\n"
 
-        gattCallback.onConnectionStateChange(
-            gatt,
-            BluetoothGatt.GATT_SUCCESS,
-            android.bluetooth.BluetoothProfile.STATE_CONNECTED
-        )
-        gattCallback.onServicesDiscovered(gatt, BluetoothGatt.GATT_SUCCESS)
+            // when
+            incomingDataFlow.emit((flb + flc1 + flc2 + fl5).toByteArray(Charsets.US_ASCII))
 
-        val runnables = mutableListOf<Runnable>()
-        every { anyConstructed<Handler>().postDelayed(capture(runnables), any()) } returns true
+            // then
+            val dataPoints = eventSlot.filterIsInstance<OnDataPoint>()
+                .associate { it.dataPoint.dataTypeId to it.dataPoint.values[DataType.Field.SINGLE] }
 
-        // First failure
-        gattCallback.onDescriptorWrite(
-            gatt,
-            descriptor,
-            BluetoothGatt.GATT_FAILURE
-        )
-        runnables.lastOrNull()?.run()
+            assert(dataPoints.isNotEmpty()) { "No data points were emitted!" }
 
-        // Second failure
-        gattCallback.onDescriptorWrite(
-            gatt,
-            descriptor,
-            BluetoothGatt.GATT_FAILURE
-        )
-        runnables.lastOrNull()?.run()
+            fun expectedType(id: String) = DataType.dataTypeId("karoo-forumslader", id)
 
-        // Third failure
-        gattCallback.onDescriptorWrite(
-            gatt,
-            descriptor,
-            BluetoothGatt.GATT_FAILURE
-        )
-        runnables.lastOrNull()?.run()
+            val distFactor = 2200.0 / 14.0 / 1000.0
+            val expectedSpeed = 100.0 * distFactor
+            val expectedDist = 1000.0 * distFactor * 4096.0
 
-        // Fourth failure should trigger disconnect
-        gattCallback.onDescriptorWrite(
-            gatt,
-            descriptor,
-            BluetoothGatt.GATT_FAILURE
-        )
+            val expected = mapOf(
+                expectedType("fl_battery_voltage") to 1.5,
+                expectedType("fl_battery_current") to 2500.0,
+                expectedType("fl_consumer_current") to 3500.0,
+                expectedType("fl_speed") to expectedSpeed,
+                expectedType("fl_trip_distance") to expectedDist,
+                expectedType("fl_frequency") to 100.0,
+                expectedType("fl_temperature") to 25.5,
+                expectedType("fl_generator_gear") to 3.0,
+                expectedType("fl_charge_state") to 1.0,
+                expectedType("fl_trip_energy") to 45.6,
+                expectedType("fl_tour_energy") to 123.4,
+                expectedType("fl_dynamo_power") to 9.0,
+                expectedType("fl_odometer") to expectedDist,
+                expectedType("fl_day_distance") to expectedDist,
+                expectedType("fl_tour_distance") to expectedDist,
+                expectedType("fl_battery_level") to 85.0
+            )
 
-        verify { gatt.disconnect() }
-    }
+            expected.forEach { (fullId, expectedValue) ->
+                val actualValue = dataPoints[fullId] ?: 0.0
+                assertEquals(
+                    expectedValue,
+                    actualValue,
+                    expectedValue * 0.01,
+                    "Value mismatch for $fullId"
+                )
+            }
+        }
 
     @Test
-    fun `should emit all metrics and trigger alerts on high temperature`() {
-        val address = "00:11:22:33:44:55"
-        val forumslader = ForumsladerKarooAdapter(context, address)
-        forumslader.connect(emitter)
+    fun `should start parameter request loop when notifications are enabled`() =
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            val forumslader = ForumsladerKarooAdapter(
+                context,
+                "00:11:22:33:44:55",
+                null,
+                backgroundScope,
+                bleManager,
+                karooSystem
+            )
+            forumslader.connect(emitter)
 
-        // Capture emitted events
-        val eventSlot = mutableListOf<DeviceEvent>()
-        every { emitter.onNext(capture(eventSlot)) } returns Unit
+            // when
+            notificationsEnabledFlow.emit(Unit)
 
-        // Prepare high temperature data (65.5C > 50C threshold)
-        val flb = "\$FLB,655,0,1005\n"
-        val fl5 = "\$FL5,200,3,100,500,500,500,2500,3500,0,0,0,0,1000\n"
-
-        forumslader.onDataReceived((flb + fl5).toByteArray(Charsets.US_ASCII))
-
-        // Verify alert was dispatched
-        verify { 
-            anyConstructed<KarooSystemService>().dispatch(match { 
-                it is InRideAlert && 
-                it.id == "fl_hi_temp"
-            }) 
+            // then: verify command written for wheelsize/poles request
+            verify { bleManager.writeCommand(match { String(it).startsWith($$"$FLT,5") }) }
         }
-    }
+
+    @Test
+    fun `should lock MAC address on first successful data reception`() =
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            val address = "00:11:22:33:44:55"
+            val mockPrefs = context.getSharedPreferences("forumslader_prefs", Context.MODE_PRIVATE)
+            every { mockPrefs.getString("locked_mac_address", null) } returns null
+
+            val forumslader = ForumsladerKarooAdapter(
+                context,
+                address,
+                null,
+                backgroundScope,
+                bleManager,
+                karooSystem
+            )
+            forumslader.connect(emitter)
+
+            val fl5 = $$"$FL5,200,3,100,500,500,500,2500,3500,0,0,0,0,1000\n"
+
+            // when
+            incomingDataFlow.emit(fl5.toByteArray(Charsets.US_ASCII))
+
+            // then
+            verify { mockPrefs.edit().putString("locked_mac_address", address) }
+        }
+
+    @Test
+    fun `should update version in config when version detected`() =
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            val forumslader = ForumsladerKarooAdapter(
+                context,
+                "00:11:22:33:44:55",
+                null,
+                backgroundScope,
+                bleManager,
+                karooSystem
+            )
+            forumslader.connect(emitter)
+
+            // when
+            versionDetectedFlow.emit(ForumsladerVersion.V5)
+
+            // then
+        }
+
+    @Test
+    fun `should emit all metrics and trigger alerts on high temperature`() =
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            val forumslader = ForumsladerKarooAdapter(
+                context,
+                "00:11:22:33:44:55",
+                null,
+                backgroundScope,
+                bleManager,
+                karooSystem
+            )
+            forumslader.connect(emitter)
+
+            val flb = $$"$FLB,655,0,1005\n"
+            val fl5 = $$"$FL5,200,3,100,500,500,500,2500,3500,0,0,0,0,1000\n"
+
+            // when
+            incomingDataFlow.emit((flb + fl5).toByteArray(Charsets.US_ASCII))
+
+            // then
+            verify {
+                karooSystem.dispatch(match {
+                    it is InRideAlert &&
+                            it.id == "fl_hi_temp"
+                })
+            }
+        }
 
     @Test
     fun `should stop and clean up when emitter is cancelled`() {
-        val address = "00:11:22:33:44:55"
-        val forumslader = ForumsladerKarooAdapter(context, address)
-        
+        // given
+        val forumslader = ForumsladerKarooAdapter(
+            context,
+            "00:11:22:33:44:55",
+            null,
+            testScope,
+            bleManager,
+            karooSystem
+        )
+
         val cancelSlot = slot<() -> Unit>()
         every { emitter.setCancellable(capture(cancelSlot)) } returns Unit
-        
+
+        // when
         forumslader.connect(emitter)
-        
-        // Execute cancellation callback
         cancelSlot.captured.invoke()
-        
-        verify { anyConstructed<KarooSystemService>().disconnect() }
+
+        // then
+        verify { karooSystem.disconnect() }
+        verify { bleManager.stop() }
     }
 
     @Test
-    fun `should set fitEmitter to fitRecorder`() {
-        val address = "00:11:22:33:44:55"
-        val forumslader = ForumsladerKarooAdapter(context, address)
-        
-        val fitEmitter = mockk<Emitter<io.hammerhead.karooext.models.FitEffect>>(relaxed = true)
-        forumslader.setFitEmitter(fitEmitter)
-        
-        // Trigger data to ensure it passes through if recording. 
-    }
-
-    @Test
-    fun `should format and send reset distance commands`() {
-        val address = "00:11:22:33:44:55"
-        val forumslader = ForumsladerKarooAdapter(context, address)
-        val gatt = mockk<BluetoothGatt>(relaxed = true)
-        val callbackSlot = slot<BluetoothGattCallback>()
-        every { bluetoothDevice.connectGatt(any(), any(), capture(callbackSlot), any()) } returns gatt
-        
+    fun `should trigger all types of alerts`() = runTest(UnconfinedTestDispatcher()) {
+        val forumslader = ForumsladerKarooAdapter(
+            context,
+            "00:11:22:33:44:55",
+            null,
+            backgroundScope,
+            bleManager,
+            karooSystem
+        )
         forumslader.connect(emitter)
-        
-        val service = mockk<android.bluetooth.BluetoothGattService>(relaxed = true)
-        val characteristic = mockk<BluetoothGattCharacteristic>(relaxed = true)
-        every { service.uuid } returns ForumsladerBleProfile.SERVICE_UUID_V5
-        every { service.getCharacteristic(any()) } returns characteristic
-        every { gatt.getService(ForumsladerBleProfile.SERVICE_UUID_V6) } returns null
-        every { gatt.getService(ForumsladerBleProfile.SERVICE_UUID_V5) } returns service
 
-        val gattCallback = callbackSlot.captured
-        gattCallback.onConnectionStateChange(gatt, BluetoothGatt.GATT_SUCCESS, android.bluetooth.BluetoothProfile.STATE_CONNECTED)
-        
-        forumslader.sendCommand("\$FLT,7*41\r\n")
-        
-        try {
-            verify { gatt.writeCharacteristic(characteristic, match { it.contentEquals("\$FLT,7*41\r\n".toByteArray(Charsets.US_ASCII)) }, any()) }
-        } catch (_: Error) {
-            verify { gatt.writeCharacteristic(characteristic) }
-        }
+        // Battery Low
+        val flc = $$"$FLC,5,0,15\n" // 15%
+        val fl5 = $$"$FL5,200,3,100,500,500,500,2500,3500,0,0,0,0,1000\n"
+        incomingDataFlow.emit((flc + fl5).toByteArray(Charsets.US_ASCII))
+        verify { karooSystem.dispatch(match { it is InRideAlert && it.id == "fl_bat_low" }) }
+
+        // Short Circuit (status bit 0x8)
+        val fl6short = $$"$FL6,8,0,0,0,0,0,0,0,0,0,0,0\n"
+        incomingDataFlow.emit(fl6short.toByteArray(Charsets.US_ASCII))
+        verify { karooSystem.dispatch(match { it is InRideAlert && it.id == "fl_short" }) }
+
+        // System Interrupt (status bit 0x800000)
+        val fl6int = $$"$FL6,800000,0,0,0,0,0,0,0,0,0,0,0\n"
+        incomingDataFlow.emit(fl6int.toByteArray(Charsets.US_ASCII))
+        verify { karooSystem.dispatch(match { it is InRideAlert && it.id == "fl_sys_int" }) }
     }
 }

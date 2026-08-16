@@ -74,7 +74,7 @@ class ForumsladerExtension : KarooExtension(extension = "karoo-forumslader", ver
             ForumsladerDataType(extension, DataFieldId.ODOMETER, DataType.Type.DISTANCE),
             ForumsladerDataType(extension, DataFieldId.DAY_DISTANCE, DataType.Type.DISTANCE),
             ForumsladerDataType(extension, DataFieldId.TOUR_DISTANCE, DataType.Type.DISTANCE),
-            ForumsladerDataType(extension, DataFieldId.BATTERY_RANGE, DataType.Type.DISTANCE)
+            ForumsladerDataType(extension, DataFieldId.BATTERY_RANGE, DataType.Type.DISTANCE),
         )
     }
 
@@ -154,7 +154,7 @@ class ForumsladerExtension : KarooExtension(extension = "karoo-forumslader", ver
         }
 
         val filters = listOf(
-            ScanFilter.Builder().build()
+            ScanFilter.Builder().build(),
         )
         val settings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)

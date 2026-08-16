@@ -42,8 +42,9 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
     private var poles: Int = config?.poles ?: 14       // default fallback (pole pairs)
     var version: ForumsladerVersion = config?.version ?: ForumsladerVersion.Unknown
         internal set
-    var isConfigLoaded: Boolean = false
-        private set
+    
+    private val _isConfigLoadedFlow = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val isConfigLoadedFlow: kotlinx.coroutines.flow.StateFlow<Boolean> = _isConfigLoadedFlow
 
     // Track whether we've received a primary telemetry sentence (FL5/FL6/FLD)
     // Configuration sentences (FLP, FLC, FLB) should not trigger emissions
@@ -170,7 +171,7 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
         return try {
             if (!payload.startsWith("$")) return "UNKNOWN"
             
-            val starIndex = payload.indexOf('*')
+            val starIndex = payload.lastIndexOf('*')
             val semiIndex = payload.indexOf(';')
             
             val dataString: String = when {
@@ -193,7 +194,7 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
         if (!payload.startsWith("$")) return false
 
         return try {
-            val starIndex = payload.indexOf('*')
+            val starIndex = payload.lastIndexOf('*')
             val semiIndex = payload.indexOf(';')
 
             val dataString: String
@@ -309,7 +310,7 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
                     dayPulseOffset = tokens.getOrNull(4)?.toDoubleOrNull() ?: dayPulseOffset
                     tourPulseOffset = tokens.getOrNull(6)?.toDoubleOrNull() ?: tourPulseOffset
                     updateConfig(newWheelsize, newPoles)
-                    isConfigLoaded = true
+                    _isConfigLoadedFlow.value = true
                     true
                 }
                 "FLD" -> {
@@ -370,6 +371,6 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
     }
 
     fun resetConfigLoaded() {
-        isConfigLoaded = false
+        _isConfigLoadedFlow.value = false
     }
 }

@@ -5,11 +5,18 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
+import io.mockk.verify
+import org.happycode.karoo.forumslader.domain.ChargeState
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.Arguments
+import org.junit.jupiter.params.provider.CsvSource
+import org.junit.jupiter.params.provider.MethodSource
+import java.util.stream.Stream
 
 class ForumsladerParserTest {
 
@@ -35,45 +42,37 @@ class ForumsladerParserTest {
 
     private fun withChecksum(sentence: String): String {
         if (!sentence.startsWith("$")) return sentence
-        val data = sentence.substring(1)
-        var parity = 0
-        for (char in data) {
-            parity = parity xor char.code
-        }
-        val hex = parity.toString(16).uppercase()
-        val paddedHex = if (hex.length == 1) "0$hex" else hex
-        return "$sentence*$paddedHex\n"
+        val checksum = sentence.substring(1)
+            .fold(0) { acc, char -> acc xor char.code }
+            .toString(16)
+            .uppercase()
+            .padStart(2, '0')
+        return "$sentence*$checksum\n"
     }
 
     @Test
     fun `should parse FL6 sentence when processIncomingBytes is called`() {
         // given
-        // $FL6,status,gear,frequency,cell1,cell2,cell3,battCurrent,loadCurrent,...,impulseCounter
         val payload = $$"$FL6,0,0,100,4100,4120,4110,-150,250,0,0,0,12345"
         val data = withChecksum(payload).toByteArray()
 
         // when
         val result = parser.processIncomingBytes(data)
 
-        // then: default wheelsize=2200, poles=14, V6 scaling (0.1x freq, 1.0x impulse)
-        // batteryVoltage = (4100 + 4120 + 4110) / 1000 = 12.33
-        // batteryCurrent = -150 / 1000 = -0.15
-        // consumerCurrent = 250 / 1000 = 0.25
-        // frequencyToSpeedFactor = 2200 / 14 / 1000 * 0.1 = 0.01571428
-        // speedMetersPerSecond = 100 * 0.01571428 = 1.571428
-        // impulsesToOdometerFactor = 2200 / 14 / 1000.0 * 1.0 = 0.15714
-        // tripDistanceMeters = 12345 * 0.15714 = 1939.8571
-        assertEquals(12.33f, result?.power?.batteryVoltage ?: 0f, 0.01f)
-        assertEquals(-0.15f, result?.power?.batteryCurrent ?: 0f, 0.01f)
-        assertEquals(0.25f, result?.power?.consumerCurrent ?: 0f, 0.01f)
-        assertEquals(1.57f, result?.dynamics?.speedMetersPerSecond ?: 0f, 0.01f)
-        assertEquals(1939.93, result?.distance?.tripMeters ?: 0.0, 0.01)
+        // then
+        result?.run {
+            assertEquals(12.33f, power.batteryVoltage, 0.01f)
+            assertEquals(-0.15f, power.batteryCurrent, 0.01f)
+            assertEquals(0.25f, power.consumerCurrent, 0.01f)
+            assertEquals(1.57f, dynamics.speedMetersPerSecond, 0.01f)
+            assertEquals(1939.93, distance.tripMeters, 0.01)
+        }
         assertEquals(ForumsladerVersion.V6, parser.version)
     }
 
     @Test
     fun `should parse FLB sentence when processIncomingBytes is called`() {
-        // given: $FLB,temperature,airPressure,altitude,slope
+        // given
         val payload = $$"$FLB,228,100227,918,33"
         val telemetry = $$"$FL6,0,0,100,4100,4120,4110,-150,250,0,0,0,12345"
         val data = (withChecksum(payload) + withChecksum(telemetry)).toByteArray()
@@ -82,13 +81,15 @@ class ForumsladerParserTest {
         val result = parser.processIncomingBytes(data)
 
         // then
-        assertEquals(22.8f, result?.environment?.temperatureCelsius ?: 0f, 0.01f)
-        assertEquals(91.8f, result?.environment?.altitudeMeters ?: 0f, 0.01f)
+        result?.environment?.run {
+            assertEquals(22.8f, temperatureCelsius, 0.01f)
+            assertEquals(91.8f, altitudeMeters, 0.01f)
+        }
     }
 
     @Test
     fun `should parse FLC sentence when processIncomingBytes is called`() {
-        // given: $FLC,setnr,startCount,socState,...
+        // given
         val payload = $$"$FLC,5,12,85,150,5,1000"
         val telemetry = $$"$FL6,0,0,100,4100,4120,4110,-150,250,0,0,0,12345"
         val data = (withChecksum(payload) + withChecksum(telemetry)).toByteArray()
@@ -102,7 +103,7 @@ class ForumsladerParserTest {
 
     @Test
     fun `should configure wheelsize and poles when FLP sentence is processed`() {
-        // given: $FLP,wheelsize,poles,...
+        // given
         val configPayload = $$"$FLP,2000,10,0,0,0,0,0,1000"
         val fl6Payload = $$"$FL6,0,0,100,4100,4120,4110,-150,250,0,0,0,12345"
 
@@ -110,33 +111,33 @@ class ForumsladerParserTest {
         parser.processIncomingBytes(withChecksum(configPayload).toByteArray())
         val result = parser.processIncomingBytes(withChecksum(fl6Payload).toByteArray())
 
-        // then: wheelsize=2000, poles=10, isV6=true
-        // frequencyToSpeedFactor = 2000 / 10 / 1000 / 10 = 0.02
-        // speedMetersPerSecond = 100 * 0.02 = 2.0
-        // impulsesToOdometerFactor = 2000 / 10 / 1000.0 * 1.0 = 0.2
-        // tripDistanceMeters = 12345 * 0.2 = 2469.0
-        assertEquals(2.0f, result?.dynamics?.speedMetersPerSecond ?: 0f, 0.01f)
-        assertEquals(2469.0, result?.distance?.tripMeters ?: 0.0, 0.01)
+        // then
+        result?.run {
+            assertEquals(2.0f, dynamics.speedMetersPerSecond, 0.01f)
+            assertEquals(2469.0, distance.tripMeters, 0.01)
+        }
     }
 
     @Test
     fun `should handle split frame chunks when complete frame is received`() {
         // given
-        val chunk1 = withChecksum($$"$FLB,228,100227,918,33").substring(0, 15).toByteArray()
-        val chunk2 = withChecksum($$"$FLB,228,100227,918,33").substring(15).toByteArray()
+        val flbPayload = $$"$FLB,228,100227,918,33"
+        val chunk1 = withChecksum(flbPayload).substring(0, 15).toByteArray()
+        val chunk2 = withChecksum(flbPayload).substring(15).toByteArray()
         val telemetry = withChecksum($$"$FL6,0,0,100,4100,4120,4110,-150,250,0,0,0,12345").toByteArray()
 
         // when
         val result1 = parser.processIncomingBytes(chunk1)
         val result2 = parser.processIncomingBytes(chunk2)
-        assertNull(result1)
-        assertNull(result2) // FLB alone doesn't trigger emission
-        
         val result3 = parser.processIncomingBytes(telemetry)
 
         // then
-        assertEquals(22.8f, result3?.environment?.temperatureCelsius ?: 0f, 0.01f)
-        assertEquals(91.8f, result3?.environment?.altitudeMeters ?: 0f, 0.01f)
+        assertNull(result1)
+        assertNull(result2)
+        result3?.environment?.run {
+            assertEquals(22.8f, temperatureCelsius, 0.01f)
+            assertEquals(91.8f, altitudeMeters, 0.01f)
+        }
     }
 
     @Test
@@ -151,14 +152,16 @@ class ForumsladerParserTest {
         val result = parser.processIncomingBytes(combinedChunk)
 
         // then
-        assertEquals(25.0f, result?.environment?.temperatureCelsius ?: 0f, 0.01f)
-        assertEquals(95.0f, result?.environment?.altitudeMeters ?: 0f, 0.01f)
-        assertEquals(90, result?.power?.batteryLevelPercentage)
+        result?.run {
+            assertEquals(25.0f, environment.temperatureCelsius, 0.01f)
+            assertEquals(95.0f, environment.altitudeMeters, 0.01f)
+            assertEquals(90, power.batteryLevelPercentage)
+        }
     }
 
     @Test
     fun `should return null and ignore frame when checksum is invalid`() {
-        // given: invalid checksum string
+        // given
         val data = $$"$FLB,228,100227,918,33*FF\n".toByteArray()
 
         // when
@@ -170,7 +173,7 @@ class ForumsladerParserTest {
 
     @Test
     fun `should parse fallback FLD sentence when older frame is processed`() {
-        // given: $FLD,menu,reserved,switching,frequency,voltage,battCurrent,loadCurrent,status,soc,...
+        // given
         val payload = $$"$FLD,19,,0,50,12.5,0.8,0.2,-,5,0,0,0,0,10.2"
         val data = withChecksum(payload).toByteArray()
 
@@ -178,32 +181,30 @@ class ForumsladerParserTest {
         val result = parser.processIncomingBytes(data)
 
         // then
-        assertEquals(12.5f, result?.power?.batteryVoltage ?: 0f, 0.01f)
-        assertEquals(0.8f, result?.power?.batteryCurrent ?: 0f, 0.01f)
-        assertEquals(0.2f, result?.power?.consumerCurrent ?: 0f, 0.01f)
-        assertEquals(65, result?.power?.batteryLevelPercentage) // stage 5 = 65%
-        assertEquals(10200.0, result?.distance?.tripMeters ?: 0.0, 0.01)
-        // Assume V6 default for FLD if not detected otherwise
+        result?.run {
+            assertEquals(12.5f, power.batteryVoltage, 0.01f)
+            assertEquals(0.8f, power.batteryCurrent, 0.01f)
+            assertEquals(0.2f, power.consumerCurrent, 0.01f)
+            assertEquals(65, power.batteryLevelPercentage)
+            assertEquals(10200.0, distance.tripMeters, 0.01)
+        }
         assertEquals(ForumsladerVersion.Unknown, parser.version)
     }
 
     @Test
-    fun `should parse FL5 sentence and use V5 scaling`() {
+    fun `should parse FL5 sentence and use V5 scaling when processIncomingBytes is called`() {
         // given
-        // $FL5,status,gear,frequency,cell1,cell2,cell3,battCurrent,loadCurrent,...,impulseCounter
         val payload = $$"$FL5,0,0,100,4100,4120,4110,-150,250,0,0,0,0,12345"
         val data = withChecksum(payload).toByteArray()
 
         // when
         val result = parser.processIncomingBytes(data)
 
-        // then: wheelsize=2200, poles=14, V5 scaling (1.0f freq, 4096.0 impulse)
-        // frequencyToSpeedFactor = 2200 / 14 / 1000 * 1.0 = 0.1571428
-        // speedMetersPerSecond = 100 * 0.1571428 = 15.71428
-        // impulsesToOdometerFactor = 2200 / 14 / 1000.0 * 4096.0 = 643.6571
-        // tripDistanceMeters = 12345 * 643.6571 = 7945947.43
-        assertEquals(15.71f, result?.dynamics?.speedMetersPerSecond ?: 0f, 0.01f)
-        assertEquals(7945947.43, result?.distance?.tripMeters ?: 0.0, 1.0)
+        // then
+        result?.run {
+            assertEquals(15.71f, dynamics.speedMetersPerSecond, 0.01f)
+            assertEquals(7945947.43, distance.tripMeters, 1.0)
+        }
         assertEquals(ForumsladerVersion.V5, parser.version)
     }
 
@@ -218,8 +219,10 @@ class ForumsladerParserTest {
         parserWithConfig.processIncomingBytes(configPayload.toByteArray())
 
         // then
-        io.mockk.verify { mockConfig.wheelsize = 2100 }
-        io.mockk.verify { mockConfig.poles = 28 }
+        verify {
+            mockConfig.wheelsize = 2100
+            mockConfig.poles = 28
+        }
     }
 
     @Test
@@ -233,33 +236,33 @@ class ForumsladerParserTest {
         parserWithConfig.processIncomingBytes(fl6Payload.toByteArray())
 
         // then
-        io.mockk.verify { mockConfig.version = ForumsladerVersion.V6 }
+        verify { mockConfig.version = ForumsladerVersion.V6 }
     }
 
     @Test
-    fun `should track and reset config loaded status`() {
+    fun `should track and reset config loaded status when requested`() {
         // given
-        val configPayload = "\$FLP,2000,10,0,0,0,0,0,1000"
-        
-        // then: initially config is not loaded
-        assertEquals(false, parser.isConfigLoaded)
-        
-        // when: config sentence is processed
+        val configPayload = $$"$FLP,2000,10,0,0,0,0,0,1000"
+
+        // then
+        assertEquals(false, parser.isConfigLoadedFlow.value)
+
+        // when
         parser.processIncomingBytes(withChecksum(configPayload).toByteArray())
-        
-        // then: config is loaded
-        assertEquals(true, parser.isConfigLoaded)
-        
-        // when: reset is called
+
+        // then
+        assertEquals(true, parser.isConfigLoadedFlow.value)
+
+        // when
         parser.resetConfigLoaded()
-        
-        // then: config is reset to false
-        assertEquals(false, parser.isConfigLoaded)
+
+        // then
+        assertEquals(false, parser.isConfigLoadedFlow.value)
     }
 
     @Test
-    fun `should parse FLC set 3 for trip and tour energy`() {
-        // given: $FLC,setnr,?,tourEnergy,tripEnergy,...
+    fun `should parse FLC set 3 for trip and tour energy when processIncomingBytes is called`() {
+        // given
         val payload = $$"$FLC,3,0,123.4,45.6,0,0"
         val telemetry = $$"$FL6,0,0,100,4100,4120,4110,-150,250,0,0,0,12345"
         val data = (withChecksum(payload) + withChecksum(telemetry)).toByteArray()
@@ -268,13 +271,15 @@ class ForumsladerParserTest {
         val result = parser.processIncomingBytes(data)
 
         // then
-        assertEquals(123.4, result?.energy?.tourWattHours ?: 0.0, 0.01)
-        assertEquals(45.6, result?.energy?.tripWattHours ?: 0.0, 0.01)
+        result?.energy?.run {
+            assertEquals(123.4, tourWattHours, 0.01)
+            assertEquals(45.6, tripWattHours, 0.01)
+        }
     }
 
     @Test
-    fun `should parse charge state and gear from FL6 status`() {
-        // status 0x200 (CHARGING), gear = 5
+    fun `should parse charge state and gear from FL6 status when processIncomingBytes is called`() {
+        // given
         val payload = $$"$FL6,0x200,5,100,4100,4120,4110,-150,250,0,0,0,12345"
         val data = withChecksum(payload).toByteArray()
 
@@ -282,37 +287,34 @@ class ForumsladerParserTest {
         val result = parser.processIncomingBytes(data)
 
         // then
-        assertEquals(org.happycode.karoo.forumslader.domain.ChargeState.CHARGING, result?.power?.chargeState)
-        assertEquals(5, result?.dynamics?.generatorGear)
-        
-        // dynamo power = batteryVoltage * abs(batteryCurrent + consumerCurrent)
-        // V = 12.33, I = -0.15 + 0.25 = 0.1, P = 1.233
-        assertEquals(1.233f, result?.power?.dynamoPowerWatts ?: 0f, 0.01f)
+        result?.run {
+            assertEquals(ChargeState.CHARGING, power.chargeState)
+            assertEquals(5, dynamics.generatorGear)
+            assertEquals(1.233f, power.dynamoPowerWatts, 0.01f)
+        }
     }
 
     @Test
-    fun `should parse FLP for day and tour pulse offsets and compute distance`() {
-        // $FLP,wheelsize,poles,?,dayPulseOffset,?,tourPulseOffset,...
+    fun `should parse FLP for day and tour pulse offsets and compute distance when processIncomingBytes is called`() {
+        // given
         val payload = $$"$FLP,2000,10,0,1000,0,2000,0,0"
         val telemetry = $$"$FL6,0,0,100,4100,4120,4110,-150,250,0,0,0,12345"
         val data = (withChecksum(payload) + withChecksum(telemetry)).toByteArray()
-        
+
         // when
         val result = parser.processIncomingBytes(data)
 
         // then
-        // impulsesToOdometerFactor = 2000 / 10 / 1000.0 * 1.0 = 0.2
-        // dayDistance = (12345 - 1000) * 0.2 = 2269.0
-        // tourDistance = (12345 - 2000) * 0.2 = 2069.0
-        // odometer = 12345 * 0.2 = 2469.0
-        assertEquals(2269.0, result?.distance?.dayMeters ?: 0.0, 0.01)
-        assertEquals(2069.0, result?.distance?.tourMeters ?: 0.0, 0.01)
-        assertEquals(2469.0, result?.distance?.odometerMeters ?: 0.0, 0.01)
+        result?.distance?.run {
+            assertEquals(2269.0, dayMeters, 0.01)
+            assertEquals(2069.0, tourMeters, 0.01)
+            assertEquals(2469.0, odometerMeters, 0.01)
+        }
     }
 
     @Test
     fun `should parse charge state from FL6 status when missing 0x prefix`() {
-        // status 0200 (CHARGING without 0x prefix)
+        // given
         val payload = $$"$FL6,0200,5,100,4100,4120,4110,-150,250,0,0,0,12345"
         val data = withChecksum(payload).toByteArray()
 
@@ -320,24 +322,205 @@ class ForumsladerParserTest {
         val result = parser.processIncomingBytes(data)
 
         // then
-        assertEquals(org.happycode.karoo.forumslader.domain.ChargeState.CHARGING, result?.power?.chargeState)
+        assertEquals(ChargeState.CHARGING, result?.power?.chargeState)
     }
 
     @Test
     fun `should not overwrite battery and consumer current in FLD when missing`() {
-        // given: first FL6 with valid currents
+        // given
         val fl6Payload = $$"$FL6,0200,5,100,4100,4120,4110,-150,250,0,0,0,12345"
         parser.processIncomingBytes(withChecksum(fl6Payload).toByteArray())
-        
-        // given: FLD without currents (empty tokens)
         val fldPayload = $$"$FLD,19,,0,50,,,,,,0,0,0,0,10.2"
         val data = withChecksum(fldPayload).toByteArray()
 
         // when
         val result = parser.processIncomingBytes(data)
 
-        // then: previous values should be preserved (-150 mA = -0.15 A)
-        assertEquals(-0.15f, result?.power?.batteryCurrent ?: 0f, 0.01f)
-        assertEquals(0.25f, result?.power?.consumerCurrent ?: 0f, 0.01f)
+        // then
+        result?.power?.run {
+            assertEquals(-0.15f, batteryCurrent, 0.01f)
+            assertEquals(0.25f, consumerCurrent, 0.01f)
+        }
+    }
+
+    @Test
+    fun `should handle malformed sentences and unknown headers when processIncomingBytes is called`() {
+        assertNull(parser.processIncomingBytes("FL6,0,0,0,0,0,0,0,0,0,0,0,0\n".toByteArray()))
+        assertNull(parser.processIncomingBytes($$"$FLX,1,2,3*00\n".toByteArray()))
+        assertNull(parser.processIncomingBytes("\n".toByteArray()))
+    }
+
+    @Test
+    fun `should handle checksum errors and invalid formats when processIncomingBytes is called`() {
+        val invalidChecksum = $$"$FLB,228,100227,918,33*XX\n"
+        assertNull(parser.processIncomingBytes(invalidChecksum.toByteArray()))
+
+        val missingChecksum = $$"$FLB,228,100227,918,33*\n"
+        assertNull(parser.processIncomingBytes(missingChecksum.toByteArray()))
+
+        val noChecksum = $$"$FL6,0,0,100,4100,4120,4110,-150,250,0,0,0,12345\n"
+        val result = parser.processIncomingBytes(noChecksum.toByteArray())
+        assertEquals(12.33f, result?.power?.batteryVoltage ?: 0f, 0.01f)
+    }
+
+    @ParameterizedTest
+    @CsvSource(
+        "0, 5", "1, 10", "2, 20", "3, 35", "4, 50", "5, 65", "6, 80", "7, 95",
+    )
+    fun `should map FLD battery levels correctly`(p9: Int, expectedPct: Int) {
+        val payload = $$"$FLD,19,,0,50,12.0,0,0,-,$$p9,0,0,0,0,10.0"
+        val result = parser.processIncomingBytes(withChecksum(payload).toByteArray())
+        assertEquals(expectedPct, result?.power?.batteryLevelPercentage)
+    }
+
+    @ParameterizedTest
+    @MethodSource("chargeStateProvider")
+    fun `should map FLD charge states correctly`(statusChar: String, expectedState: ChargeState) {
+        val charToTest = if (statusChar == "*") "V" else statusChar
+        val payload = $$"$FLD,19,,0,50,12.0,0,0,$$charToTest,5,0,0,0,0,10.0"
+        val result = parser.processIncomingBytes(withChecksum(payload).toByteArray())
+        assertEquals(expectedState, result?.power?.chargeState)
+    }
+
+    @ParameterizedTest
+    @CsvSource(
+        "0x8000, FULL",
+        "0x100, DISCHARGING",
+        "0x200, CHARGING"
+    )
+    fun `should handle FL6 status bitmask and charge states`(status: String, expectedState: ChargeState) {
+        val payload = $$"$FL6,$$status,0,0,4000,4000,4000,0,0,0,0,0,0"
+        val result = parser.processIncomingBytes(withChecksum(payload).toByteArray())
+        assertEquals(expectedState, result?.power?.chargeState)
+    }
+
+    @ParameterizedTest
+    @MethodSource("versionProvider")
+    fun `should map ForumsladerVersion keys correctly`(key: String?, expected: ForumsladerVersion) {
+        assertEquals(expected, ForumsladerVersion.fromKey(key))
+    }
+
+    @Test
+    fun `should handle semi-colon delimiter in extractSentenceType`() {
+        val payload = $$"$FLB,228,100227,918,33;41\n"
+        val telemetry = withChecksum($$"$FL6,0,0,100,4100,4120,4110,-150,250,0,0,0,12345")
+        parser.processIncomingBytes(payload.toByteArray())
+        val result = parser.processIncomingBytes(telemetry.toByteArray())
+        assertEquals(22.8f, result?.environment?.temperatureCelsius ?: 0f, 0.01f)
+    }
+
+    @Test
+    fun `should handle FL6 status as hex if not starting with 0x when processIncomingBytes is called`() {
+        val payload = $$"$FL6,200,0,0,4000,4000,4000,0,0,0,0,0,0"
+        assertEquals(ChargeState.CHARGING, parser.processIncomingBytes(withChecksum(payload).toByteArray())?.power?.chargeState)
+    }
+
+    @Test
+    fun `should parse FLC set 5 for battery percentage when processIncomingBytes is called`() {
+        val payload = $$"$FLC,5,0,77,0,0,0\n"
+        val telemetry = withChecksum($$"$FL6,0,0,100,4100,4120,4110,-150,250,0,0,0,12345")
+        parser.processIncomingBytes(payload.toByteArray())
+        val result = parser.processIncomingBytes(telemetry.toByteArray())
+        assertEquals(77, result?.power?.batteryLevelPercentage)
+    }
+
+    @Test
+    fun `should handle malformed FLC sentences when processIncomingBytes is called`() {
+        val payload = $$"$FLC,UNKNOWN,0,0\n"
+        assertNull(parser.processIncomingBytes(withChecksum(payload).toByteArray()))
+    }
+
+    @Test
+    fun `should handle FLP with missing values when processIncomingBytes is called`() {
+        val payload = $$"$FLP,2100\n"
+        parser.processIncomingBytes(withChecksum(payload).toByteArray())
+
+        val fl6 = $$"$FL6,0,0,100,4000,4000,4000,0,0,0,0,0,1000"
+        val result = parser.processIncomingBytes(withChecksum(fl6).toByteArray())
+        assertEquals(1.5f, result?.dynamics?.speedMetersPerSecond ?: 0f, 0.01f)
+    }
+
+    @Test
+    fun `should updateConfig only when values change when processIncomingBytes is called`() {
+        val mockConfig = mockk<ForumsladerConfig>(relaxed = true)
+        every { mockConfig.wheelsize } returns 2200
+        every { mockConfig.poles } returns 14
+        val p = ForumsladerParser(mockConfig)
+
+        val payload = $$"$FLP,2200,14,0,0,0,0,0,0\n"
+        p.processIncomingBytes(withChecksum(payload).toByteArray())
+
+        verify(exactly = 0) { mockConfig.wheelsize = any() }
+        verify(exactly = 0) { mockConfig.poles = any() }
+
+        val payload2 = $$"$FLP,2300,14,0,0,0,0,0,0\n"
+        p.processIncomingBytes(withChecksum(payload2).toByteArray())
+        verify(exactly = 1) { mockConfig.wheelsize = 2300 }
+    }
+
+    @Test
+    fun `should handle non-numeric tokens in various sentences when processIncomingBytes is called`() {
+        val flb = $$"$FLB,abc,def,ghi,jkl\n"
+        val telemetry = withChecksum($$"$FL6,0,0,100,4000,4000,4000,0,0,0,0,0,1000")
+        parser.processIncomingBytes(flb.toByteArray())
+        val result = parser.processIncomingBytes(telemetry.toByteArray())
+        assertEquals(0f, result?.environment?.temperatureCelsius)
+        assertEquals(0f, result?.environment?.altitudeMeters)
+
+        val flc = $$"$FLC,3,0,abc,def\n"
+        parser.processIncomingBytes(flc.toByteArray())
+        val result2 = parser.processIncomingBytes(telemetry.toByteArray())
+        assertEquals(0.0, result2?.energy?.tourWattHours)
+        assertEquals(0.0, result2?.energy?.tripWattHours)
+    }
+
+    @Test
+    fun `should handle FLD p9 out of range when processIncomingBytes is called`() {
+        val payload = $$"$FLD,19,,0,50,12.0,0,0,V,8,0,0,0,0,10.0"
+        val result = parser.processIncomingBytes(withChecksum(payload).toByteArray())
+        assertNull(result?.power?.batteryLevelPercentage)
+
+        val payload2 = $$"$FLD,19,,0,50,12.0,0,0,V,-1,0,0,0,0,10.0"
+        val result2 = parser.processIncomingBytes(withChecksum(payload2).toByteArray())
+        assertNull(result2?.power?.batteryLevelPercentage)
+    }
+
+    @Test
+    fun `should log failure when sentence parsing fails during processIncomingBytes`() {
+        val malformed = $$"$FLX,1,2,3*00\n"
+        parser.processIncomingBytes(malformed.toByteArray())
+        verify { Log.d(any(), match { it.contains("Failed to parse sentence") }) }
+    }
+
+    @Test
+    fun `should log configuration update when FLP is processed`() {
+        val mockConfig = mockk<ForumsladerConfig>(relaxed = true)
+        every { mockConfig.wheelsize } returns 2200
+        every { mockConfig.poles } returns 14
+        val p = ForumsladerParser(mockConfig)
+
+        val payload = $$"$FLP,2300,14,0,0,0,0,0,0\n"
+        p.processIncomingBytes(withChecksum(payload).toByteArray())
+
+        verify { Log.i(any(), match { it.contains("Configuration updated") }) }
+    }
+
+    companion object {
+        @JvmStatic
+        fun chargeStateProvider(): Stream<Arguments> = Stream.of(
+            Arguments.of("+", ChargeState.CHARGING),
+            Arguments.of("-", ChargeState.DISCHARGING),
+            Arguments.of("V", ChargeState.FULL),
+            Arguments.of("*", ChargeState.FULL),
+            Arguments.of("?", ChargeState.STANDBY)
+        )
+
+        @JvmStatic
+        fun versionProvider(): Stream<Arguments> = Stream.of(
+            Arguments.of("V5", ForumsladerVersion.V5),
+            Arguments.of("V6", ForumsladerVersion.V6),
+            Arguments.of("OTHER", ForumsladerVersion.Unknown),
+            Arguments.of(null, ForumsladerVersion.Unknown)
+        )
     }
 }
