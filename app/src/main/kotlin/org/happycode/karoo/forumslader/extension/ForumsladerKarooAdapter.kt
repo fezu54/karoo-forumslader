@@ -37,6 +37,7 @@ import io.hammerhead.karooext.models.FitEffect
 import io.hammerhead.karooext.models.OnNavigationState
 import io.hammerhead.karooext.models.OnStreamState
 import io.hammerhead.karooext.models.StreamState
+import org.happycode.karoo.forumslader.application.ForumsladerStateStore
 
 class ForumsladerKarooAdapter(
     private val context: Context,
@@ -70,7 +71,10 @@ class ForumsladerKarooAdapter(
         )
     }
 
-    private data class MetricContext(val metrics: ForumsladerMetrics, val estimate: BatteryEstimate?)
+    private data class MetricContext(
+        val metrics: ForumsladerMetrics,
+        val estimate: BatteryEstimate?
+    )
 
     private val config = ForumsladerConfig(context)
     private val parser = ForumsladerParser(config)
@@ -146,6 +150,11 @@ class ForumsladerKarooAdapter(
         }
         
         flowCollectionJob = adapterScope.launch {
+            launch {
+                parser.isConfigLoadedFlow.collect {
+                    ForumsladerStateStore.setConfigLoaded(it)
+                }
+            }
             launch {
                 bleManager.connectionState.collect { status ->
                     currentEmitter?.onNext(OnConnectionStatus(status = status))
@@ -238,6 +247,11 @@ class ForumsladerKarooAdapter(
     fun setFitEmitter(emitter: Emitter<FitEffect>?) = run { fitRecorder.fitEmitter = emitter }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-    fun sendCommand(command: String) =
+    fun sendCommand(command: String) {
         bleManager.writeCommand(command.toByteArray(Charsets.US_ASCII))
+        if (command.startsWith($$"$FLT,6") || command.startsWith($$"$FLT,7")) {
+            parser.resetConfigLoaded()
+            protocol.startParameterRequestLoop()
+        }
+    }
 }

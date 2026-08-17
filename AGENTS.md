@@ -32,6 +32,8 @@ Kotlin style specifics
 - Favor expression-bodied functions for short implementations.
 - Use named parameters in calls when it clarifies intent, especially for functions with multiple parameters of the same type. Avoid it when it just mirrors the name.
 - Keep functions small (ideally under ~40 lines) and with a single reason to change.
+- Use the modern Kotlin interpolation prefix for strings (e.g., `$$"$FLT,6"`) instead of backslash-escaping dollar signs (`"\$FLT,6"`) to avoid IDE warnings and simplify syntax.
+- Never use inline imports (e.g., fully qualified names in code like `java.util.UUID`). All dependencies must be defined at the top of the file in the imports section.
 
 Naming and self-documenting code
 - Use descriptive names: calculateInvoiceTotal, userRepository, validateUserInput.

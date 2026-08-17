@@ -17,6 +17,7 @@ import io.mockk.mockkStatic
 import io.mockk.slot
 import io.mockk.unmockkAll
 import io.mockk.verify
+import io.mockk.verifyOrder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -24,6 +25,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.yield
+import org.happycode.karoo.forumslader.application.BatteryEstimateStore
+import org.happycode.karoo.forumslader.application.ForumsladerStateStore
 import org.happycode.karoo.forumslader.model.ForumsladerVersion
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -83,6 +87,8 @@ class ForumsladerKarooAdapterTest {
 
     @AfterEach
     fun tearDown() {
+        ForumsladerStateStore.clear()
+        BatteryEstimateStore.clear()
         unmockkAll()
     }
 
@@ -362,5 +368,40 @@ class ForumsladerKarooAdapterTest {
         val fl6int = $$"$FL6,800000,0,0,0,0,0,0,0,0,0,0,0\n"
         incomingDataFlow.emit(fl6int.toByteArray(Charsets.US_ASCII))
         verify { karooSystem.dispatch(match { it is InRideAlert && it.id == "fl_sys_int" }) }
+    }
+
+    @Test
+    fun `should request config and reset state on day distance reset`() = runTest(UnconfinedTestDispatcher()) {
+        // given
+        val forumslader = ForumsladerKarooAdapter(
+            context,
+            "00:11:22:33:44:55",
+            null,
+            backgroundScope,
+            bleManager,
+            karooSystem
+        )
+        forumslader.connect(emitter)
+
+        // Simulate config loaded initially
+        val flb = $$"$FLB,255,0,1005\n"
+        val fl5 = $$"$FL5,200,3,100,500,500,500,2500,3500,0,0,0,0,1000\n"
+        incomingDataFlow.emit((flb + fl5).toByteArray(Charsets.US_ASCII))
+
+        // when
+        forumslader.sendCommand($$"$FLT,6\n")
+
+        // then
+        verifyOrder {
+            // Verify write command for reset was sent
+            bleManager.writeCommand(match { it.decodeToString().startsWith($$"$FLT,6") })
+
+            // Verify write command for config fetch ($FLT,5) was triggered
+            bleManager.writeCommand(match { it.decodeToString().startsWith($$"$FLT,5") })
+        }
+
+        // At this point configLoaded should be false in the application state store
+        yield()
+        assertEquals(false, ForumsladerStateStore.isConfigLoadedFlow.value)
     }
 }
