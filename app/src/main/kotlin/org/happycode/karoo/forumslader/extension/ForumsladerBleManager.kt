@@ -14,6 +14,7 @@ import io.hammerhead.karooext.models.ConnectionStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -64,6 +65,7 @@ class ForumsladerBleManager(
     private var connectionJob: Job? = null
     private var peripheral: Peripheral? = null
     private var txCharacteristic: Characteristic? = null
+    private val writeChannel = Channel<ByteArray>(Channel.UNLIMITED)
 
     @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN])
     fun start() {
@@ -135,8 +137,9 @@ class ForumsladerBleManager(
         val rx = service.findCharacteristic(CHARACTERISTIC_UART_TX_RX)
             ?: service.findCharacteristic(CHARACTERISTIC_UART_RX_V6)
 
-        txCharacteristic = service.findCharacteristic(CHARACTERISTIC_UART_TX_V6)
+        val tx = service.findCharacteristic(CHARACTERISTIC_UART_TX_V6)
             ?: service.findCharacteristic(CHARACTERISTIC_UART_TX_RX)
+        txCharacteristic = tx
 
         rx?.let { char ->
             _notificationsEnabled.emit(Unit)
@@ -145,12 +148,31 @@ class ForumsladerBleManager(
                 .catch { Log.e(TAG, "Notification error", it) }
                 .launchIn(this)
         }
+
+        tx?.let { char ->
+            launch {
+                for (cmdBytes in writeChannel) {
+                    if (peripheral.state.value is State.Connected) {
+                        try {
+                            peripheral.write(char, cmdBytes, WriteType.WithoutResponse)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error writing command", e)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private fun cleanupSession() {
         txCharacteristic = null
         peripheral = null
         _connectionState.value = ConnectionStatus.DISCONNECTED
+        drainWriteChannel()
+    }
+
+    private fun drainWriteChannel() {
+        while (writeChannel.tryReceive().isSuccess) { /* drain */ }
     }
 
     fun stop() {
@@ -169,15 +191,7 @@ class ForumsladerBleManager(
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     fun writeCommand(cmdBytes: ByteArray) {
-        val char = txCharacteristic ?: return
-        val p = peripheral ?: return
-        scope.launch {
-            try {
-                p.write(char, cmdBytes, WriteType.WithoutResponse)
-            } catch (e: Exception) {
-                Log.e(TAG, "Error writing command", e)
-            }
-        }
+        writeChannel.trySend(cmdBytes)
     }
 
     // Helper Extensions

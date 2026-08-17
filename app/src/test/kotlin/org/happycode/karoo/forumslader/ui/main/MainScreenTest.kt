@@ -19,6 +19,8 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
+import org.happycode.karoo.forumslader.domain.BatteryEstimate
+import org.happycode.karoo.forumslader.domain.CommandBus
 import org.happycode.karoo.forumslader.model.ForumsladerConfig
 import org.happycode.karoo.forumslader.theme.AppTheme
 import org.junit.Assert.assertEquals
@@ -37,146 +39,118 @@ class MainScreenTest {
     @get:Rule
     val composeTestRule = createComposeRule()
 
+    private val config by lazy { ForumsladerConfig(ApplicationProvider.getApplicationContext()) }
+
     @Before
     fun setup() {
         Locale.setDefault(Locale.US)
     }
 
-    @Test
-    fun `should display disconnected status when not connected`() {
-        val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
+    private fun showMainScreen(
+        connected: Boolean = true,
+        configLoaded: Boolean = true,
+        sensorState: StreamState = StreamState.Idle,
+        metrics: Map<String, Double> = emptyMap(),
+        userProfile: UserProfile? = null,
+        estimate: BatteryEstimate? = null,
+        wheelsize: Int = config.wheelsize,
+        poles: Int = config.poles,
+        versionKey: String = config.version.key,
+        speedMultiplier: Float = config.speedMultiplier,
+        lockedMacAddress: String? = config.lockedMacAddress,
+        onSpeedMultiplierChange: (Float) -> Unit = {},
+        onForgetDevice: () -> Unit = {},
+        batteryLowThreshold: Int = 20,
+        highTempThreshold: Float = 50f,
+        onBatteryLowThresholdChange: (Int) -> Unit = {},
+        onHighTempThresholdChange: (Float) -> Unit = {},
+        onResetDayDistance: () -> Unit = {},
+        onResetTourDistance: () -> Unit = {},
+        hasMissingStreams: Boolean = false,
+    ) {
         composeTestRule.setContent {
             AppTheme {
                 MainScreenContent(
-                    connected = false,
-                    sensorState = StreamState.Idle,
-                    metrics = emptyMap(),
-                    userProfile = null,
-                    estimate = null,
-                    wheelsize = config.wheelsize,
-                    poles = config.poles,
-                    versionKey = config.version.key,
-                    speedMultiplier = config.speedMultiplier,
-                    lockedMacAddress = config.lockedMacAddress,
-                    onSpeedMultiplierChange = {},
-                    onForgetDevice = {},
-                    batteryLowThreshold = 20,
-                    highTempThreshold = 50f,
-                    onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {},
-                    onResetDayDistance = {},
-                    onResetTourDistance = {}
+                    connected = connected,
+                    configLoaded = configLoaded,
+                    sensorState = sensorState,
+                    metrics = metrics,
+                    userProfile = userProfile,
+                    estimate = estimate,
+                    wheelsize = wheelsize,
+                    poles = poles,
+                    versionKey = versionKey,
+                    speedMultiplier = speedMultiplier,
+                    lockedMacAddress = lockedMacAddress,
+                    onSpeedMultiplierChange = onSpeedMultiplierChange,
+                    onForgetDevice = onForgetDevice,
+                    batteryLowThreshold = batteryLowThreshold,
+                    highTempThreshold = highTempThreshold,
+                    onBatteryLowThresholdChange = onBatteryLowThresholdChange,
+                    onHighTempThresholdChange = onHighTempThresholdChange,
+                    onResetDayDistance = onResetDayDistance,
+                    onResetTourDistance = onResetTourDistance,
+                    hasMissingStreams = hasMissingStreams,
                 )
             }
         }
+    }
 
+    @Test
+    fun `should display disconnected status when not connected`() {
+        // when
+        showMainScreen(connected = false)
+
+        // then
         composeTestRule.onNodeWithContentDescription("Disconnected").assertIsDisplayed()
     }
 
     @Test
     fun `should display battery estimate when available`() {
-        val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
-        val estimate = org.happycode.karoo.forumslader.domain.BatteryEstimate(
+        // given
+        val estimate = BatteryEstimate(
             remainingCapacityPct = 85,
             avgDischargeRatePctPerKm = 0.5f,
             estimatedRangeKm = 170.0f,
             routeRemainingKm = 50.0f,
             isSufficientForRoute = true
         )
-        composeTestRule.setContent {
-            AppTheme {
-                MainScreenContent(
-                    connected = true,
-                    sensorState = StreamState.Idle,
-                    metrics = emptyMap(),
-                    userProfile = null,
-                    estimate = estimate,
-                    wheelsize = config.wheelsize,
-                    poles = config.poles,
-                    versionKey = config.version.key,
-                    speedMultiplier = config.speedMultiplier,
-                    lockedMacAddress = config.lockedMacAddress,
-                    onSpeedMultiplierChange = {},
-                    onForgetDevice = {},
-                    batteryLowThreshold = 20,
-                    highTempThreshold = 50f,
-                    onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {},
-                    onResetDayDistance = {},
-                    onResetTourDistance = {}
-                )
-            }
-        }
+
+        // when
+        showMainScreen(estimate = estimate)
+
+        // then
         composeTestRule.onNodeWithText("0.5%/km").assertIsDisplayed()
         composeTestRule.onNodeWithText("~170 km remaining").assertIsDisplayed()
     }
 
     @Test
     fun `should display connected status when connected`() {
-        val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
-        composeTestRule.setContent {
-            AppTheme {
-                MainScreenContent(
-                    connected = true,
-                    sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
-                    metrics = emptyMap(),
-                    userProfile = null,
-                    estimate = null,
-                    wheelsize = config.wheelsize,
-                    poles = config.poles,
-                    versionKey = config.version.key,
-                    speedMultiplier = config.speedMultiplier,
-                    lockedMacAddress = config.lockedMacAddress,
-                    onSpeedMultiplierChange = {},
-                    onForgetDevice = {},
-                    batteryLowThreshold = 20,
-                    highTempThreshold = 50f,
-                    onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {},
-                    onResetDayDistance = {},
-                    onResetTourDistance = {}
-                )
-            }
-        }
+        // when
+        showMainScreen(sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")))
 
+        // then
         composeTestRule.onNodeWithContentDescription("Connected").assertIsDisplayed()
     }
 
     @Test
     fun `should display metric value when provided`() {
+        // given
         val metrics = mapOf(DataFieldId.BATTERY_LEVEL to 85.0)
 
-        val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
-        composeTestRule.setContent {
-            AppTheme {
-                MainScreenContent(
-                    connected = true,
-                    sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
-                    metrics = metrics,
-                    userProfile = null,
-                    estimate = null,
-                    wheelsize = config.wheelsize,
-                    poles = config.poles,
-                    versionKey = config.version.key,
-                    speedMultiplier = config.speedMultiplier,
-                    lockedMacAddress = config.lockedMacAddress,
-                    onSpeedMultiplierChange = {},
-                    onForgetDevice = {},
-                    batteryLowThreshold = 20,
-                    highTempThreshold = 50f,
-                    onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {},
-                    onResetDayDistance = {},
-                    onResetTourDistance = {}
-                )
-            }
-        }
+        // when
+        showMainScreen(
+            sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+            metrics = metrics
+        )
 
+        // then
         composeTestRule.onNodeWithText("85%", substring = true).performScrollTo().assertIsDisplayed()
     }
 
     @Test
     fun `should display speed in mph when system unit is Imperial`() {
+        // given
         val metrics = mapOf(DataFieldId.SPEED to 10.0) // 10 m/s = 36 km/h = 22.37 mph
         val imperialProfile = UserProfile(
             weight = 70f,
@@ -193,37 +167,20 @@ class MainScreenTest {
             powerZones = emptyList()
         )
 
-        val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
-        composeTestRule.setContent {
-            AppTheme {
-                MainScreenContent(
-                    connected = true,
-                    sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
-                    metrics = metrics,
-                    userProfile = imperialProfile,
-                    estimate = null,
-                    wheelsize = config.wheelsize,
-                    poles = config.poles,
-                    versionKey = config.version.key,
-                    speedMultiplier = config.speedMultiplier,
-                    lockedMacAddress = config.lockedMacAddress,
-                    onSpeedMultiplierChange = {},
-                    onForgetDevice = {},
-                    batteryLowThreshold = 20,
-                    highTempThreshold = 50f,
-                    onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {},
-                    onResetDayDistance = {},
-                    onResetTourDistance = {}
-                )
-            }
-        }
+        // when
+        showMainScreen(
+            sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+            metrics = metrics,
+            userProfile = imperialProfile
+        )
 
+        // then
         composeTestRule.onNodeWithText("22.4 mph", substring = true).performScrollTo().assertIsDisplayed()
     }
 
     @Test
     fun `should display speed in kmh when system unit is Metric`() {
+        // given
         val metrics = mapOf(DataFieldId.SPEED to 10.0) // 10 m/s = 36 km/h
         val metricProfile = UserProfile(
             weight = 70f,
@@ -240,99 +197,38 @@ class MainScreenTest {
             powerZones = emptyList()
         )
 
-        val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
-        composeTestRule.setContent {
-            AppTheme {
-                MainScreenContent(
-                    connected = true,
-                    sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
-                    metrics = metrics,
-                    userProfile = metricProfile,
-                    estimate = null,
-                    wheelsize = config.wheelsize,
-                    poles = config.poles,
-                    versionKey = config.version.key,
-                    speedMultiplier = config.speedMultiplier,
-                    lockedMacAddress = config.lockedMacAddress,
-                    onSpeedMultiplierChange = {},
-                    onForgetDevice = {},
-                    batteryLowThreshold = 20,
-                    highTempThreshold = 50f,
-                    onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {},
-                    onResetDayDistance = {},
-                    onResetTourDistance = {}
-                )
-            }
-        }
+        // when
+        showMainScreen(
+            sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+            metrics = metrics,
+            userProfile = metricProfile
+        )
 
+        // then
         composeTestRule.onNodeWithText("36.0 km/h", substring = true).performScrollTo().assertIsDisplayed()
     }
 
     @Test
     fun `should display searching status when searching`() {
-        val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
-        composeTestRule.setContent {
-            AppTheme {
-                MainScreenContent(
-                    connected = true,
-                    sensorState = StreamState.Searching,
-                    metrics = emptyMap(),
-                    userProfile = null,
-                    estimate = null,
-                    wheelsize = config.wheelsize,
-                    poles = config.poles,
-                    versionKey = config.version.key,
-                    speedMultiplier = config.speedMultiplier,
-                    lockedMacAddress = config.lockedMacAddress,
-                    onSpeedMultiplierChange = {},
-                    onForgetDevice = {},
-                    batteryLowThreshold = 20,
-                    highTempThreshold = 50f,
-                    onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {},
-                    onResetDayDistance = {},
-                    onResetTourDistance = {}
-                )
-            }
-        }
+        // when
+        showMainScreen(sensorState = StreamState.Searching)
 
+        // then
         composeTestRule.onNodeWithContentDescription("Searching").assertIsDisplayed()
     }
 
     @Test
     fun `should display not available status when not available`() {
-        val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
-        composeTestRule.setContent {
-            AppTheme {
-                MainScreenContent(
-                    connected = true,
-                    sensorState = StreamState.NotAvailable,
-                    metrics = emptyMap(),
-                    userProfile = null,
-                    estimate = null,
-                    wheelsize = config.wheelsize,
-                    poles = config.poles,
-                    versionKey = config.version.key,
-                    speedMultiplier = config.speedMultiplier,
-                    lockedMacAddress = config.lockedMacAddress,
-                    onSpeedMultiplierChange = {},
-                    onForgetDevice = {},
-                    batteryLowThreshold = 20,
-                    highTempThreshold = 50f,
-                    onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {},
-                    onResetDayDistance = {},
-                    onResetTourDistance = {}
-                )
-            }
-        }
+        // when
+        showMainScreen(sensorState = StreamState.NotAvailable)
 
+        // then
         composeTestRule.onNodeWithContentDescription("Not Available").assertIsDisplayed()
     }
 
     @Test
     fun `should display trip distance in miles when system unit is Imperial`() {
+        // given
         val metrics = mapOf(DataFieldId.TRIP_DISTANCE to 1609.34) // 1 mile = 1609.34 meters
         val imperialProfile = UserProfile(
             weight = 70f,
@@ -349,37 +245,20 @@ class MainScreenTest {
             powerZones = emptyList()
         )
 
-        val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
-        composeTestRule.setContent {
-            AppTheme {
-                MainScreenContent(
-                    connected = true,
-                    sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
-                    metrics = metrics,
-                    userProfile = imperialProfile,
-                    estimate = null,
-                    wheelsize = config.wheelsize,
-                    poles = config.poles,
-                    versionKey = config.version.key,
-                    speedMultiplier = config.speedMultiplier,
-                    lockedMacAddress = config.lockedMacAddress,
-                    onSpeedMultiplierChange = {},
-                    onForgetDevice = {},
-                    batteryLowThreshold = 20,
-                    highTempThreshold = 50f,
-                    onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {},
-                    onResetDayDistance = {},
-                    onResetTourDistance = {}
-                )
-            }
-        }
+        // when
+        showMainScreen(
+            sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+            metrics = metrics,
+            userProfile = imperialProfile
+        )
 
+        // then
         composeTestRule.onNodeWithText("1.00 mi", substring = true).performScrollTo().assertIsDisplayed()
     }
 
     @Test
     fun `should display trip distance in km when system unit is Metric`() {
+        // given
         val metrics = mapOf(DataFieldId.TRIP_DISTANCE to 2500.0) // 2.5 km
         val metricProfile = UserProfile(
             weight = 70f,
@@ -396,136 +275,65 @@ class MainScreenTest {
             powerZones = emptyList()
         )
 
-        val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
-        composeTestRule.setContent {
-            AppTheme {
-                MainScreenContent(
-                    connected = true,
-                    sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
-                    metrics = metrics,
-                    userProfile = metricProfile,
-                    estimate = null,
-                    wheelsize = config.wheelsize,
-                    poles = config.poles,
-                    versionKey = config.version.key,
-                    speedMultiplier = config.speedMultiplier,
-                    lockedMacAddress = config.lockedMacAddress,
-                    onSpeedMultiplierChange = {},
-                    onForgetDevice = {},
-                    batteryLowThreshold = 20,
-                    highTempThreshold = 50f,
-                    onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {},
-                    onResetDayDistance = {},
-                    onResetTourDistance = {}
-                )
-            }
-        }
+        // when
+        showMainScreen(
+            sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+            metrics = metrics,
+            userProfile = metricProfile
+        )
 
+        // then
         composeTestRule.onNodeWithText("2.50 km", substring = true).performScrollTo().assertIsDisplayed()
     }
 
     @Test
     fun `should display consumer current`() {
+        // given
         val metrics = mapOf(DataFieldId.CONSUMER_CURRENT to 1250.0)
 
-        val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
-        composeTestRule.setContent {
-            AppTheme {
-                MainScreenContent(
-                    connected = true,
-                    sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
-                    metrics = metrics,
-                    userProfile = null,
-                    estimate = null,
-                    wheelsize = config.wheelsize,
-                    poles = config.poles,
-                    versionKey = config.version.key,
-                    speedMultiplier = config.speedMultiplier,
-                    lockedMacAddress = config.lockedMacAddress,
-                    onSpeedMultiplierChange = {},
-                    onForgetDevice = {},
-                    batteryLowThreshold = 20,
-                    highTempThreshold = 50f,
-                    onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {},
-                    onResetDayDistance = {},
-                    onResetTourDistance = {}
-                )
-            }
-        }
+        // when
+        showMainScreen(
+            sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+            metrics = metrics
+        )
 
+        // then
         composeTestRule.onNodeWithText("1250 mA", substring = true).performScrollTo().assertIsDisplayed()
     }
 
     @Test
     fun `should display battery voltage`() {
+        // given
         val metrics = mapOf(DataFieldId.BATTERY_VOLTAGE to 48.2)
 
-        val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
-        composeTestRule.setContent {
-            AppTheme {
-                MainScreenContent(
-                    connected = true,
-                    sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
-                    metrics = metrics,
-                    userProfile = null,
-                    estimate = null,
-                    wheelsize = config.wheelsize,
-                    poles = config.poles,
-                    versionKey = config.version.key,
-                    speedMultiplier = config.speedMultiplier,
-                    lockedMacAddress = config.lockedMacAddress,
-                    onSpeedMultiplierChange = {},
-                    onForgetDevice = {},
-                    batteryLowThreshold = 20,
-                    highTempThreshold = 50f,
-                    onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {},
-                    onResetDayDistance = {},
-                    onResetTourDistance = {}
-                )
-            }
-        }
+        // when
+        showMainScreen(
+            sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+            metrics = metrics
+        )
 
+        // then
         composeTestRule.onNodeWithText("48.2 V", substring = true).performScrollTo().assertIsDisplayed()
     }
 
     @Test
     fun `should display battery current`() {
+        // given
         val metrics = mapOf(DataFieldId.BATTERY_CURRENT to -1500.0)
 
-        val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
-        composeTestRule.setContent {
-            AppTheme {
-                MainScreenContent(
-                    connected = true,
-                    sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
-                    metrics = metrics,
-                    userProfile = null,
-                    estimate = null,
-                    wheelsize = config.wheelsize,
-                    poles = config.poles,
-                    versionKey = config.version.key,
-                    speedMultiplier = config.speedMultiplier,
-                    lockedMacAddress = config.lockedMacAddress,
-                    onSpeedMultiplierChange = {},
-                    onForgetDevice = {},
-                    batteryLowThreshold = 20,
-                    highTempThreshold = 50f,
-                    onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {},
-                    onResetDayDistance = {},
-                    onResetTourDistance = {}
-                )
-            }
-        }
+        // when
+        showMainScreen(
+            sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+            metrics = metrics
+        )
 
+        // then
         composeTestRule.onNodeWithText("-1500 mA", substring = true).performScrollTo().assertIsDisplayed()
     }
 
     @Test
     fun `should display temperature in C when metric`() {
+        // given
         val metrics = mapOf(DataFieldId.TEMPERATURE to 22.5)
         val metricProfile = UserProfile(
             weight = 70f,
@@ -542,37 +350,20 @@ class MainScreenTest {
             powerZones = emptyList()
         )
 
-        val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
-        composeTestRule.setContent {
-            AppTheme {
-                MainScreenContent(
-                    connected = true,
-                    sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
-                    metrics = metrics,
-                    userProfile = metricProfile,
-                    estimate = null,
-                    wheelsize = config.wheelsize,
-                    poles = config.poles,
-                    versionKey = config.version.key,
-                    speedMultiplier = config.speedMultiplier,
-                    lockedMacAddress = config.lockedMacAddress,
-                    onSpeedMultiplierChange = {},
-                    onForgetDevice = {},
-                    batteryLowThreshold = 20,
-                    highTempThreshold = 50f,
-                    onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {},
-                    onResetDayDistance = {},
-                    onResetTourDistance = {}
-                )
-            }
-        }
+        // when
+        showMainScreen(
+            sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+            metrics = metrics,
+            userProfile = metricProfile
+        )
 
+        // then
         composeTestRule.onNodeWithText("22.5 °C", substring = true).performScrollTo().assertIsDisplayed()
     }
 
     @Test
     fun `should display temperature in F when imperial`() {
+        // given
         val metrics = mapOf(DataFieldId.TEMPERATURE to 22.5)
         val imperialProfile = UserProfile(
             weight = 70f,
@@ -589,67 +380,28 @@ class MainScreenTest {
             powerZones = emptyList()
         )
 
-        val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
-        composeTestRule.setContent {
-            AppTheme {
-                MainScreenContent(
-                    connected = true,
-                    sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
-                    metrics = metrics,
-                    userProfile = imperialProfile,
-                    estimate = null,
-                    wheelsize = config.wheelsize,
-                    poles = config.poles,
-                    versionKey = config.version.key,
-                    speedMultiplier = config.speedMultiplier,
-                    lockedMacAddress = config.lockedMacAddress,
-                    onSpeedMultiplierChange = {},
-                    onForgetDevice = {},
-                    batteryLowThreshold = 20,
-                    highTempThreshold = 50f,
-                    onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {},
-                    onResetDayDistance = {},
-                    onResetTourDistance = {}
-                )
-            }
-        }
+        // when
+        showMainScreen(
+            sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+            metrics = metrics,
+            userProfile = imperialProfile
+        )
 
+        // then
         // (22.5 * 9/5) + 32 = 72.5
         composeTestRule.onNodeWithText("72.5 °F", substring = true).performScrollTo().assertIsDisplayed()
     }
 
     @Test
     fun `should display configuration values`() {
-        val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
-        config.wheelsize = 2150
-        config.poles = 28
+        // when
+        showMainScreen(
+            sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+            wheelsize = 2150,
+            poles = 28
+        )
 
-        composeTestRule.setContent {
-            AppTheme {
-                MainScreenContent(
-                    connected = true,
-                    sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
-                    metrics = emptyMap(),
-                    userProfile = null,
-                    estimate = null,
-                    wheelsize = config.wheelsize,
-                    poles = config.poles,
-                    versionKey = config.version.key,
-                    speedMultiplier = config.speedMultiplier,
-                    lockedMacAddress = config.lockedMacAddress,
-                    onSpeedMultiplierChange = {},
-                    onForgetDevice = {},
-                    batteryLowThreshold = 20,
-                    highTempThreshold = 50f,
-                    onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {},
-                    onResetDayDistance = {},
-                    onResetTourDistance = {}
-                )
-            }
-        }
-
+        // then
         composeTestRule.onRoot().performTouchInput { swipeLeft() }
         composeTestRule.onNodeWithText("Configuration").performScrollTo().assertIsDisplayed()
         composeTestRule.onNodeWithText("2150 mm", substring = true).performScrollTo().assertIsDisplayed()
@@ -658,182 +410,90 @@ class MainScreenTest {
 
     @Test
     fun `should display warning banner when there are missing streams`() {
-        composeTestRule.setContent {
-            AppTheme {
-                MainScreenContent(
-                    connected = true,
-                    sensorState = StreamState.Searching,
-                    hasMissingStreams = true,
-                    metrics = emptyMap(),
-                    userProfile = null,
-                    estimate = null,
-                    wheelsize = 2200,
-                    poles = 14,
-                    versionKey = "v6",
-                    speedMultiplier = 1.0f,
-                    lockedMacAddress = null,
-                    onSpeedMultiplierChange = {},
-                    onForgetDevice = {},
-                    batteryLowThreshold = 20,
-                    highTempThreshold = 50f,
-                    onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {},
-                    onResetDayDistance = {},
-                    onResetTourDistance = {}
-                )
-            }
-        }
+        // when
+        showMainScreen(
+            sensorState = StreamState.Searching,
+            hasMissingStreams = true
+        )
 
+        // then
         // Verify the warning text is displayed using substring matching because the full string is long
         composeTestRule.onNodeWithText("Some data fields are unsupported", substring = true).assertIsDisplayed()
     }
 
     @Test
     fun `should invoke onForgetDevice when Forget is clicked`() {
-        val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
+        // given
         var forgetClicked = false
-        composeTestRule.setContent {
-            AppTheme {
-                MainScreenContent(
-                    connected = true,
-                    sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
-                    metrics = emptyMap(),
-                    userProfile = null,
-                    estimate = null,
-                    wheelsize = config.wheelsize,
-                    poles = config.poles,
-                    versionKey = config.version.key,
-                    speedMultiplier = config.speedMultiplier,
-                    lockedMacAddress = "00:11:22:33:44:55",
-                    onSpeedMultiplierChange = {},
-                    onForgetDevice = { forgetClicked = true },
-                    batteryLowThreshold = 20,
-                    highTempThreshold = 50f,
-                    onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {},
-                    onResetDayDistance = {},
-                    onResetTourDistance = {}
-                )
-            }
-        }
+
+        // when
+        showMainScreen(
+            sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+            lockedMacAddress = "00:11:22:33:44:55",
+            onForgetDevice = { forgetClicked = true }
+        )
 
         composeTestRule.onRoot().performTouchInput { swipeLeft() }
         composeTestRule.onNodeWithText("Forget").performScrollTo().performClick()
+
+        // then
         assert(forgetClicked)
     }
 
     @Test
     fun `should send reset day distance command when reset button is clicked and confirmed`() = runTest {
+        // given
         val metrics = mapOf(DataFieldId.DAY_DISTANCE to 1000.0)
 
-        val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
-        composeTestRule.setContent {
-            AppTheme {
-                MainScreenContent(
-                    connected = true,
-                    sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
-                    metrics = metrics,
-                    userProfile = null,
-                    estimate = null,
-                    wheelsize = config.wheelsize,
-                    poles = config.poles,
-                    versionKey = config.version.key,
-                    speedMultiplier = config.speedMultiplier,
-                    lockedMacAddress = config.lockedMacAddress,
-                    onSpeedMultiplierChange = {},
-                    onForgetDevice = {},
-                    batteryLowThreshold = 20,
-                    highTempThreshold = 50f,
-                    onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {},
-                    onResetDayDistance = { org.happycode.karoo.forumslader.domain.CommandBus.sendCommand(
-                        $$"$FLT,7*41\r\n"
-                    ) },
-                    onResetTourDistance = {}
-                )
-            }
-        }
+        // when
+        showMainScreen(
+            sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+            metrics = metrics,
+            onResetDayDistance = { CommandBus.sendCommand($$"$FLT,7*41\r\n") }
+        )
 
         val deferred = async(start = CoroutineStart.UNDISPATCHED) {
-            org.happycode.karoo.forumslader.domain.CommandBus.commands.first()
+            CommandBus.commands.first()
         }
 
         composeTestRule.onNodeWithContentDescription("Reset Day Distance", substring = true).performScrollTo().performClick()
         composeTestRule.onNodeWithText("OK").performClick()
 
+        // then
         assertEquals($$"$FLT,7*41\r\n", deferred.await())
     }
 
     @Test
     fun `should send reset tour distance command when reset button is clicked and confirmed`() = runTest {
+        // given
         val metrics = mapOf(DataFieldId.TOUR_DISTANCE to 2000.0)
 
-        val config = ForumsladerConfig(ApplicationProvider.getApplicationContext())
-        composeTestRule.setContent {
-            AppTheme {
-                MainScreenContent(
-                    connected = true,
-                    sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
-                    metrics = metrics,
-                    userProfile = null,
-                    estimate = null,
-                    wheelsize = config.wheelsize,
-                    poles = config.poles,
-                    versionKey = config.version.key,
-                    speedMultiplier = config.speedMultiplier,
-                    lockedMacAddress = config.lockedMacAddress,
-                    onSpeedMultiplierChange = {},
-                    onForgetDevice = {},
-                    batteryLowThreshold = 20,
-                    highTempThreshold = 50f,
-                    onBatteryLowThresholdChange = {},
-                    onHighTempThresholdChange = {},
-                    onResetDayDistance = {},
-                    onResetTourDistance = { org.happycode.karoo.forumslader.domain.CommandBus.sendCommand(
-                        $$"$FLT,6*42\r\n"
-                    ) }
-                )
-            }
-        }
+        // when
+        showMainScreen(
+            sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+            metrics = metrics,
+            onResetTourDistance = { CommandBus.sendCommand($$"$FLT,6*42\r\n") }
+        )
 
         val deferred = async(start = CoroutineStart.UNDISPATCHED) {
-            org.happycode.karoo.forumslader.domain.CommandBus.commands.first()
+            CommandBus.commands.first()
         }
 
         composeTestRule.onNodeWithContentDescription("Reset Tour Distance", substring = true).performScrollTo().performClick()
         composeTestRule.onNodeWithText("OK").performClick()
 
+        // then
         assertEquals($$"$FLT,6*42\r\n", deferred.await())
     }
 
     @Test
-    fun `should invoke onBatteryLowThresholdChange when slider moves`() {
-        composeTestRule.setContent {
-            AppTheme {
-                MainScreenContent(
-                    connected = true,
-                    sensorState = StreamState.Idle,
-                    metrics = emptyMap(),
-                    userProfile = null,
-                    estimate = null,
-                    wheelsize = 2200,
-                    poles = 14,
-                    versionKey = "v6",
-                    speedMultiplier = 1.0f,
-                    lockedMacAddress = null,
-                    onSpeedMultiplierChange = {},
-                    onForgetDevice = {},
-                    batteryLowThreshold = 20,
-                    highTempThreshold = 50f,
-                    onBatteryLowThresholdChange = { },
-                    onHighTempThresholdChange = {},
-                    onResetDayDistance = {},
-                    onResetTourDistance = {}
-                )
-            }
-        }
+    fun `should display battery low threshold slider`() {
+        // when
+        showMainScreen()
 
         composeTestRule.onRoot().performTouchInput { swipeLeft() }
+
+        // then
         // The slider for battery low threshold is in AlertsConfigCard
         composeTestRule.onNodeWithText("Low Battery Threshold", substring = true).assertIsDisplayed()
     }

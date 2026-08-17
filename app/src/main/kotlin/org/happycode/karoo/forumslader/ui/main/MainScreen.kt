@@ -50,6 +50,7 @@ import org.happycode.karoo.forumslader.PreferencesConstants.KEY_WHEEL_SIZE
 import org.happycode.karoo.forumslader.PreferencesConstants.PREFS_NAME
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
 import org.happycode.karoo.forumslader.application.BatteryEstimateStore
+import org.happycode.karoo.forumslader.application.ForumsladerStateStore
 import org.happycode.karoo.forumslader.domain.BatteryEstimate
 import org.happycode.karoo.forumslader.domain.CommandBus
 import org.happycode.karoo.forumslader.theme.AppTheme
@@ -176,8 +177,11 @@ fun MainScreen() {
         }
     }
 
+    val configLoaded by ForumsladerStateStore.isConfigLoadedFlow.collectAsState(false)
+
     MainScreenContent(
         connected = connected,
+        configLoaded = configLoaded,
         sensorState = sensorState,
         hasMissingStreams = hasMissingStreams,
         metrics = metrics,
@@ -214,6 +218,7 @@ fun MainScreen() {
 @Composable
 fun MainScreenContent(
     connected: Boolean,
+    configLoaded: Boolean,
     sensorState: StreamState,
     hasMissingStreams: Boolean = false,
     metrics: Map<String, Double>,
@@ -256,7 +261,7 @@ fun MainScreenContent(
                         MetricsList(
                             metrics = metrics, 
                             userProfile = userProfile, 
-                            connected = connected,
+                            connected = connected && configLoaded,
                             onResetDayDistance = onResetDayDistance,
                             onResetTourDistance = onResetTourDistance
                         )
@@ -307,6 +312,7 @@ fun MainScreenPreview() {
     AppTheme {
         MainScreenContent(
             connected = true,
+            configLoaded = true,
             sensorState = StreamState.Streaming(
                 io.hammerhead.karooext.models.DataPoint(
                     "",
