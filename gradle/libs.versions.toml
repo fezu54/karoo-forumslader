@@ -2,6 +2,8 @@
 agp = "9.3.1"
 kotlin = "2.4.10"
 kover = "0.9.9"
+kable = "0.44.3"
+kotlinxCoroutines = "1.11.0"
 
 androidxCore = "1.19.0"
 androidxLifecycle = "2.11.0"
@@ -23,6 +25,7 @@ kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "kover" }
 
 [libraries]
 hammerhead-karoo-ext = { group = "io.hammerhead", name = "karoo-ext", version = "1.1.9" }
+kable-core = { module = "com.juul.kable:kable-core", version.ref = "kable" }
 
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidxCore" }
 
@@ -48,6 +51,7 @@ junit-vintage-engine = { group = "org.junit.vintage", name = "junit-vintage-engi
 junit-platform-launcher = { group = "org.junit.platform", name = "junit-platform-launcher", version.ref = "junit-platform" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 mockito-kotlin = { module = "org.mockito.kotlin:mockito-kotlin", version.ref = "mockito-kotlin" }
+kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
 
 [bundles]
 androidx-lifeycle = ["androidx-lifecycle-runtime-compose", "androidx-lifecycle-viewmodel-compose"]

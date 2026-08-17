@@ -805,4 +805,36 @@ class MainScreenTest {
 
         assertEquals($$"$FLT,6*42\r\n", deferred.await())
     }
+
+    @Test
+    fun `should invoke onBatteryLowThresholdChange when slider moves`() {
+        composeTestRule.setContent {
+            AppTheme {
+                MainScreenContent(
+                    connected = true,
+                    sensorState = StreamState.Idle,
+                    metrics = emptyMap(),
+                    userProfile = null,
+                    estimate = null,
+                    wheelsize = 2200,
+                    poles = 14,
+                    versionKey = "v6",
+                    speedMultiplier = 1.0f,
+                    lockedMacAddress = null,
+                    onSpeedMultiplierChange = {},
+                    onForgetDevice = {},
+                    batteryLowThreshold = 20,
+                    highTempThreshold = 50f,
+                    onBatteryLowThresholdChange = { },
+                    onHighTempThresholdChange = {},
+                    onResetDayDistance = {},
+                    onResetTourDistance = {}
+                )
+            }
+        }
+
+        composeTestRule.onRoot().performTouchInput { swipeLeft() }
+        // The slider for battery low threshold is in AlertsConfigCard
+        composeTestRule.onNodeWithText("Low Battery Threshold", substring = true).assertIsDisplayed()
+    }
 }

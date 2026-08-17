@@ -1,6 +1,7 @@
 package org.happycode.karoo.forumslader.ui.main
 
 import android.content.Context
+import io.hammerhead.karooext.models.UserProfile
 import io.mockk.every
 import io.mockk.mockk
 import org.happycode.karoo.forumslader.R
@@ -270,13 +271,13 @@ class MetricFormatterTest {
     
     @Test
     fun `should construct from user profile`() {
-        val userProfile = io.hammerhead.karooext.models.UserProfile(
+        val userProfile = UserProfile(
             weight = 70f,
-            preferredUnit = io.hammerhead.karooext.models.UserProfile.PreferredUnit(
-                distance = io.hammerhead.karooext.models.UserProfile.PreferredUnit.UnitType.IMPERIAL,
-                elevation = io.hammerhead.karooext.models.UserProfile.PreferredUnit.UnitType.IMPERIAL,
-                temperature = io.hammerhead.karooext.models.UserProfile.PreferredUnit.UnitType.IMPERIAL,
-                weight = io.hammerhead.karooext.models.UserProfile.PreferredUnit.UnitType.IMPERIAL
+            preferredUnit = UserProfile.PreferredUnit(
+                distance = UserProfile.PreferredUnit.UnitType.IMPERIAL,
+                elevation = UserProfile.PreferredUnit.UnitType.IMPERIAL,
+                temperature = UserProfile.PreferredUnit.UnitType.IMPERIAL,
+                weight = UserProfile.PreferredUnit.UnitType.IMPERIAL
             ),
             maxHr = 190,
             restingHr = 60,
@@ -293,6 +294,28 @@ class MetricFormatterTest {
     @Test
     fun `should construct from null user profile`() {
         val formatter = MetricFormatter.from(context, null, Locale.US)
+        assertEquals("25.0 °C", formatter.format(DataFieldId.TEMPERATURE, 25.0))
+        assertEquals("36.0 km/h", formatter.format(DataFieldId.SPEED, 10.0))
+    }
+
+    @Test
+    fun `should construct from metric user profile`() {
+        val userProfile = UserProfile(
+            weight = 70f,
+            preferredUnit = UserProfile.PreferredUnit(
+                distance = UserProfile.PreferredUnit.UnitType.METRIC,
+                elevation = UserProfile.PreferredUnit.UnitType.METRIC,
+                temperature = UserProfile.PreferredUnit.UnitType.METRIC,
+                weight = UserProfile.PreferredUnit.UnitType.METRIC
+            ),
+            maxHr = 190,
+            restingHr = 60,
+            heartRateZones = emptyList(),
+            ftp = 250,
+            powerZones = emptyList()
+        )
+        
+        val formatter = MetricFormatter.from(context, userProfile, Locale.US)
         assertEquals("25.0 °C", formatter.format(DataFieldId.TEMPERATURE, 25.0))
         assertEquals("36.0 km/h", formatter.format(DataFieldId.SPEED, 10.0))
     }
