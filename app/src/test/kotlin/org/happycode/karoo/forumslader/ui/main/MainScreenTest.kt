@@ -449,7 +449,7 @@ class MainScreenTest {
         showMainScreen(
             sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
             metrics = metrics,
-            onResetDayDistance = { CommandBus.sendCommand($$"$FLT,7*41\r\n") }
+            onResetDayDistance = { CommandBus.sendCommand($$"$FLT,7*45\n") }
         )
 
         val deferred = async(start = CoroutineStart.UNDISPATCHED) {
@@ -460,7 +460,7 @@ class MainScreenTest {
         composeTestRule.onNodeWithText("OK").performClick()
 
         // then
-        assertEquals($$"$FLT,7*41\r\n", deferred.await())
+        assertEquals($$"$FLT,7*45\n", deferred.await())
     }
 
     @Test
@@ -472,7 +472,7 @@ class MainScreenTest {
         showMainScreen(
             sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
             metrics = metrics,
-            onResetTourDistance = { CommandBus.sendCommand($$"$FLT,6*42\r\n") }
+            onResetTourDistance = { CommandBus.sendCommand($$"$FLT,6*44\n") }
         )
 
         val deferred = async(start = CoroutineStart.UNDISPATCHED) {
@@ -483,7 +483,7 @@ class MainScreenTest {
         composeTestRule.onNodeWithText("OK").performClick()
 
         // then
-        assertEquals($$"$FLT,6*42\r\n", deferred.await())
+        assertEquals($$"$FLT,6*44\n", deferred.await())
     }
 
     @Test
