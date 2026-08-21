@@ -207,10 +207,10 @@ fun MainScreen() {
             prefs.edit { putFloat(KEY_HIGH_TEMP_THRESHOLD, it) }
         },
         onResetDayDistance = {
-            CommandBus.sendCommand($$"$FLT,7*41\r\n")
+            CommandBus.sendCommand($$"$FLT,7*45\n")
         },
         onResetTourDistance = {
-            CommandBus.sendCommand($$"$FLT,6*42\r\n")
+            CommandBus.sendCommand($$"$FLT,6*44\n")
         }
     )
 }
