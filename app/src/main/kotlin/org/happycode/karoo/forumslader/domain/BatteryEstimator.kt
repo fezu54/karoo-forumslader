@@ -7,7 +7,7 @@ import kotlin.collections.ArrayDeque
  * Accounts for environmental factors like elevation and headwind.
  */
 class BatteryEstimator(
-    private val windowMeters: Double = 2000.0,
+    private val windowMeters: Double = 10000.0,
     private val minMetersForEstimate: Double = 500.0,
     private val elevationPenaltyPctPer100m: Float = 1.5f,
     private val headwindPenaltyPctPerKmPerMs: Float = 0.5f
@@ -17,13 +17,14 @@ class BatteryEstimator(
     private var upcomingElevationMeters: Double? = null
     private var headwindSpeedMs: Float? = null
 
-    private data class Sample(val distanceMeters: Double, val batteryLevelPct: Int)
+    private data class Sample(val distanceMeters: Double, val batteryLevelPct: Int, val chargeState: ChargeState)
 
     fun onMetrics(metrics: ForumsladerMetrics) {
         val level = metrics.power.batteryLevelPercentage ?: return
         val dist = metrics.distance.tripMeters
+        val state = metrics.power.chargeState
 
-        samples.addLast(Sample(dist, level))
+        samples.addLast(Sample(dist, level, state))
 
         // Maintain sliding window
         while (samples.isNotEmpty() && (dist - samples.first().distanceMeters > windowMeters)) {
@@ -46,31 +47,36 @@ class BatteryEstimator(
 
         val currentLevel = lastSample.batteryLevelPct
         val distanceDiffMeters = lastSample.distanceMeters - firstSample.distanceMeters
-
-        // Check if we have enough data for a reliable estimate
-        if (distanceDiffMeters < minMetersForEstimate) {
-            return BatteryEstimate(
-                remainingCapacityPct = currentLevel,
-                avgDischargeRatePctPerKm = 0f,
-                estimatedRangeKm = null,
-                routeRemainingKm = routeRemainingKm,
-                isSufficientForRoute = null
-            )
-        }
-
+        val currentState = lastSample.chargeState
         val levelDiff = (firstSample.batteryLevelPct - currentLevel).toFloat()
 
-        // If charging or standing still, we cannot provide a meaningful discharge rate
-        if (levelDiff <= 0) {
-            return BatteryEstimate(
+        return when {
+            currentState == ChargeState.CHARGING || currentState == ChargeState.FULL -> BatteryEstimate(
                 remainingCapacityPct = currentLevel,
                 avgDischargeRatePctPerKm = 0f,
                 estimatedRangeKm = null,
                 routeRemainingKm = routeRemainingKm,
-                isSufficientForRoute = true // Assuming charging is always "sufficient" for now
+                isSufficientForRoute = true,
+                chargeState = currentState
             )
+            currentState == ChargeState.STANDBY || distanceDiffMeters < minMetersForEstimate || levelDiff <= 0 -> BatteryEstimate(
+                remainingCapacityPct = currentLevel,
+                avgDischargeRatePctPerKm = 0f,
+                estimatedRangeKm = null,
+                routeRemainingKm = routeRemainingKm,
+                isSufficientForRoute = null,
+                chargeState = currentState
+            )
+            else -> calculateDischargingEstimate(levelDiff, distanceDiffMeters, currentLevel, currentState)
         }
+    }
 
+    private fun calculateDischargingEstimate(
+        levelDiff: Float, 
+        distanceDiffMeters: Double, 
+        currentLevel: Int, 
+        currentState: ChargeState
+    ): BatteryEstimate {
         val dischargeRate = calculateAdjustedDischargeRate(levelDiff, distanceDiffMeters)
         val adjustedCapacity = calculateElevationAdjustedCapacity(currentLevel.toFloat())
 
@@ -84,7 +90,8 @@ class BatteryEstimator(
             avgDischargeRatePctPerKm = dischargeRate,
             estimatedRangeKm = estimatedRangeKm,
             routeRemainingKm = routeRemainingKm,
-            isSufficientForRoute = isSufficient
+            isSufficientForRoute = isSufficient,
+            chargeState = currentState
         )
     }
 

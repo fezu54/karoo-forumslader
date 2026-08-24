@@ -125,6 +125,63 @@ class MainScreenTest {
     }
 
     @Test
+    fun `should display charging text when battery estimate state is CHARGING`() {
+        // given
+        val estimate = BatteryEstimate(
+            remainingCapacityPct = 50,
+            avgDischargeRatePctPerKm = 0f,
+            estimatedRangeKm = null,
+            routeRemainingKm = null,
+            isSufficientForRoute = null,
+            chargeState = org.happycode.karoo.forumslader.domain.ChargeState.CHARGING
+        )
+
+        // when
+        showMainScreen(estimate = estimate)
+
+        // then
+        composeTestRule.onNodeWithText("Charging — range unlimited").assertIsDisplayed()
+    }
+
+    @Test
+    fun `should display standby text when battery estimate state is STANDBY`() {
+        // given
+        val estimate = BatteryEstimate(
+            remainingCapacityPct = 50,
+            avgDischargeRatePctPerKm = 0f,
+            estimatedRangeKm = null,
+            routeRemainingKm = null,
+            isSufficientForRoute = null,
+            chargeState = org.happycode.karoo.forumslader.domain.ChargeState.STANDBY
+        )
+
+        // when
+        showMainScreen(estimate = estimate)
+
+        // then
+        composeTestRule.onNodeWithText("Standby").assertIsDisplayed()
+    }
+
+    @Test
+    fun `should display not enough data when discharging but no range available`() {
+        // given
+        val estimate = BatteryEstimate(
+            remainingCapacityPct = 50,
+            avgDischargeRatePctPerKm = 0f,
+            estimatedRangeKm = null,
+            routeRemainingKm = null,
+            isSufficientForRoute = null,
+            chargeState = org.happycode.karoo.forumslader.domain.ChargeState.DISCHARGING
+        )
+
+        // when
+        showMainScreen(estimate = estimate)
+
+        // then
+        composeTestRule.onNodeWithText("Not enough data…").assertIsDisplayed()
+    }
+
+    @Test
     fun `should display connected status when connected`() {
         // when
         showMainScreen(sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")))

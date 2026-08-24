@@ -8,5 +8,6 @@ data class BatteryEstimate(
     val avgDischargeRatePctPerKm: Float,
     val estimatedRangeKm: Float?,
     val routeRemainingKm: Float?,
-    val isSufficientForRoute: Boolean?
+    val isSufficientForRoute: Boolean?,
+    val chargeState: ChargeState = ChargeState.DISCHARGING
 )

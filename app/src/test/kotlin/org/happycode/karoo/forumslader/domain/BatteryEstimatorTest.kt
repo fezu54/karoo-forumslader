@@ -98,8 +98,8 @@ class BatteryEstimatorTest {
         val estimator = BatteryEstimator(minMetersForEstimate = 500.0)
 
         // when
-        estimator.onMetrics(createMetrics(distance = 0.0, batteryPct = 50))
-        estimator.onMetrics(createMetrics(distance = 1000.0, batteryPct = 52)) // charged 2%
+        estimator.onMetrics(createMetrics(distance = 0.0, batteryPct = 50, chargeState = ChargeState.CHARGING))
+        estimator.onMetrics(createMetrics(distance = 1000.0, batteryPct = 52, chargeState = ChargeState.CHARGING)) // charged 2%
         estimator.onRouteRemaining(distanceMeters = 10000.0, upcomingElevation = 0.0)
         val estimate = estimator.getEstimate()
 
@@ -110,6 +110,7 @@ class BatteryEstimatorTest {
             assertNull(estimatedRangeKm)
             assertEquals(10.0f, routeRemainingKm)
             assertEquals(true, isSufficientForRoute)
+            assertEquals(ChargeState.CHARGING, chargeState)
         }
     }
 
@@ -256,8 +257,8 @@ class BatteryEstimatorTest {
     fun `should handle battery level increase as standing still or charging`() {
         // given
         val estimator = BatteryEstimator(minMetersForEstimate = 500.0)
-        estimator.onMetrics(createMetrics(distance = 0.0, batteryPct = 50))
-        estimator.onMetrics(createMetrics(distance = 1000.0, batteryPct = 55)) // +5%
+        estimator.onMetrics(createMetrics(distance = 0.0, batteryPct = 50, chargeState = ChargeState.CHARGING))
+        estimator.onMetrics(createMetrics(distance = 1000.0, batteryPct = 55, chargeState = ChargeState.CHARGING)) // +5%
 
         // when
         val estimate = estimator.getEstimate()
@@ -268,6 +269,67 @@ class BatteryEstimatorTest {
             assertEquals(0f, avgDischargeRatePctPerKm)
             assertNull(estimatedRangeKm)
             assertEquals(true, isSufficientForRoute)
+            assertEquals(ChargeState.CHARGING, chargeState)
+        }
+    }
+
+    @Test
+    fun `should handle FULL charge state exactly like CHARGING`() {
+        // given
+        val estimator = BatteryEstimator(minMetersForEstimate = 500.0)
+        estimator.onMetrics(createMetrics(distance = 0.0, batteryPct = 100, chargeState = ChargeState.FULL))
+        estimator.onMetrics(createMetrics(distance = 1000.0, batteryPct = 100, chargeState = ChargeState.FULL))
+
+        // when
+        val estimate = estimator.getEstimate()
+
+        // then
+        assertNotNull(estimate)
+        with(estimate!!) {
+            assertEquals(0f, avgDischargeRatePctPerKm)
+            assertNull(estimatedRangeKm)
+            assertEquals(true, isSufficientForRoute)
+            assertEquals(ChargeState.FULL, chargeState)
+        }
+    }
+
+    @Test
+    fun `should handle STANDBY state by hiding range but not assuming sufficient route`() {
+        // given
+        val estimator = BatteryEstimator(minMetersForEstimate = 500.0)
+        estimator.onMetrics(createMetrics(distance = 0.0, batteryPct = 50, chargeState = ChargeState.STANDBY))
+        estimator.onMetrics(createMetrics(distance = 1000.0, batteryPct = 50, chargeState = ChargeState.STANDBY))
+
+        // when
+        val estimate = estimator.getEstimate()
+
+        // then
+        assertNotNull(estimate)
+        with(estimate!!) {
+            assertEquals(0f, avgDischargeRatePctPerKm)
+            assertNull(estimatedRangeKm)
+            assertNull(isSufficientForRoute)
+            assertEquals(ChargeState.STANDBY, chargeState)
+        }
+    }
+
+    @Test
+    fun `should handle DISCHARGING state with no level drop gracefully`() {
+        // given
+        val estimator = BatteryEstimator(minMetersForEstimate = 500.0)
+        estimator.onMetrics(createMetrics(distance = 0.0, batteryPct = 50, chargeState = ChargeState.DISCHARGING))
+        estimator.onMetrics(createMetrics(distance = 1000.0, batteryPct = 50, chargeState = ChargeState.DISCHARGING))
+
+        // when
+        val estimate = estimator.getEstimate()
+
+        // then
+        assertNotNull(estimate)
+        with(estimate!!) {
+            assertEquals(0f, avgDischargeRatePctPerKm)
+            assertNull(estimatedRangeKm)
+            assertNull(isSufficientForRoute)
+            assertEquals(ChargeState.DISCHARGING, chargeState)
         }
     }
 

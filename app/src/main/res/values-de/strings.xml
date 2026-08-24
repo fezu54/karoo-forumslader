@@ -41,6 +41,7 @@
 
     <string name="battery_range_estimate_title">Geschätzte Akkureichweite</string>
     <string name="battery_range_calculating">Berechne…</string>
+    <string name="battery_range_standby">Standby</string>
     <string name="battery_range_charging">Ladevorgang — Reichweite unbegrenzt</string>
     <string name="battery_range_not_enough_data">Zu wenig Daten…</string>
     <string name="battery_range_remaining">~%1$d km verbleibend</string>

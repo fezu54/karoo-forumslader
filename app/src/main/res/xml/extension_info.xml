@@ -117,4 +117,11 @@
         icon="@drawable/ic_launcher_foreground"
         graphical="false" />
 
+    <DataType
+        typeId="fl_battery_range"
+        displayName="@string/datafield_battery_range"
+        description="@string/datafield_battery_range_desc"
+        icon="@drawable/ic_launcher_foreground"
+        graphical="false" />
+
 </ExtensionInfo>
