@@ -15,6 +15,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import org.happycode.karoo.forumslader.R
 import org.happycode.karoo.forumslader.domain.BatteryEstimate
+import org.happycode.karoo.forumslader.domain.ChargeState
 import kotlin.math.roundToInt
 
 @Composable
@@ -50,10 +51,13 @@ fun BatteryEstimateCard(
 @Composable
 private fun BatteryEstimateContent(estimate: BatteryEstimate) {
     // Determine the primary status message
-    val statusText = when {
-        estimate.avgDischargeRatePctPerKm <= 0f -> stringResource(R.string.battery_range_charging)
-        estimate.estimatedRangeKm == null -> stringResource(R.string.battery_range_not_enough_data)
-        else -> stringResource(R.string.battery_range_remaining, estimate.estimatedRangeKm.roundToInt())
+    val statusText = when (estimate.chargeState) {
+        ChargeState.CHARGING,
+        ChargeState.FULL -> stringResource(R.string.battery_range_charging)
+        ChargeState.STANDBY -> stringResource(R.string.battery_range_standby)
+        ChargeState.DISCHARGING -> estimate.estimatedRangeKm?.let {
+            stringResource(R.string.battery_range_remaining, it.roundToInt())
+        } ?: stringResource(R.string.battery_range_not_enough_data)
     }
 
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -63,7 +67,7 @@ private fun BatteryEstimateContent(estimate: BatteryEstimate) {
         )
 
         // Show discharge rate if actually discharging
-        if (estimate.avgDischargeRatePctPerKm > 0f) {
+        if (estimate.chargeState == ChargeState.DISCHARGING && estimate.avgDischargeRatePctPerKm > 0f) {
             Spacer(modifier = Modifier.weight(1f))
             Text(
                 text = stringResource(R.string.battery_range_rate, estimate.avgDischargeRatePctPerKm),

@@ -41,6 +41,7 @@
 
     <string name="battery_range_estimate_title">Battery Range Estimate</string>
     <string name="battery_range_calculating">Calculating…</string>
+    <string name="battery_range_standby">Standby</string>
     <string name="battery_range_charging">Charging — range unlimited</string>
     <string name="battery_range_not_enough_data">Not enough data…</string>
     <string name="battery_range_remaining">~%1$d km remaining</string>
