@@ -122,6 +122,34 @@ class MainScreenTest {
         // then
         composeTestRule.onNodeWithText("0.5%/km").assertIsDisplayed()
         composeTestRule.onNodeWithText("~170 km remaining").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Sufficient for route", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun `should display insufficient text when battery estimate is not sufficient for route`() {
+        // given
+        val estimate = BatteryEstimate(
+            remainingCapacityPct = 10,
+            avgDischargeRatePctPerKm = 1.0f,
+            estimatedRangeKm = 10.0f,
+            routeRemainingKm = 50.0f,
+            isSufficientForRoute = false
+        )
+
+        // when
+        showMainScreen(estimate = estimate)
+
+        // then
+        composeTestRule.onNodeWithText("Battery may run out early", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun `should display calculating text when estimate is null`() {
+        // when
+        showMainScreen(estimate = null)
+
+        // then
+        composeTestRule.onNodeWithText("Calculating…").assertIsDisplayed()
     }
 
     @Test
@@ -341,6 +369,66 @@ class MainScreenTest {
 
         // then
         composeTestRule.onNodeWithText("2.50 km", substring = true).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun `should display battery range in km when system unit is Metric`() {
+        // given
+        val metrics = mapOf(DataFieldId.BATTERY_RANGE to 50000.0) // 50 km
+        val metricProfile = UserProfile(
+            weight = 70f,
+            preferredUnit = PreferredUnit(
+                distance = PreferredUnit.UnitType.METRIC,
+                elevation = PreferredUnit.UnitType.METRIC,
+                temperature = PreferredUnit.UnitType.METRIC,
+                weight = PreferredUnit.UnitType.METRIC
+            ),
+            maxHr = 190,
+            restingHr = 60,
+            heartRateZones = emptyList(),
+            ftp = 250,
+            powerZones = emptyList()
+        )
+
+        // when
+        showMainScreen(
+            sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+            metrics = metrics,
+            userProfile = metricProfile
+        )
+
+        // then
+        composeTestRule.onNodeWithText("50.00 km", substring = true).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun `should display battery range in miles when system unit is Imperial`() {
+        // given
+        val metrics = mapOf(DataFieldId.BATTERY_RANGE to 80467.2) // 50 miles
+        val imperialProfile = UserProfile(
+            weight = 70f,
+            preferredUnit = PreferredUnit(
+                distance = PreferredUnit.UnitType.IMPERIAL,
+                elevation = PreferredUnit.UnitType.IMPERIAL,
+                temperature = PreferredUnit.UnitType.IMPERIAL,
+                weight = PreferredUnit.UnitType.IMPERIAL
+            ),
+            maxHr = 190,
+            restingHr = 60,
+            heartRateZones = emptyList(),
+            ftp = 250,
+            powerZones = emptyList()
+        )
+
+        // when
+        showMainScreen(
+            sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+            metrics = metrics,
+            userProfile = imperialProfile
+        )
+
+        // then
+        composeTestRule.onNodeWithText("50.00 mi", substring = true).performScrollTo().assertIsDisplayed()
     }
 
     @Test

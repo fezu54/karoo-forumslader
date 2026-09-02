@@ -250,6 +250,26 @@ class MetricFormatterTest {
     }
 
     @Test
+    fun `should format battery range in metric`() {
+        val formatter = MetricFormatter(Locale.US,
+            isImperialDistance = false,
+            isImperialTemperature = false,
+            context = context
+        )
+        assertEquals("45.00 km", formatter.format(DataFieldId.BATTERY_RANGE, 45000.0))
+    }
+
+    @Test
+    fun `should format battery range in imperial`() {
+        val formatter = MetricFormatter(Locale.US,
+            isImperialDistance = true,
+            isImperialTemperature = false,
+            context = context
+        )
+        assertEquals("27.96 mi", formatter.format(DataFieldId.BATTERY_RANGE, 45000.0))
+    }
+
+    @Test
     fun `should format frequency`() {
         val formatter = MetricFormatter(Locale.US,
             isImperialDistance = false,

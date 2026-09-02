@@ -46,6 +46,8 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
     private val _isConfigLoadedFlow = kotlinx.coroutines.flow.MutableStateFlow(false)
     val isConfigLoadedFlow: kotlinx.coroutines.flow.StateFlow<Boolean> = _isConfigLoadedFlow
 
+    private var hasFineGrainedBatteryLevel: Boolean = false
+
     // Track whether we've received a primary telemetry sentence (FL5/FL6/FLD)
     // Configuration sentences (FLP, FLC, FLB) should not trigger emissions
     private var hasReceivedTelemetry: Boolean = false
@@ -290,6 +292,7 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
                     when (tokens.getOrNull(1)) {
                         "5" -> {
                             batteryLevelPercentage = tokens.getOrNull(3)?.toIntOrNull() ?: batteryLevelPercentage
+                            hasFineGrainedBatteryLevel = true
                             if (DEBUG_SENTENCE_PARSING) {
                                 Log.d(TAG, "FLC: battery level set to $batteryLevelPercentage%")
                             }
@@ -329,16 +332,18 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
                     }
 
                     val p9 = tokens.getOrNull(9)?.toIntOrNull() ?: 0
-                    batteryLevelPercentage = when (p9) {
-                        0 -> 5
-                        1 -> 10
-                        2 -> 20
-                        3 -> 35
-                        4 -> 50
-                        5 -> 65
-                        6 -> 80
-                        7 -> 95
-                        else -> batteryLevelPercentage
+                    if (!hasFineGrainedBatteryLevel) {
+                        batteryLevelPercentage = when (p9) {
+                            0 -> 5
+                            1 -> 10
+                            2 -> 20
+                            3 -> 35
+                            4 -> 50
+                            5 -> 65
+                            6 -> 80
+                            7 -> 95
+                            else -> batteryLevelPercentage
+                        }
                     }
 
                     val frequencyToSpeedFactor = wheelsize.toFloat() / poles.toFloat() / 1000f * version.frequencyScale
@@ -372,5 +377,6 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
 
     fun resetConfigLoaded() {
         _isConfigLoadedFlow.value = false
+        hasFineGrainedBatteryLevel = false
     }
 }

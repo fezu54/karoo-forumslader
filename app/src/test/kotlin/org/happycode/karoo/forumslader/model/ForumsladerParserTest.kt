@@ -425,6 +425,17 @@ class ForumsladerParserTest {
     }
 
     @Test
+    fun `should not overwrite fine-grained battery percentage from FLC with coarse values from FLD`() {
+        val flcPayload = $$"$FLC,5,0,88,0,0,0\n"
+        val fldPayload = $$"$FLD,19,,0,50,12.0,0,0,-,0,0,0,0,0,10.0\n" // p9=0 maps to 5%
+        
+        parser.processIncomingBytes(withChecksum(flcPayload).toByteArray())
+        val result = parser.processIncomingBytes(withChecksum(fldPayload).toByteArray())
+        
+        assertEquals(88, result?.power?.batteryLevelPercentage)
+    }
+
+    @Test
     fun `should handle malformed FLC sentences when processIncomingBytes is called`() {
         val payload = $$"$FLC,UNKNOWN,0,0\n"
         assertNull(parser.processIncomingBytes(withChecksum(payload).toByteArray()))
