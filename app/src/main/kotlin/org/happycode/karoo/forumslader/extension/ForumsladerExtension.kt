@@ -90,6 +90,7 @@ class ForumsladerExtension : KarooExtension(extension = "karoo-forumslader", ver
         }
 
         if (!hasScanPermission) {
+            android.util.Log.e("FL_SCAN", "startScan() failed: Missing BLUETOOTH_SCAN or ACCESS_FINE_LOCATION permission")
             emitter.setCancellable { job.cancel() }
             return
         }
@@ -129,8 +130,8 @@ class ForumsladerExtension : KarooExtension(extension = "karoo-forumslader", ver
 
                 val hasForumsladerName = name?.run {
                     contains(other = "Forumslader", ignoreCase = true) ||
-                    contains(other = "FL_BLE", ignoreCase = true) ||
-                    contains(other = "FLV", ignoreCase = true)
+                    startsWith(prefix = "FL", ignoreCase = true) ||
+                    contains(other = "Ahead", ignoreCase = true)
                 } ?: false
 
                 val hasForumsladerService = uuids?.run {
@@ -153,9 +154,7 @@ class ForumsladerExtension : KarooExtension(extension = "karoo-forumslader", ver
             }
         }
 
-        val filters = listOf(
-            ScanFilter.Builder().build(),
-        )
+        val filters = emptyList<ScanFilter>()
         val settings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .build()
