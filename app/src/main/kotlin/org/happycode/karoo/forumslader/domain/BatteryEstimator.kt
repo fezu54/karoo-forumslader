@@ -7,8 +7,8 @@ import kotlin.collections.ArrayDeque
  * Accounts for environmental factors like elevation and headwind.
  */
 class BatteryEstimator(
-    private val windowMeters: Double = 10000.0,
-    private val minMetersForEstimate: Double = 500.0,
+    private val windowMeters: Double = 20000.0,
+    private val minMetersForEstimate: Double = 1000.0,
     private val elevationPenaltyPctPer100m: Float = 1.5f,
     private val headwindPenaltyPctPerKmPerMs: Float = 0.5f
 ) {
@@ -56,7 +56,7 @@ class BatteryEstimator(
                 avgDischargeRatePctPerKm = 0f,
                 estimatedRangeKm = null,
                 routeRemainingKm = routeRemainingKm,
-                isSufficientForRoute = true,
+                isSufficientForRoute = routeRemainingKm?.let { true },
                 chargeState = currentState
             )
             currentState == ChargeState.STANDBY || distanceDiffMeters < minMetersForEstimate || levelDiff <= 0 -> BatteryEstimate(

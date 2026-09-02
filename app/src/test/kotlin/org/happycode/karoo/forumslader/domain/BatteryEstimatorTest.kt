@@ -268,7 +268,7 @@ class BatteryEstimatorTest {
         with(estimate!!) {
             assertEquals(0f, avgDischargeRatePctPerKm)
             assertNull(estimatedRangeKm)
-            assertEquals(true, isSufficientForRoute)
+            assertNull(isSufficientForRoute)
             assertEquals(ChargeState.CHARGING, chargeState)
         }
     }
@@ -288,7 +288,7 @@ class BatteryEstimatorTest {
         with(estimate!!) {
             assertEquals(0f, avgDischargeRatePctPerKm)
             assertNull(estimatedRangeKm)
-            assertEquals(true, isSufficientForRoute)
+            assertNull(isSufficientForRoute)
             assertEquals(ChargeState.FULL, chargeState)
         }
     }

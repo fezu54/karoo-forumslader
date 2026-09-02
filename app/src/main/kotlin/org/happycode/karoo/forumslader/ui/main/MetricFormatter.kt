@@ -65,7 +65,8 @@ class MetricFormatter(
 
             DataFieldId.ODOMETER,
             DataFieldId.DAY_DISTANCE,
-            DataFieldId.TOUR_DISTANCE -> {
+            DataFieldId.TOUR_DISTANCE,
+            DataFieldId.BATTERY_RANGE -> {
                 val distanceKm = rawValue / 1000.0
                 if (isImperialDistance) {
                     String.format(locale, "%.2f mi", distanceKm * 0.621371)

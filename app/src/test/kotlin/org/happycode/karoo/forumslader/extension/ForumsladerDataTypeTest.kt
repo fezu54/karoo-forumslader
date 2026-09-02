@@ -96,6 +96,23 @@ class ForumsladerDataTypeTest {
     }
 
     @Test
+    fun `should emit standby status when streaming 0`() {
+        // given
+        setupStringMocks()
+        val dataType = ForumsladerDataType("karoo-forumslader", DataFieldId.CHARGE_STATE)
+        val dataPoint = DataPoint(
+            dataTypeId = dataType.dataTypeId,
+            values = mapOf(DataType.Field.SINGLE to 0.0)
+        )
+
+        // when
+        dataType.handleStreamState(OnStreamState(StreamState.Streaming(dataPoint)), emitter, context)
+
+        // then
+        verify { emitter.onNext(ShowCustomStreamState("Standby", null)) }
+    }
+
+    @Test
     fun `should emit charging status when streaming valid charging value`() {
         // given
         setupStringMocks()
@@ -110,6 +127,40 @@ class ForumsladerDataTypeTest {
 
         // then
         verify { emitter.onNext(ShowCustomStreamState("Charging", null)) }
+    }
+
+    @Test
+    fun `should emit discharging status when streaming 2`() {
+        // given
+        setupStringMocks()
+        val dataType = ForumsladerDataType("karoo-forumslader", DataFieldId.CHARGE_STATE)
+        val dataPoint = DataPoint(
+            dataTypeId = dataType.dataTypeId,
+            values = mapOf(DataType.Field.SINGLE to 2.0)
+        )
+
+        // when
+        dataType.handleStreamState(OnStreamState(StreamState.Streaming(dataPoint)), emitter, context)
+
+        // then
+        verify { emitter.onNext(ShowCustomStreamState("Discharging", null)) }
+    }
+
+    @Test
+    fun `should emit full status when streaming 3`() {
+        // given
+        setupStringMocks()
+        val dataType = ForumsladerDataType("karoo-forumslader", DataFieldId.CHARGE_STATE)
+        val dataPoint = DataPoint(
+            dataTypeId = dataType.dataTypeId,
+            values = mapOf(DataType.Field.SINGLE to 3.0)
+        )
+
+        // when
+        dataType.handleStreamState(OnStreamState(StreamState.Streaming(dataPoint)), emitter, context)
+
+        // then
+        verify { emitter.onNext(ShowCustomStreamState("Full", null)) }
     }
 
     @Test

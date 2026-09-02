@@ -67,7 +67,7 @@ class ForumsladerKarooAdapter(
             "fl_day_distance" to { metrics.distance.dayMeters },
             "fl_tour_distance" to { metrics.distance.tourMeters },
             "fl_battery_level" to { metrics.power.batteryLevelPercentage },
-            "fl_battery_range" to { estimate?.estimatedRangeKm }
+            "fl_battery_range" to { estimate?.estimatedRangeKm?.let { it * 1000.0 } }
         )
     }
 
@@ -80,7 +80,7 @@ class ForumsladerKarooAdapter(
     private val parser = ForumsladerParser(config)
     private var currentEmitter: Emitter<DeviceEvent>? = null
     
-    private val protocol = ForumsladerProtocol(bleManager, parser, adapterScope)
+    private val protocol = ForumsladerProtocol(bleManager, adapterScope)
 
     private val sharedPrefs = context.getSharedPreferences(
         org.happycode.karoo.forumslader.PreferencesConstants.PREFS_NAME,
