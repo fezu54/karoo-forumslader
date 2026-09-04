@@ -84,4 +84,18 @@
     <string name="alert_short_circuit_detail">Kurzschluss!</string>
     <string name="alert_system_interrupt_detail">System-Unterbrechung!</string>
     <string name="alert_high_temperature_detail">Hohe Temperatur (%1$d°C)</string>
+
+    <!-- Diagnose & Protokolle -->
+    <string name="diagnostics_title">Diagnose &amp; Protokolle</string>
+    <string name="label_telemetry_csv">Telemetrie–CSV</string>
+    <string name="label_logcat">LogCat</string>
+    <string name="action_save_usb">Auf USB-Speicher speichern</string>
+    <string name="action_share_wifi">Mit Smartphone teilen (WLAN)</string>
+    <string name="action_stop_server">Server stoppen</string>
+    <string name="action_clear_logs">Protokolle löschen</string>
+    <string name="status_usb_exported">In Download/forumslader/ gespeichert</string>
+    <string name="status_usb_export_failed">Exportieren fehlgeschlagen</string>
+    <string name="status_logs_cleared">Protokolle gelöscht</string>
+    <string name="instruction_scan_qr">Mit Kamera scannen zum Herunterladen:</string>
+    <string name="server_running_format">Server läuft unter %1$s</string>
 </resources>

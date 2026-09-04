@@ -84,4 +84,18 @@
     <string name="alert_short_circuit_detail">Short Circuit!</string>
     <string name="alert_system_interrupt_detail">System Interrupt!</string>
     <string name="alert_high_temperature_detail">High Temperature (%1$d°C)</string>
+
+    <!-- Diagnostics & Logs -->
+    <string name="diagnostics_title">Diagnostics &amp; Logs</string>
+    <string name="label_telemetry_csv">Telemetry CSV</string>
+    <string name="label_logcat">LogCat</string>
+    <string name="action_save_usb">Save to USB Storage</string>
+    <string name="action_share_wifi">Share to Phone (Wi-Fi)</string>
+    <string name="action_stop_server">Stop Server</string>
+    <string name="action_clear_logs">Clear Logs</string>
+    <string name="status_usb_exported">Saved to Download/forumslader/</string>
+    <string name="status_usb_export_failed">Failed to export files</string>
+    <string name="status_logs_cleared">Logs cleared</string>
+    <string name="instruction_scan_qr">Scan with phone camera to download logs:</string>
+    <string name="server_running_format">Server running on %1$s</string>
 </resources>

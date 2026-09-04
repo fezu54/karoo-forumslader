@@ -2,6 +2,7 @@ package org.happycode.karoo.forumslader.ui.main
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.Process
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,20 +27,26 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.content.edit
 import io.hammerhead.karooext.KarooSystemService
+import io.hammerhead.karooext.models.DataPoint
 import io.hammerhead.karooext.models.DataType
 import io.hammerhead.karooext.models.OnStreamState
 import io.hammerhead.karooext.models.StreamState
 import io.hammerhead.karooext.models.UserProfile
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_BATTERY_LOW_THRESHOLD
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_HIGH_TEMP_THRESHOLD
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_LOCKED_MAC_ADDRESS
@@ -48,15 +55,23 @@ import org.happycode.karoo.forumslader.PreferencesConstants.KEY_SPEED_MULTIPLIER
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_VERSION
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_WHEEL_SIZE
 import org.happycode.karoo.forumslader.PreferencesConstants.PREFS_NAME
+import org.happycode.karoo.forumslader.R
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
+import org.happycode.karoo.forumslader.adapters.network.CoroutineLogServer
+import org.happycode.karoo.forumslader.adapters.storage.PublicStorageAdapter
 import org.happycode.karoo.forumslader.application.BatteryEstimateStore
+import org.happycode.karoo.forumslader.application.CsvLoggerProvider
 import org.happycode.karoo.forumslader.application.ForumsladerStateStore
+import org.happycode.karoo.forumslader.application.LogServerGateway
+import org.happycode.karoo.forumslader.application.LogcatDumper
+import org.happycode.karoo.forumslader.application.PublicStorageGateway
 import org.happycode.karoo.forumslader.domain.BatteryEstimate
 import org.happycode.karoo.forumslader.domain.CommandBus
 import org.happycode.karoo.forumslader.theme.AppTheme
 import org.happycode.karoo.forumslader.ui.main.components.AlertsConfigCard
 import org.happycode.karoo.forumslader.ui.main.components.BatteryEstimateCard
 import org.happycode.karoo.forumslader.ui.main.components.ConfigCard
+import org.happycode.karoo.forumslader.ui.main.components.LogExportCard
 import org.happycode.karoo.forumslader.ui.main.components.MetricsList
 import org.happycode.karoo.forumslader.ui.main.components.MissingStreamsWarning
 import org.happycode.karoo.forumslader.ui.main.components.StatusCard
@@ -180,6 +195,38 @@ fun MainScreen() {
 
     val configLoaded by ForumsladerStateStore.isConfigLoadedFlow.collectAsState(false)
 
+    val coroutineScope = rememberCoroutineScope()
+    val telemetryDir = remember { context.filesDir.toPath().resolve("telemetry") }
+    val csvLogger = remember { CsvLoggerProvider.getInstance(telemetryDir) }
+    val logcatDumper = remember { LogcatDumper(telemetryDir) }
+    val publicStorageGateway: PublicStorageGateway = remember { PublicStorageAdapter(context) }
+
+    var csvRowCount by remember { mutableIntStateOf(csvLogger.getRowCount()) }
+    var csvFileSize by remember { mutableLongStateOf(csvLogger.getFileSize()) }
+    var logExportStatusResId by remember { mutableStateOf<Int?>(null) }
+    val logExportStatus = logExportStatusResId?.let { stringResource(it) }
+
+    val serverGateway: LogServerGateway = remember {
+        CoroutineLogServer(
+            scope = coroutineScope,
+            getLogcatPath = {
+                logcatDumper.dumpLogcat(Process.myPid())
+            },
+            getCsvPath = {
+                csvLogger.getCsvPath()
+            }
+        )
+    }
+
+    val isServerRunning by serverGateway.isRunning.collectAsState()
+    val serverUrl by serverGateway.serverUrl.collectAsState()
+
+    DisposableEffect(Unit) {
+        onDispose {
+            serverGateway.stop()
+        }
+    }
+
     MainScreenContent(
         connected = connected,
         configLoaded = configLoaded,
@@ -195,6 +242,11 @@ fun MainScreen() {
         lockedMacAddress = lockedMacAddress,
         batteryLowThreshold = batteryLowThreshold,
         highTempThreshold = highTempThreshold,
+        csvRowCount = csvRowCount,
+        csvFileSize = csvFileSize,
+        isServerRunning = isServerRunning,
+        serverUrl = serverUrl,
+        logExportStatus = logExportStatus,
         onSpeedMultiplierChange = {
             prefs.edit { putFloat(KEY_SPEED_MULTIPLIER, it) }
         },
@@ -212,6 +264,42 @@ fun MainScreen() {
         },
         onResetTourDistance = {
             CommandBus.sendCommand($$"$FLT,6*44\n")
+        },
+        onSaveToUsb = {
+            coroutineScope.launch(Dispatchers.IO) {
+                val logcatPath = logcatDumper.dumpLogcat(Process.myPid())
+                val logcatResult = publicStorageGateway.exportToPublicStorage(logcatPath, "forumslader-logcat.txt")
+                val csvResult = csvLogger.getCsvPath()?.let { csvPath ->
+                    publicStorageGateway.exportToPublicStorage(csvPath, "telemetry.csv")
+                }
+                val isSuccess = logcatResult.isSuccess && (csvResult == null || csvResult.isSuccess)
+                logExportStatusResId = if (isSuccess) {
+                    R.string.status_usb_exported
+                } else {
+                    R.string.status_usb_export_failed
+                }
+                csvRowCount = csvLogger.getRowCount()
+                csvFileSize = csvLogger.getFileSize()
+            }
+        },
+        onToggleServer = {
+            if (isServerRunning) {
+                serverGateway.stop()
+            } else {
+                coroutineScope.launch(Dispatchers.IO) {
+                    logcatDumper.dumpLogcat(Process.myPid())
+                    serverGateway.start(port = 8080)
+                    csvRowCount = csvLogger.getRowCount()
+                    csvFileSize = csvLogger.getFileSize()
+                }
+            }
+        },
+        onClearLogs = {
+            csvLogger.clear()
+            logcatDumper.clear()
+            csvRowCount = 0
+            csvFileSize = 0L
+            logExportStatusResId = R.string.status_logs_cleared
         }
     )
 }
@@ -232,12 +320,20 @@ fun MainScreenContent(
     lockedMacAddress: String?,
     batteryLowThreshold: Int,
     highTempThreshold: Float,
+    csvRowCount: Int = 0,
+    csvFileSize: Long = 0L,
+    isServerRunning: Boolean = false,
+    serverUrl: String? = null,
+    logExportStatus: String? = null,
     onSpeedMultiplierChange: (Float) -> Unit,
     onForgetDevice: () -> Unit,
     onBatteryLowThresholdChange: (Int) -> Unit,
     onHighTempThresholdChange: (Float) -> Unit,
     onResetDayDistance: () -> Unit,
-    onResetTourDistance: () -> Unit
+    onResetTourDistance: () -> Unit,
+    onSaveToUsb: () -> Unit = {},
+    onToggleServer: () -> Unit = {},
+    onClearLogs: () -> Unit = {}
 ) {
     Scaffold { padding ->
         val pagerState = rememberPagerState(pageCount = { 2 })
@@ -282,6 +378,16 @@ fun MainScreenContent(
                             onBatteryLowThresholdChange = onBatteryLowThresholdChange,
                             onHighTempThresholdChange = onHighTempThresholdChange
                         )
+                        LogExportCard(
+                            csvRowCount = csvRowCount,
+                            csvFileSize = csvFileSize,
+                            isServerRunning = isServerRunning,
+                            serverUrl = serverUrl,
+                            statusMessage = logExportStatus,
+                            onSaveToUsb = onSaveToUsb,
+                            onToggleServer = onToggleServer,
+                            onClearLogs = onClearLogs
+                        )
                     }
                 }
             }
@@ -315,7 +421,7 @@ fun MainScreenPreview() {
             connected = true,
             configLoaded = true,
             sensorState = StreamState.Streaming(
-                io.hammerhead.karooext.models.DataPoint(
+                DataPoint(
                     "",
                     emptyMap(),
                     ""
@@ -335,12 +441,20 @@ fun MainScreenPreview() {
             lockedMacAddress = "00:11:22:33:44:55",
             batteryLowThreshold = 20,
             highTempThreshold = 50f,
+            csvRowCount = 120,
+            csvFileSize = 4096L,
+            isServerRunning = false,
+            serverUrl = null,
+            logExportStatus = null,
             onSpeedMultiplierChange = {},
             onForgetDevice = {},
             onBatteryLowThresholdChange = {},
             onHighTempThresholdChange = {},
             onResetDayDistance = {},
-            onResetTourDistance = {}
+            onResetTourDistance = {},
+            onSaveToUsb = {},
+            onToggleServer = {},
+            onClearLogs = {}
         )
     }
 }
