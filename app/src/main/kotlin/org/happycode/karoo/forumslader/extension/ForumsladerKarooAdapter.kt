@@ -37,6 +37,8 @@ import io.hammerhead.karooext.models.FitEffect
 import io.hammerhead.karooext.models.OnNavigationState
 import io.hammerhead.karooext.models.OnStreamState
 import io.hammerhead.karooext.models.StreamState
+import org.happycode.karoo.forumslader.application.CsvLogger
+import org.happycode.karoo.forumslader.application.CsvLoggerProvider
 import org.happycode.karoo.forumslader.application.ForumsladerStateStore
 
 class ForumsladerKarooAdapter(
@@ -46,6 +48,7 @@ class ForumsladerKarooAdapter(
     private val adapterScope: CoroutineScope = CoroutineScope(Dispatchers.Main + SupervisorJob()),
     private val bleManager: ForumsladerBleManager = ForumsladerBleManager(address, adapterScope),
     private val karooSystem: KarooSystemService = KarooSystemService(context.applicationContext),
+    private val csvLogger: CsvLogger = CsvLoggerProvider.getInstance(context.filesDir.toPath().resolve("telemetry")),
 ) {
     companion object {
         private const val EXTENSION_ID = "karoo-forumslader"
@@ -192,6 +195,7 @@ class ForumsladerKarooAdapter(
                         emitMetrics(em, metrics)
                         evaluateAlerts(metrics)
                         fitRecorder.onMetricsReceived(metrics)
+                        csvLogger.logTelemetry(metrics)
                     }
                 }
             }

@@ -91,6 +91,9 @@ class MainScreenTest {
                     onResetDayDistance = onResetDayDistance,
                     onResetTourDistance = onResetTourDistance,
                     hasMissingStreams = hasMissingStreams,
+                    onSaveToUsb = {},
+                    onToggleServer = {},
+                    onClearLogs = {}
                 )
             }
         }
@@ -641,5 +644,25 @@ class MainScreenTest {
         // then
         // The slider for battery low threshold is in AlertsConfigCard
         composeTestRule.onNodeWithText("Low Battery Threshold", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun `should display diagnostics card on config page`() {
+        // when
+        showMainScreen()
+
+        composeTestRule.onRoot().performTouchInput { swipeLeft() }
+
+        // then
+        composeTestRule.onNodeWithText("Diagnostics & Logs").performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText("Save to USB Storage").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun `should render MainScreenPreview without errors`() {
+        composeTestRule.setContent {
+            MainScreenPreview()
+        }
+        composeTestRule.onNodeWithText("85%", substring = true).performScrollTo().assertIsDisplayed()
     }
 }

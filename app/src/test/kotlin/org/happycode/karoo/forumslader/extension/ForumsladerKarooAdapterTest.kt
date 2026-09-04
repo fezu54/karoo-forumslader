@@ -66,6 +66,8 @@ class ForumsladerKarooAdapterTest {
         every { mockPrefs.getFloat("high_temp_threshold", any()) } returns 50f
         every { context.getSharedPreferences(any(), any()) } returns mockPrefs
         every { context.applicationContext } returns context
+        val tempFilesDir = java.nio.file.Files.createTempDirectory("test_files").toFile()
+        every { context.filesDir } returns tempFilesDir
 
         emitter = mockk(relaxed = true)
 

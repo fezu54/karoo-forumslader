@@ -13,7 +13,7 @@ android {
 
     defaultConfig {
         applicationId = "org.happycode.karoo.forumslader"
-        minSdk = 23
+        minSdk = 26
         targetSdk = 37
         versionCode = (project.findProperty("versionCode") as? String)?.toInt() ?: 1
         versionName = (project.findProperty("versionName") as? String) ?: "1.0"
@@ -70,6 +70,7 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.bundles.compose.ui)
     implementation(libs.androidx.compose.icons.extended)
+    implementation(libs.qrcode.kotlin)
 
     testImplementation(libs.junit.jupiter.api)
     testImplementation(libs.junit.jupiter.params)
