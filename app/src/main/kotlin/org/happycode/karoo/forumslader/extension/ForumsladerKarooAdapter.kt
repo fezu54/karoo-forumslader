@@ -52,6 +52,7 @@ class ForumsladerKarooAdapter(
 ) {
     companion object {
         private const val EXTENSION_ID = "karoo-forumslader"
+        private const val TAG = "FL_ADAPTER"
 
         private val METRICS_REGISTRY = listOf<Pair<String, MetricContext.() -> Number?>>(
             "fl_battery_voltage" to { metrics.power.batteryVoltage },
@@ -115,6 +116,7 @@ class ForumsladerKarooAdapter(
 
     @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN])
     fun connect(emitter: Emitter<DeviceEvent>) {
+        Log.i(TAG, "connect() called for $address")
         currentEmitter = emitter
         karooSystem.connect {}
 
@@ -141,6 +143,7 @@ class ForumsladerKarooAdapter(
         }
 
         emitter.setCancellable {
+            Log.i(TAG, "Cancelling connection / tearing down adapter for $address")
             currentEmitter = null
             flowCollectionJob?.cancel()
             consumers.forEach { karooSystem.removeConsumer(it) }
@@ -160,6 +163,7 @@ class ForumsladerKarooAdapter(
             }
             launch {
                 bleManager.connectionState.collect { status ->
+                    Log.i(TAG, "Connection status changed for $address: $status")
                     currentEmitter?.onNext(OnConnectionStatus(status = status))
                     if (status == ConnectionStatus.DISCONNECTED) {
                         protocol.stopParameterRequestLoop()
@@ -170,12 +174,14 @@ class ForumsladerKarooAdapter(
             }
             launch {
                 bleManager.versionDetected.collect { version ->
+                    Log.i(TAG, "Version detected for $address: ${version.key}")
                     parser.version = version
                     config.version = version
                 }
             }
             launch {
                 bleManager.notificationsEnabled.collect {
+                    Log.i(TAG, "Notifications enabled for $address, starting parameter request loop")
                     protocol.startParameterRequestLoop()
                 }
             }
