@@ -24,6 +24,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.CHARACTERISTIC_UART_TX_V6
 import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.SERVICE_UUID_V6
+import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.SERVICE_UUID_V6_ALT
 import org.happycode.karoo.forumslader.model.ForumsladerVersion
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -45,8 +46,13 @@ class ForumsladerBleManagerTest {
     @BeforeEach
     fun setUp() {
         mockkStatic(Log::class)
-        every { Log.e(any(), any(), any()) } returns 0
-        every { Log.e(any(), any()) } returns 0
+        every { Log.v(any<String>(), any<String>()) } returns 0
+        every { Log.d(any<String>(), any<String>()) } returns 0
+        every { Log.i(any<String>(), any<String>()) } returns 0
+        every { Log.w(any<String>(), any<String>()) } returns 0
+        every { Log.w(any<String>(), any<String>(), any<Throwable>()) } returns 0
+        every { Log.e(any<String>(), any<String>()) } returns 0
+        every { Log.e(any<String>(), any<String>(), any<Throwable>()) } returns 0
 
         scanner = mockk {
             every { advertisements } returns advertisementsFlow
@@ -67,84 +73,119 @@ class ForumsladerBleManagerTest {
     @Test
     fun `should start in disconnected state`() = runTest {
         // given
-        val manager = ForumsladerBleManager(address, this, scanner, { peripheral })
+        val manager = ForumsladerBleManager(address, scope = this, scanner, peripheralFactory = { peripheral })
 
         // then
         assertEquals(ConnectionStatus.DISCONNECTED, manager.connectionState.value)
     }
 
     @Test
-    fun `should transition to searching when started and waiting for scan`() = runTest(UnconfinedTestDispatcher()) {
+    fun `should transition to searching state when manager is started`() = runTest(UnconfinedTestDispatcher()) {
         // given
-        val manager = ForumsladerBleManager(address, this, scanner, { peripheral })
+        val manager = ForumsladerBleManager(address, scope = this, scanner, peripheralFactory = { peripheral })
 
-        // when
-        manager.start()
+        try {
+            // when
+            manager.start()
 
-        // then
-        assertEquals(ConnectionStatus.SEARCHING, manager.connectionState.value)
-
-        manager.stop()
+            // then
+            assertEquals(ConnectionStatus.SEARCHING, manager.connectionState.value)
+        } finally {
+            manager.stop()
+        }
     }
 
     @Test
-    fun `should connect and detect V6 version`() = runTest(UnconfinedTestDispatcher()) {
+    fun `should connect and detect V6 version when primary service UUID is discovered`() = runTest(UnconfinedTestDispatcher()) {
         // given
-        val manager = ForumsladerBleManager(address, this, scanner, { peripheral })
+        val manager = ForumsladerBleManager(address, scope = this, scanner, peripheralFactory = { peripheral })
         manager.start()
-        
-        advertisementsFlow.emit(mockk())
-        peripheralStateFlow.value = mockk<State.Connected>()
 
-        val serviceV6 = mockk<DiscoveredService> {
-            every { serviceUuid.toString() } returns SERVICE_UUID_V6.toString()
-            every { characteristics } returns emptyList()
+        try {
+            advertisementsFlow.emit(mockk())
+            peripheralStateFlow.value = mockk<State.Connected>()
+
+            val serviceV6 = mockk<DiscoveredService> {
+                every { serviceUuid.toString() } returns SERVICE_UUID_V6.toString()
+                every { characteristics } returns emptyList()
+            }
+
+            val versionDeferred = async { manager.versionDetected.first() }
+
+            // when
+            servicesFlow.value = listOf(serviceV6)
+
+            // then
+            assertEquals(ForumsladerVersion.V6, versionDeferred.await())
+            assertEquals(ConnectionStatus.CONNECTED, manager.connectionState.value)
+        } finally {
+            manager.stop()
         }
-        
-        val versionDeferred = async { manager.versionDetected.first() }
-
-        // when
-        servicesFlow.value = listOf(serviceV6)
-
-        // then
-        assertEquals(ForumsladerVersion.V6, versionDeferred.await())
-        assertEquals(ConnectionStatus.CONNECTED, manager.connectionState.value)
-        
-        manager.stop()
     }
 
     @Test
-    fun `should write command through peripheral`() = runTest(UnconfinedTestDispatcher()) {
+    fun `should connect and detect V6 version when alternative service UUID is discovered`() = runTest(UnconfinedTestDispatcher()) {
         // given
-        val manager = ForumsladerBleManager(address, this, scanner, { peripheral })
+        val manager = ForumsladerBleManager(address, scope = this, scanner, peripheralFactory = { peripheral })
         manager.start()
-        advertisementsFlow.emit(mockk())
-        peripheralStateFlow.value = mockk<State.Connected>()
-        
-        val characteristicV6 = mockk<DiscoveredCharacteristic> {
-            every { characteristicUuid.toString() } returns CHARACTERISTIC_UART_TX_V6.toString()
+
+        try {
+            advertisementsFlow.emit(mockk())
+            peripheralStateFlow.value = mockk<State.Connected>()
+
+            val serviceV6Alt = mockk<DiscoveredService> {
+                every { serviceUuid.toString() } returns SERVICE_UUID_V6_ALT.toString()
+                every { characteristics } returns emptyList()
+            }
+
+            val versionDeferred = async { manager.versionDetected.first() }
+
+            // when
+            servicesFlow.value = listOf(serviceV6Alt)
+
+            // then
+            assertEquals(ForumsladerVersion.V6, versionDeferred.await())
+            assertEquals(ConnectionStatus.CONNECTED, manager.connectionState.value)
+        } finally {
+            manager.stop()
         }
-        val serviceV6 = mockk<DiscoveredService> {
-            every { serviceUuid.toString() } returns SERVICE_UUID_V6.toString()
-            every { characteristics } returns listOf(characteristicV6)
-        }
-        servicesFlow.value = listOf(serviceV6)
-
-        val command = byteArrayOf(1, 2, 3)
-
-        // when
-        manager.writeCommand(command)
-
-        // then
-        coVerify { peripheral.write(any(), command, WriteType.WithoutResponse) }
-        
-        manager.stop()
     }
 
     @Test
-    fun `should cleanup on stop`() = runTest(UnconfinedTestDispatcher()) {
+    fun `should write command through peripheral when command is issued`() = runTest(UnconfinedTestDispatcher()) {
         // given
-        val manager = ForumsladerBleManager(address, this, scanner, { peripheral })
+        val manager = ForumsladerBleManager(address, scope = this, scanner, peripheralFactory = { peripheral })
+        manager.start()
+
+        try {
+            advertisementsFlow.emit(mockk())
+            peripheralStateFlow.value = mockk<State.Connected>()
+
+            val characteristicV6 = mockk<DiscoveredCharacteristic> {
+                every { characteristicUuid.toString() } returns CHARACTERISTIC_UART_TX_V6.toString()
+            }
+            val serviceV6 = mockk<DiscoveredService> {
+                every { serviceUuid.toString() } returns SERVICE_UUID_V6.toString()
+                every { characteristics } returns listOf(characteristicV6)
+            }
+            servicesFlow.value = listOf(serviceV6)
+
+            val command = byteArrayOf(1, 2, 3)
+
+            // when
+            manager.writeCommand(command)
+
+            // then
+            coVerify { peripheral.write(any(), command, WriteType.WithoutResponse) }
+        } finally {
+            manager.stop()
+        }
+    }
+
+    @Test
+    fun `should cleanup session when stopped`() = runTest(UnconfinedTestDispatcher()) {
+        // given
+        val manager = ForumsladerBleManager(address, scope = this, scanner, peripheralFactory = { peripheral })
         manager.start()
         advertisementsFlow.emit(mockk())
         peripheralStateFlow.value = mockk<State.Connected>()
