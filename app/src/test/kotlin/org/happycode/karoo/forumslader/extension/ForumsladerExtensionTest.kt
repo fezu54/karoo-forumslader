@@ -15,6 +15,7 @@ import android.os.ParcelUuid
 import android.util.Log
 import io.hammerhead.karooext.internal.Emitter
 import io.hammerhead.karooext.models.Device
+import io.hammerhead.karooext.models.DeviceEvent
 import io.hammerhead.karooext.models.FitEffect
 import io.mockk.every
 import io.mockk.mockk
@@ -126,20 +127,55 @@ class ForumsladerExtensionTest {
     }
 
     @Test
-    fun `should manage fit emitter lifecycle when start fit is called`() {
+    fun `should manage fit emitter lifecycle and propagate to devices when start fit is called`() {
         // given
-        val emitter = mockk<Emitter<FitEffect>>(relaxed = true)
+        val mockAdapter = mockk<ForumsladerKarooAdapter>(relaxed = true)
+        val customExtension = ForumsladerExtension(
+            adapterFactory = { _, _, _ -> mockAdapter },
+            defaultScope = CoroutineScope(UnconfinedTestDispatcher()),
+            scanSettingsFactory = { mockk(relaxed = true) },
+            bluetoothStateFlowFactory = { flowOf(true) }
+        )
+        val deviceEmitter = mockk<Emitter<DeviceEvent>>(relaxed = true)
+        customExtension.connectDevice("fl-00:11:22:33:44:55", deviceEmitter)
+
+        val fitEmitter = mockk<Emitter<FitEffect>>(relaxed = true)
         val cancelSlot = slot<() -> Unit>()
-        every { emitter.setCancellable(capture(cancelSlot)) } returns Unit
+        every { fitEmitter.setCancellable(capture(cancelSlot)) } returns Unit
 
         // when
-        extension.startFit(emitter)
+        customExtension.startFit(fitEmitter)
 
         // then
-        verify { emitter.setCancellable(any()) }
+        verify { mockAdapter.setFitEmitter(fitEmitter) }
+        verify { fitEmitter.setCancellable(any()) }
 
-        // Simulating cancellation to verify the execution path
+        // when cancelled
         cancelSlot.captured.invoke()
+
+        // then
+        verify { mockAdapter.setFitEmitter(null) }
+    }
+
+    @Test
+    fun `should propagate active fit emitter when device connects after start fit`() {
+        // given
+        val mockAdapter = mockk<ForumsladerKarooAdapter>(relaxed = true)
+        val customExtension = ForumsladerExtension(
+            adapterFactory = { _, _, _ -> mockAdapter },
+            defaultScope = CoroutineScope(UnconfinedTestDispatcher()),
+            scanSettingsFactory = { mockk(relaxed = true) },
+            bluetoothStateFlowFactory = { flowOf(true) }
+        )
+        val fitEmitter = mockk<Emitter<FitEffect>>(relaxed = true)
+        customExtension.startFit(fitEmitter)
+
+        // when
+        val deviceEmitter = mockk<Emitter<DeviceEvent>>(relaxed = true)
+        customExtension.connectDevice("fl-00:11:22:33:44:55", deviceEmitter)
+
+        // then
+        verify { mockAdapter.setFitEmitter(fitEmitter) }
     }
 
     @Test
