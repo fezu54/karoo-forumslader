@@ -10,6 +10,7 @@ import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.location.LocationManager
 import android.os.ParcelUuid
 import android.util.Log
 import io.hammerhead.karooext.internal.Emitter
@@ -23,7 +24,10 @@ import io.mockk.spyk
 import io.mockk.unmockkAll
 import io.mockk.verify
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
 import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.MANUFACTURER_ID_FORUMSLADER
@@ -75,7 +79,8 @@ class ForumsladerExtensionTest {
                 }
             },
             defaultScope = CoroutineScope(UnconfinedTestDispatcher()),
-            scanSettingsFactory = { mockk(relaxed = true) }
+            scanSettingsFactory = { mockk(relaxed = true) },
+            bluetoothStateFlowFactory = { flowOf(true) }
         )
 
         val applicationContext = mockk<Context>(relaxed = true)
@@ -95,8 +100,8 @@ class ForumsladerExtensionTest {
         val scanCallbackSlot = slot<ScanCallback>()
 
         every { spyExtension.checkSelfPermission(any()) } returns PackageManager.PERMISSION_GRANTED
-        every { spyExtension.getSystemService(Context.BLUETOOTH_SERVICE) } returns bluetoothManager
-        every { spyExtension.getSystemService(Context.LOCATION_SERVICE) } returns null
+        every { spyExtension.getSystemService(BluetoothManager::class.java) } returns bluetoothManager
+        every { spyExtension.getSystemService(LocationManager::class.java) } returns null
         every { bluetoothManager.adapter } returns bluetoothAdapter
         every { bluetoothAdapter.isEnabled } returns true
         every { bluetoothAdapter.bluetoothLeScanner } returns scanner
@@ -228,5 +233,100 @@ class ForumsladerExtensionTest {
 
         // then
         verify(exactly = 0) { emitter.onNext(match { it.uid == "fl-99:99:99:99:99:99" }) }
+    }
+
+    @Test
+    fun `should wait and start scan when bluetooth transitions from disabled to enabled`() {
+        // given
+        val bluetoothStateFlow = MutableStateFlow(false)
+        val extensionWithFlow = ForumsladerExtension(
+            adapterFactory = { _, addr, name ->
+                mockk(relaxed = true) {
+                    every { device } returns Device(
+                        extension = "karoo-forumslader",
+                        uid = "fl-$addr",
+                        dataTypes = emptyList(),
+                        displayName = name ?: "Forumslader"
+                    )
+                }
+            },
+            defaultScope = CoroutineScope(Dispatchers.Unconfined),
+            scanSettingsFactory = { mockk(relaxed = true) },
+            bluetoothStateFlowFactory = { bluetoothStateFlow }
+        )
+        val spyExtension = spyk(extensionWithFlow)
+        setupMockExtension(spyExtension)
+        val bluetoothManager = mockk<BluetoothManager>()
+        val bluetoothAdapter = mockk<BluetoothAdapter>()
+        val scanner = mockk<BluetoothLeScanner>(relaxed = true)
+        val emitter = mockk<Emitter<Device>>(relaxed = true)
+
+        every { spyExtension.checkSelfPermission(any()) } returns PackageManager.PERMISSION_GRANTED
+        every { spyExtension.getSystemService(BluetoothManager::class.java) } returns bluetoothManager
+        every { spyExtension.getSystemService(LocationManager::class.java) } returns null
+        every { bluetoothManager.adapter } returns bluetoothAdapter
+        every { bluetoothAdapter.isEnabled } returns true
+        every { bluetoothAdapter.bluetoothLeScanner } returns scanner
+        every { scanner.startScan(any<List<ScanFilter>>(), any<ScanSettings>(), any<ScanCallback>()) } returns Unit
+
+        // when
+        spyExtension.startScan(emitter)
+
+        // then
+        verify(exactly = 0) { scanner.startScan(any<List<ScanFilter>>(), any<ScanSettings>(), any<ScanCallback>()) }
+
+        // when (Bluetooth turns ON)
+        bluetoothStateFlow.value = true
+
+        // then
+        verify(exactly = 1) { scanner.startScan(any<List<ScanFilter>>(), any<ScanSettings>(), any<ScanCallback>()) }
+    }
+
+    @Test
+    fun `should pause scan when bluetooth transitions to disabled`() {
+        // given
+        val bluetoothStateFlow = MutableStateFlow(true)
+        val extensionWithFlow = ForumsladerExtension(
+            adapterFactory = { _, addr, name ->
+                mockk(relaxed = true) {
+                    every { device } returns Device(
+                        extension = "karoo-forumslader",
+                        uid = "fl-$addr",
+                        dataTypes = emptyList(),
+                        displayName = name ?: "Forumslader"
+                    )
+                }
+            },
+            defaultScope = CoroutineScope(Dispatchers.Unconfined),
+            scanSettingsFactory = { mockk(relaxed = true) },
+            bluetoothStateFlowFactory = { bluetoothStateFlow }
+        )
+        val spyExtension = spyk(extensionWithFlow)
+        setupMockExtension(spyExtension)
+        val bluetoothManager = mockk<BluetoothManager>()
+        val bluetoothAdapter = mockk<BluetoothAdapter>()
+        val scanner = mockk<BluetoothLeScanner>(relaxed = true)
+        val emitter = mockk<Emitter<Device>>(relaxed = true)
+
+        every { spyExtension.checkSelfPermission(any()) } returns PackageManager.PERMISSION_GRANTED
+        every { spyExtension.getSystemService(BluetoothManager::class.java) } returns bluetoothManager
+        every { spyExtension.getSystemService(LocationManager::class.java) } returns null
+        every { bluetoothManager.adapter } returns bluetoothAdapter
+        every { bluetoothAdapter.isEnabled } returns true
+        every { bluetoothAdapter.bluetoothLeScanner } returns scanner
+        every { scanner.startScan(any<List<ScanFilter>>(), any<ScanSettings>(), any<ScanCallback>()) } returns Unit
+        every { scanner.stopScan(any<ScanCallback>()) } returns Unit
+
+        // when
+        spyExtension.startScan(emitter)
+
+        // then
+        verify(exactly = 1) { scanner.startScan(any<List<ScanFilter>>(), any<ScanSettings>(), any<ScanCallback>()) }
+
+        // when (Bluetooth turns OFF)
+        bluetoothStateFlow.value = false
+
+        // then
+        verify(exactly = 1) { scanner.stopScan(any<ScanCallback>()) }
     }
 }
