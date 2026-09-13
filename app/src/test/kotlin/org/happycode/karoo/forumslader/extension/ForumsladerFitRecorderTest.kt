@@ -1,9 +1,7 @@
 package org.happycode.karoo.forumslader.extension
 
-import io.hammerhead.karooext.KarooSystemService
 import io.hammerhead.karooext.internal.Emitter
 import io.hammerhead.karooext.models.FitEffect
-import io.hammerhead.karooext.models.RideState
 import io.hammerhead.karooext.models.WriteToRecordMesg
 import io.mockk.every
 import io.mockk.mockk
@@ -25,17 +23,18 @@ import org.junit.jupiter.api.Test
 
 class ForumsladerFitRecorderTest {
 
-    private lateinit var karooSystem: KarooSystemService
     private lateinit var recorder: ForumsladerFitRecorder
     private lateinit var emitter: Emitter<FitEffect>
+    private var currentTimeMs: Long = 1000L
 
     @BeforeEach
     fun setUp() {
-        karooSystem = mockk(relaxed = true)
         emitter = mockk(relaxed = true)
-
-        recorder = ForumsladerFitRecorder(karooSystem)
-        recorder.fitEmitter = emitter
+        currentTimeMs = 1000L
+        recorder = ForumsladerFitRecorder(
+            fitEmitter = emitter,
+            timeProvider = { currentTimeMs }
+        )
     }
 
     @AfterEach
@@ -44,24 +43,9 @@ class ForumsladerFitRecorderTest {
     }
 
     @Test
-    fun `should not emit metrics when ride state is not recording`() {
+    fun `should emit metrics when fitEmitter is present`() {
         // given
         val metrics = createDummyMetrics()
-        
-        // when
-        recorder.onMetricsReceived(metrics)
-
-        // then
-        verify(exactly = 0) { emitter.onNext(any()) }
-    }
-
-    @Test
-    fun `should emit metrics when ride state is recording`() {
-        // given
-        recorder.rideState = RideState.Recording
-
-        val metrics = createDummyMetrics()
-
         val effectSlot = slot<FitEffect>()
         every { emitter.onNext(capture(effectSlot)) } returns Unit
 
@@ -72,10 +56,10 @@ class ForumsladerFitRecorderTest {
         assertTrue(effectSlot.captured is WriteToRecordMesg)
         val message = effectSlot.captured as WriteToRecordMesg
         assertEquals(6, message.values.size)
-        
+
         val voltageValue = message.values.find { it.developerField?.fieldName == "Battery Voltage" }
         assertEquals(12.5, voltageValue?.value)
-        
+
         val speedValue = message.values.find { it.developerField?.fieldName == "Speed" }
         assertEquals(10.0 * 3.6, speedValue?.value) // 36.0 km/h
     }
@@ -83,26 +67,85 @@ class ForumsladerFitRecorderTest {
     @Test
     fun `should not emit metrics when fitEmitter is null`() {
         // given
-        recorder.rideState = RideState.Recording
         recorder.fitEmitter = null
+        val metrics = createDummyMetrics()
 
         // when
-        recorder.onMetricsReceived(createDummyMetrics())
+        recorder.onMetricsReceived(metrics)
 
         // then
         verify(exactly = 0) { emitter.onNext(any()) }
     }
 
     @Test
-    fun `should not emit metrics when ride state is paused`() {
+    fun `should rate limit emissions to 1Hz`() {
         // given
-        recorder.rideState = RideState.Paused(auto = false)
+        val metrics = createDummyMetrics()
+        val effectSlot = slot<FitEffect>()
+        every { emitter.onNext(capture(effectSlot)) } returns Unit
+
+        // when - first emission at t=1000ms
+        recorder.onMetricsReceived(metrics)
+
+        // then - first emission succeeds
+        verify(exactly = 1) { emitter.onNext(any()) }
+
+        // when - second emission at t=1500ms (within 1000ms throttle interval)
+        currentTimeMs = 1500L
+        recorder.onMetricsReceived(metrics)
+
+        // then - second emission is throttled
+        verify(exactly = 1) { emitter.onNext(any()) }
+
+        // when - third emission at t=2000ms (1000ms passed)
+        currentTimeMs = 2000L
+        recorder.onMetricsReceived(metrics)
+
+        // then - third emission succeeds
+        verify(exactly = 2) { emitter.onNext(any()) }
+    }
+
+    @Test
+    fun `should emit developer fields with correct values and units`() {
+        // given
+        val metrics = createDummyMetrics()
+        val effectSlot = slot<FitEffect>()
+        every { emitter.onNext(capture(effectSlot)) } returns Unit
 
         // when
-        recorder.onMetricsReceived(createDummyMetrics())
+        recorder.onMetricsReceived(metrics)
 
         // then
-        verify(exactly = 0) { emitter.onNext(any()) }
+        val message = effectSlot.captured as WriteToRecordMesg
+        val voltage = message.values.first { it.developerField?.fieldDefinitionNumber == 0.toShort() }
+        assertEquals("Battery Voltage", voltage.developerField?.fieldName)
+        assertEquals("V", voltage.developerField?.units)
+        assertEquals(12.5, voltage.value)
+
+        val current = message.values.first { it.developerField?.fieldDefinitionNumber == 1.toShort() }
+        assertEquals("Battery Current", current.developerField?.fieldName)
+        assertEquals("A", current.developerField?.units)
+        assertEquals(1.0, current.value)
+
+        val power = message.values.first { it.developerField?.fieldDefinitionNumber == 2.toShort() }
+        assertEquals("Dynamo Power", power.developerField?.fieldName)
+        assertEquals("W", power.developerField?.units)
+        assertEquals(5.0, power.value)
+
+        val temp = message.values.first { it.developerField?.fieldDefinitionNumber == 3.toShort() }
+        assertEquals("Temperature", temp.developerField?.fieldName)
+        assertEquals("C", temp.developerField?.units)
+        assertEquals(20.0, temp.value)
+
+        val speed = message.values.first { it.developerField?.fieldDefinitionNumber == 4.toShort() }
+        assertEquals("Speed", speed.developerField?.fieldName)
+        assertEquals("km/h", speed.developerField?.units)
+        assertEquals(36.0, speed.value)
+
+        val energy = message.values.first { it.developerField?.fieldDefinitionNumber == 5.toShort() }
+        assertEquals("Trip Energy", energy.developerField?.fieldName)
+        assertEquals("Wh", energy.developerField?.units)
+        assertEquals(10.0, energy.value)
     }
 
     private fun createDummyMetrics() = ForumsladerMetrics(

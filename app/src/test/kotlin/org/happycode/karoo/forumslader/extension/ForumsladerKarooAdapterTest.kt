@@ -8,9 +8,11 @@ import io.hammerhead.karooext.internal.Emitter
 import io.hammerhead.karooext.models.ConnectionStatus
 import io.hammerhead.karooext.models.DataType
 import io.hammerhead.karooext.models.DeviceEvent
+import io.hammerhead.karooext.models.FitEffect
 import io.hammerhead.karooext.models.InRideAlert
 import io.hammerhead.karooext.models.OnConnectionStatus
 import io.hammerhead.karooext.models.OnDataPoint
+import io.hammerhead.karooext.models.WriteToRecordMesg
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
@@ -406,4 +408,50 @@ class ForumsladerKarooAdapterTest {
         yield()
         assertEquals(false, ForumsladerStateStore.isConfigLoadedFlow.value)
     }
+
+    @Test
+    fun `should set and update fitEmitter on adapter`() {
+        // given
+        val forumslader = ForumsladerKarooAdapter(
+            context,
+            "00:11:22:33:44:55",
+            null,
+            testScope,
+            bleManager,
+            karooSystem
+        )
+        val fitEmitter = mockk<Emitter<FitEffect>>(relaxed = true)
+
+        // when
+        forumslader.setFitEmitter(fitEmitter)
+
+        // then
+        forumslader.setFitEmitter(null)
+    }
+
+    @Test
+    fun `should emit fit message when incoming data arrives and fitEmitter is active`() =
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            val fitEmitter = mockk<Emitter<FitEffect>>(relaxed = true)
+            val forumslader = ForumsladerKarooAdapter(
+                context,
+                "00:11:22:33:44:55",
+                null,
+                backgroundScope,
+                bleManager,
+                karooSystem
+            )
+            forumslader.setFitEmitter(fitEmitter)
+            forumslader.connect(emitter)
+
+            // when - simulate incoming telemetry data
+            val flb = $$"$FLB,255,0,1005\n"
+            val fl5 = $$"$FL5,200,3,100,500,500,500,2500,3500,0,0,0,0,1000\n"
+            val flm = $$"$FLM,12500,1000,500,2500,1,1000,50,200,2,1000,5000,2000,10000,100,500\n"
+            incomingDataFlow.emit((flb + fl5 + flm).toByteArray(Charsets.US_ASCII))
+
+            // then
+            verify(atLeast = 1) { fitEmitter.onNext(any<WriteToRecordMesg>()) }
+        }
 }

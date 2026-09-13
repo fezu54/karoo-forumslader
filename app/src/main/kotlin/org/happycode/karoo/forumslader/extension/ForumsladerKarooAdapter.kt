@@ -99,7 +99,7 @@ class ForumsladerKarooAdapter(
         )
     )
 
-    private val fitRecorder = ForumsladerFitRecorder(karooSystem)
+    private val fitRecorder = ForumsladerFitRecorder()
     private val batteryEstimator = BatteryEstimator()
     
     private var flowCollectionJob: Job? = null
@@ -254,7 +254,10 @@ class ForumsladerKarooAdapter(
             .forEach(emitter::onNext)
     }
 
-    fun setFitEmitter(emitter: Emitter<FitEffect>?) = run { fitRecorder.fitEmitter = emitter }
+    fun setFitEmitter(emitter: Emitter<FitEffect>?) {
+        Log.i(TAG, "setFitEmitter() for $address: hasEmitter=${emitter != null}")
+        fitRecorder.fitEmitter = emitter
+    }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     fun sendCommand(command: String) {

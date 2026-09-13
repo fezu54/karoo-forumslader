@@ -1,19 +1,21 @@
 package org.happycode.karoo.forumslader.extension
 
-import io.hammerhead.karooext.KarooSystemService
+import android.util.Log
+import io.hammerhead.karooext.internal.Emitter
 import io.hammerhead.karooext.models.DeveloperField
 import io.hammerhead.karooext.models.FieldValue
-import io.hammerhead.karooext.models.RideState
-import io.hammerhead.karooext.models.WriteToRecordMesg
-import io.hammerhead.karooext.internal.Emitter
 import io.hammerhead.karooext.models.FitEffect
+import io.hammerhead.karooext.models.WriteToRecordMesg
 import org.happycode.karoo.forumslader.domain.ForumsladerMetrics
 
 class ForumsladerFitRecorder(
-    karooSystem: KarooSystemService
+    @Volatile var fitEmitter: Emitter<FitEffect>? = null,
+    private val timeProvider: () -> Long = System::currentTimeMillis,
 ) {
     companion object {
+        private const val TAG = "FL_FIT"
         private const val FIT_BASE_TYPE_FLOAT32: Short = 136
+        private const val THROTTLE_INTERVAL_MS = 1000L
 
         val FIELD_VOLTAGE = DeveloperField(0, FIT_BASE_TYPE_FLOAT32, "Battery Voltage", "V")
         val FIELD_CURRENT = DeveloperField(1, FIT_BASE_TYPE_FLOAT32, "Battery Current", "A")
@@ -23,20 +25,14 @@ class ForumsladerFitRecorder(
         val FIELD_ENERGY = DeveloperField(5, FIT_BASE_TYPE_FLOAT32, "Trip Energy", "Wh")
     }
 
-    var rideState: RideState = RideState.Idle
-        internal set
-
-    var fitEmitter: Emitter<FitEffect>? = null
-
-    init {
-        karooSystem.addConsumer(RideState.Params) { event: RideState ->
-            rideState = event
-        }
-    }
+    private var lastEmitTimestampMs: Long = 0L
 
     fun onMetricsReceived(metrics: ForumsladerMetrics) {
-        if (rideState !is RideState.Recording) return
         val emitter = fitEmitter ?: return
+
+        val now = timeProvider()
+        if (now - lastEmitTimestampMs < THROTTLE_INTERVAL_MS) return
+        lastEmitTimestampMs = now
 
         val values = listOf(
             FieldValue(FIELD_VOLTAGE, metrics.power.batteryVoltage.toDouble()),
@@ -47,6 +43,8 @@ class ForumsladerFitRecorder(
             FieldValue(FIELD_ENERGY, metrics.energy.tripWattHours)
         )
 
+        Log.d(TAG, "Emitting FIT record with ${values.size} fields")
         emitter.onNext(WriteToRecordMesg(values))
     }
 }
+

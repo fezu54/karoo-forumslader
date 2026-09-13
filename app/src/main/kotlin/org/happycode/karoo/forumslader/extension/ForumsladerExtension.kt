@@ -28,6 +28,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentMap
 import org.happycode.karoo.forumslader.BuildConfig
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
 import org.happycode.karoo.forumslader.domain.CommandBus
@@ -50,7 +52,7 @@ class ForumsladerExtension(
     private val bluetoothStateFlowFactory: (Context) -> Flow<Boolean> = { it.bluetoothStateFlow() }
 ) : KarooExtension(extension = "karoo-forumslader", version = BuildConfig.VERSION_NAME) {
     private var fitEmitter: Emitter<FitEffect>? = null
-    private val devices = mutableMapOf<String, ForumsladerKarooAdapter>()
+    private val devices: ConcurrentMap<String, ForumsladerKarooAdapter> = ConcurrentHashMap()
     private val serviceJob = SupervisorJob()
     private val serviceScope = CoroutineScope(Dispatchers.Main + serviceJob)
 
@@ -131,11 +133,7 @@ class ForumsladerExtension(
         val lockedMac = config.lockedMacAddress?.takeIf { it.isNotBlank() }
         if (lockedMac != null) {
             Log.i(TAG, "startScan(): Found locked MAC address: $lockedMac, bypassing BLE scan")
-            val forumslader = devices.getOrPut(key = lockedMac) {
-                adapterFactory(this@ForumsladerExtension, lockedMac, "Forumslader").apply {
-                    setFitEmitter(fitEmitter)
-                }
-            }
+            val forumslader = getOrCreateAdapter(lockedMac, "Forumslader")
             emitter.onNext(forumslader.device)
             emitter.setCancellable { job.cancel() }
             return
@@ -179,11 +177,7 @@ class ForumsladerExtension(
                 if (hasForumsladerName || hasForumsladerService || hasForumsladerMfg) {
                     Log.i(TAG, "Matched Forumslader: address=$deviceAddress, name=$name, byName=$hasForumsladerName, byService=$hasForumsladerService, byMfg=$hasForumsladerMfg")
                     val displayName = name ?: "Forumslader"
-                    val forumslader = devices.getOrPut(key = deviceAddress) {
-                        adapterFactory(this@ForumsladerExtension, deviceAddress, displayName).apply {
-                            setFitEmitter(fitEmitter)
-                        }
-                    }
+                    val forumslader = getOrCreateAdapter(deviceAddress, displayName)
                     emitter.onNext(forumslader.device)
                 }
             }
@@ -261,17 +255,24 @@ class ForumsladerExtension(
 
         val address = uid.removePrefix(prefix = "fl-")
         Log.i(TAG, "connectDevice(): connecting adapter for address=$address")
-        devices.getOrPut(key = address) {
-            adapterFactory(this, address, null).apply {
-                setFitEmitter(fitEmitter)
-            }
-        }.connect(emitter = emitter)
+        getOrCreateAdapter(address).connect(emitter = emitter)
+    }
+
+    private fun getOrCreateAdapter(address: String, displayName: String? = null): ForumsladerKarooAdapter {
+        val normalizedAddress = address.uppercase()
+        return devices.getOrPut(key = normalizedAddress) {
+            adapterFactory(this, normalizedAddress, displayName)
+        }.apply {
+            setFitEmitter(fitEmitter)
+        }
     }
 
     override fun startFit(emitter: Emitter<FitEffect>) {
+        Log.i(TAG, "startFit(): registering fitEmitter to ${devices.size} device(s)")
         fitEmitter = emitter
         devices.values.forEach { it.setFitEmitter(emitter) }
         emitter.setCancellable {
+            Log.i(TAG, "startFit(): fitEmitter cancelled")
             if (fitEmitter == emitter) {
                 fitEmitter = null
                 devices.values.forEach { it.setFitEmitter(null) }
