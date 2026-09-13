@@ -2,6 +2,7 @@ package org.happycode.karoo.forumslader.extension
 
 import android.Manifest
 import android.bluetooth.BluetoothManager
+import android.bluetooth.le.BluetoothLeScanner
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
@@ -12,6 +13,7 @@ import android.location.LocationManager
 import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresPermission
+import androidx.core.content.getSystemService
 import io.hammerhead.karooext.extension.DataTypeImpl
 import io.hammerhead.karooext.extension.KarooExtension
 import io.hammerhead.karooext.internal.Emitter
@@ -23,6 +25,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import org.happycode.karoo.forumslader.BuildConfig
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
@@ -42,7 +46,8 @@ class ForumsladerExtension(
         ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .build()
-    }
+    },
+    private val bluetoothStateFlowFactory: (Context) -> Flow<Boolean> = { it.bluetoothStateFlow() }
 ) : KarooExtension(extension = "karoo-forumslader", version = BuildConfig.VERSION_NAME) {
     private var fitEmitter: Emitter<FitEffect>? = null
     private val devices = mutableMapOf<String, ForumsladerKarooAdapter>()
@@ -99,7 +104,8 @@ class ForumsladerExtension(
         val scope = CoroutineScope(defaultScope.coroutineContext + job)
 
         val hasScanPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED
+            checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED &&
+                checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
         } else {
             checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
         }
@@ -110,7 +116,7 @@ class ForumsladerExtension(
             return
         }
 
-        val locationManager = getSystemService(LOCATION_SERVICE) as? LocationManager
+        val locationManager = getSystemService<LocationManager>()
         val isLocationEnabled = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             locationManager?.isLocationEnabled == true
         } else {
@@ -119,13 +125,6 @@ class ForumsladerExtension(
         }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S && !isLocationEnabled) {
             Log.w(TAG, "startScan(): System location services (GPS) are DISABLED! BLE discovery will not return results on Android 8.")
-        }
-
-        val bluetoothManager = getSystemService(BLUETOOTH_SERVICE) as BluetoothManager
-        val scanner = bluetoothManager.adapter?.takeIf { it.isEnabled }?.bluetoothLeScanner ?: run {
-            Log.w(TAG, "startScan() failed: bluetooth scanner not available or disabled (adapterEnabled=${bluetoothManager.adapter?.isEnabled})")
-            emitter.setCancellable { job.cancel() }
-            return
         }
 
         val config = ForumsladerConfig(this)
@@ -189,7 +188,6 @@ class ForumsladerExtension(
                 }
             }
 
-
             override fun onScanFailed(errorCode: Int) {
                 Log.e(TAG, "onScanFailed() called with error code: $errorCode")
             }
@@ -197,23 +195,54 @@ class ForumsladerExtension(
 
         val filters = emptyList<ScanFilter>()
         val settings = scanSettingsFactory()
+        val bluetoothManager = getSystemService<BluetoothManager>()
+        var activeScanner: BluetoothLeScanner? = null
 
-        Log.d(TAG, "startScan(): Starting LE scan, mode=LOW_LATENCY")
+        fun stopActiveScan() {
+            activeScanner?.let { scanner ->
+                runCatching { scanner.stopScan(callback) }
+                activeScanner = null
+            }
+        }
+
+        fun startLeScan(scanner: BluetoothLeScanner) {
+            Log.d(TAG, "startScan(): Bluetooth adapter is ON, starting LE scan (mode=LOW_LATENCY)")
+            runCatching { scanner.startScan(filters, settings, callback) }
+                .onSuccess { activeScanner = scanner }
+                .onFailure { e -> Log.e(TAG, "startScan(): Failed to start LE scan", e) }
+        }
+
         scope.launch {
-            scanner.startScan(filters, settings, callback)
+            bluetoothStateFlowFactory(this@ForumsladerExtension)
+                .distinctUntilChanged()
+                .collect { isEnabled ->
+                    val scanner = bluetoothManager?.adapter?.takeIf { it.isEnabled }?.bluetoothLeScanner
+                    when {
+                        !isEnabled -> {
+                            Log.w(TAG, "startScan(): Bluetooth adapter is disabled / turning off, pausing scan")
+                            stopActiveScan()
+                        }
+                        scanner == null -> {
+                            Log.w(TAG, "startScan(): Bluetooth enabled reported, but scanner is not yet available")
+                        }
+                        activeScanner == null -> {
+                            startLeScan(scanner)
+                        }
+                    }
+                }
         }
 
         emitter.setCancellable {
             Log.d(TAG, "startScan(): Scan cancelled / stopped")
-            val hasPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            job.cancel()
+            val canStop = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED
             } else {
-                checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                true
             }
-            if (hasPermission) {
-                scanner.stopScan(callback)
+            if (canStop) {
+                stopActiveScan()
             }
-            job.cancel()
         }
     }
 
