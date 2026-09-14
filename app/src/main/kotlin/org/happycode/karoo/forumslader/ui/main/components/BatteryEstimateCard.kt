@@ -54,7 +54,9 @@ private fun BatteryEstimateContent(estimate: BatteryEstimate) {
     val statusText = when (estimate.chargeState) {
         ChargeState.CHARGING,
         ChargeState.FULL -> stringResource(R.string.battery_range_charging)
-        ChargeState.STANDBY -> stringResource(R.string.battery_range_standby)
+        ChargeState.STANDBY -> estimate.estimatedRangeKm?.let {
+            stringResource(R.string.battery_range_remaining, it.roundToInt())
+        } ?: stringResource(R.string.battery_range_standby)
         ChargeState.DISCHARGING -> estimate.estimatedRangeKm?.let {
             stringResource(R.string.battery_range_remaining, it.roundToInt())
         } ?: stringResource(R.string.battery_range_not_enough_data)
@@ -66,8 +68,8 @@ private fun BatteryEstimateContent(estimate: BatteryEstimate) {
             style = MaterialTheme.typography.bodyLarge
         )
 
-        // Show discharge rate if actually discharging
-        if (estimate.chargeState == ChargeState.DISCHARGING && estimate.avgDischargeRatePctPerKm > 0f) {
+        // Show discharge rate if discharging or standby with rate
+        if ((estimate.chargeState == ChargeState.DISCHARGING || estimate.chargeState == ChargeState.STANDBY) && estimate.avgDischargeRatePctPerKm > 0f) {
             Spacer(modifier = Modifier.weight(1f))
             Text(
                 text = stringResource(R.string.battery_range_rate, estimate.avgDischargeRatePctPerKm),

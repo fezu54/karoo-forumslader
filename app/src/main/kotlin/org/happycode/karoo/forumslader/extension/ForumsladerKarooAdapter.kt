@@ -24,6 +24,7 @@ import org.happycode.karoo.forumslader.PreferencesConstants.KEY_HIGH_TEMP_THRESH
 import org.happycode.karoo.forumslader.application.BatteryEstimateStore
 import org.happycode.karoo.forumslader.domain.BatteryEstimate
 import org.happycode.karoo.forumslader.domain.BatteryEstimator
+import org.happycode.karoo.forumslader.domain.ChargeState
 import org.happycode.karoo.forumslader.R
 import org.happycode.karoo.forumslader.domain.BatteryLowRule
 import org.happycode.karoo.forumslader.domain.ForumsladerAlert
@@ -71,7 +72,12 @@ class ForumsladerKarooAdapter(
             "fl_day_distance" to { metrics.distance.dayMeters },
             "fl_tour_distance" to { metrics.distance.tourMeters },
             "fl_battery_level" to { metrics.power.batteryLevelPercentage },
-            "fl_battery_range" to { estimate?.estimatedRangeKm?.let { it * 1000.0 } }
+            "fl_battery_range" to {
+                when (estimate?.chargeState) {
+                    ChargeState.CHARGING, ChargeState.FULL -> Double.POSITIVE_INFINITY
+                    else -> estimate?.estimatedRangeKm?.let { it * 1000.0 }
+                }
+            }
         )
     }
 
@@ -105,6 +111,9 @@ class ForumsladerKarooAdapter(
     private var flowCollectionJob: Job? = null
     private val consumers = mutableListOf<String>()
 
+    private var routeRemainingDistanceMeters: Double? = null
+    private var routeRemainingAscentMeters: Double? = null
+
     val device: Device = Device(
         extension = EXTENSION_ID,
         uid = "fl-$address",
@@ -120,26 +129,20 @@ class ForumsladerKarooAdapter(
         currentEmitter = emitter
         karooSystem.connect {}
 
+        consumers += karooSystem.addConsumer(OnStreamState.StartStreaming(DataType.Type.DISTANCE_TO_DESTINATION)) { event: OnStreamState ->
+            handleDistanceRemaining(event)
+        }
+
+        consumers += karooSystem.addConsumer(OnStreamState.StartStreaming(DataType.Type.ELEVATION_REMAINING)) { event: OnStreamState ->
+            handleElevationRemaining(event)
+        }
+
         consumers += karooSystem.addConsumer { event: OnNavigationState ->
-            val state = event.state
-            if (state is OnNavigationState.NavigationState.NavigatingRoute) {
-                val totalElevation = state.climbs.sumOf { it.totalElevation }
-                batteryEstimator.onRouteRemaining(state.routeDistance, totalElevation)
-            } else {
-                batteryEstimator.onRouteRemaining(null, null)
-            }
-            BatteryEstimateStore.updateEstimate(batteryEstimator.getEstimate())
+            handleNavigationState(event)
         }
 
         consumers += karooSystem.addConsumer(OnStreamState.StartStreaming(DataType.dataTypeId("karoo-headwind", "headwindSpeed"))) { event: OnStreamState ->
-            val state = event.state
-            if (state is StreamState.Streaming) {
-                val windSpeed = state.dataPoint.values[DataType.Field.SINGLE]
-                batteryEstimator.onHeadwindSpeed(windSpeed?.toFloat())
-            } else {
-                batteryEstimator.onHeadwindSpeed(null)
-            }
-            BatteryEstimateStore.updateEstimate(batteryEstimator.getEstimate())
+            handleHeadwindStreamState(event)
         }
 
         emitter.setCancellable {
@@ -148,6 +151,8 @@ class ForumsladerKarooAdapter(
             flowCollectionJob?.cancel()
             consumers.forEach { karooSystem.removeConsumer(it) }
             consumers.clear()
+            routeRemainingDistanceMeters = null
+            routeRemainingAscentMeters = null
             protocol.stopParameterRequestLoop()
             parser.resetConfigLoaded()
             bleManager.stop()
@@ -208,6 +213,46 @@ class ForumsladerKarooAdapter(
         }
         
         bleManager.start()
+    }
+
+    internal fun handleDistanceRemaining(event: OnStreamState) {
+        routeRemainingDistanceMeters = when (val state = event.state) {
+            is StreamState.Streaming -> state.dataPoint.values[DataType.Field.DISTANCE_TO_DESTINATION] ?: state.dataPoint.singleValue
+            else -> null
+        }
+        updateRouteEstimate()
+    }
+
+    internal fun handleElevationRemaining(event: OnStreamState) {
+        routeRemainingAscentMeters = when (val state = event.state) {
+            is StreamState.Streaming -> state.dataPoint.values[DataType.Field.ASCENT_REMAINING] ?: state.dataPoint.singleValue
+            else -> null
+        }
+        updateRouteEstimate()
+    }
+
+    internal fun handleNavigationState(event: OnNavigationState) {
+        if (event.state is OnNavigationState.NavigationState.Idle) {
+            routeRemainingDistanceMeters = null
+            routeRemainingAscentMeters = null
+            updateRouteEstimate()
+        }
+    }
+
+    internal fun handleHeadwindStreamState(event: OnStreamState) {
+        when (val state = event.state) {
+            is StreamState.Streaming -> {
+                val windSpeed = state.dataPoint.values[DataType.Field.SINGLE]
+                batteryEstimator.onHeadwindSpeed(windSpeed?.toFloat())
+            }
+            else -> batteryEstimator.onHeadwindSpeed(null)
+        }
+        BatteryEstimateStore.updateEstimate(batteryEstimator.getEstimate())
+    }
+
+    private fun updateRouteEstimate() {
+        batteryEstimator.onRouteRemaining(routeRemainingDistanceMeters, routeRemainingAscentMeters)
+        BatteryEstimateStore.updateEstimate(batteryEstimator.getEstimate())
     }
 
     private fun evaluateAlerts(metrics: ForumsladerMetrics) {

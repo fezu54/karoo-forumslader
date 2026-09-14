@@ -351,4 +351,67 @@ class BatteryEstimatorTest {
             assertEquals(true, isSufficientForRoute) // 9.0 >= 0.0
         }
     }
+
+    @Test
+    fun `should reset window when trip distance decreases`() {
+        // given
+        val estimator = BatteryEstimator(minMetersForEstimate = 500.0)
+        estimator.onMetrics(createMetrics(distance = 50000.0, batteryPct = 80))
+        estimator.onMetrics(createMetrics(distance = 51000.0, batteryPct = 75))
+        assertNotNull(estimator.getEstimate()?.estimatedRangeKm)
+
+        // when trip distance resets to 0 (new trip)
+        estimator.onMetrics(createMetrics(distance = 0.0, batteryPct = 75))
+        estimator.onMetrics(createMetrics(distance = 600.0, batteryPct = 70))
+
+        // then
+        val estimate = estimator.getEstimate()
+        assertNotNull(estimate)
+        assertEquals(70, estimate?.remainingCapacityPct)
+        assertNotNull(estimate?.estimatedRangeKm)
+    }
+
+    @Test
+    fun `should purge lower battery level samples when battery charges so discharging rate can be computed`() {
+        // given
+        val estimator = BatteryEstimator(minMetersForEstimate = 500.0)
+        estimator.onMetrics(createMetrics(distance = 0.0, batteryPct = 80, chargeState = ChargeState.CHARGING))
+        estimator.onMetrics(createMetrics(distance = 2000.0, batteryPct = 85, chargeState = ChargeState.CHARGING))
+
+        // when starts discharging from 85% to 83% over 1km
+        estimator.onMetrics(createMetrics(distance = 3000.0, batteryPct = 83, chargeState = ChargeState.DISCHARGING))
+
+        // then
+        val estimate = estimator.getEstimate()
+        assertNotNull(estimate)
+        with(estimate!!) {
+            assertEquals(83, remainingCapacityPct)
+            assertEquals(2.0f, avgDischargeRatePctPerKm)
+            assertEquals(41.5f, estimatedRangeKm)
+            assertEquals(ChargeState.DISCHARGING, chargeState)
+        }
+    }
+
+    @Test
+    fun `should retain last known discharge rate and calculate range in standby when previously discharging`() {
+        // given
+        val estimator = BatteryEstimator(minMetersForEstimate = 500.0)
+        estimator.onMetrics(createMetrics(distance = 0.0, batteryPct = 100, chargeState = ChargeState.DISCHARGING))
+        estimator.onMetrics(createMetrics(distance = 1000.0, batteryPct = 95, chargeState = ChargeState.DISCHARGING))
+        val activeEstimate = estimator.getEstimate()
+        assertEquals(19.0f, activeEstimate?.estimatedRangeKm)
+
+        // when stops at red light (STANDBY)
+        estimator.onMetrics(createMetrics(distance = 1000.0, batteryPct = 95, chargeState = ChargeState.STANDBY))
+        val standbyEstimate = estimator.getEstimate()
+
+        // then
+        assertNotNull(standbyEstimate)
+        with(standbyEstimate!!) {
+            assertEquals(95, remainingCapacityPct)
+            assertEquals(5.0f, avgDischargeRatePctPerKm)
+            assertEquals(19.0f, estimatedRangeKm)
+            assertEquals(ChargeState.STANDBY, chargeState)
+        }
+    }
 }

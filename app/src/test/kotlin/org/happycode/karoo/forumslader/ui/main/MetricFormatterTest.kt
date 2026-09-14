@@ -270,6 +270,16 @@ class MetricFormatterTest {
     }
 
     @Test
+    fun `should format battery range as charging when value is infinite`() {
+        val formatter = MetricFormatter(Locale.US,
+            isImperialDistance = false,
+            isImperialTemperature = false,
+            context = context
+        )
+        assertEquals("Charging", formatter.format(DataFieldId.BATTERY_RANGE, Double.POSITIVE_INFINITY))
+    }
+
+    @Test
     fun `should format frequency`() {
         val formatter = MetricFormatter(Locale.US,
             isImperialDistance = false,

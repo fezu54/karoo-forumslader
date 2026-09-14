@@ -16,6 +16,7 @@ class BatteryEstimator(
     private var routeRemainingKm: Float? = null
     private var upcomingElevationMeters: Double? = null
     private var headwindSpeedMs: Float? = null
+    private var lastDischargeRate: Float? = null
 
     private data class Sample(val distanceMeters: Double, val batteryLevelPct: Int, val chargeState: ChargeState)
 
@@ -23,6 +24,16 @@ class BatteryEstimator(
         val level = metrics.power.batteryLevelPercentage ?: return
         val dist = metrics.distance.tripMeters
         val state = metrics.power.chargeState
+
+        if (samples.isNotEmpty() && dist < samples.last().distanceMeters) {
+            samples.clear()
+            lastDischargeRate = null
+        }
+
+        if (state == ChargeState.CHARGING && samples.isNotEmpty() && level > samples.last().batteryLevelPct) {
+            samples.removeAll { it.batteryLevelPct < level }
+            lastDischargeRate = null
+        }
 
         samples.addLast(Sample(dist, level, state))
 
@@ -59,7 +70,23 @@ class BatteryEstimator(
                 isSufficientForRoute = routeRemainingKm?.let { true },
                 chargeState = currentState
             )
-            currentState == ChargeState.STANDBY || distanceDiffMeters < minMetersForEstimate || levelDiff <= 0 -> BatteryEstimate(
+            currentState == ChargeState.STANDBY -> {
+                val standbyRange = lastDischargeRate?.takeIf { it > 0f }?.let { rate ->
+                    val adjustedCapacity = calculateElevationAdjustedCapacity(currentLevel.toFloat())
+                    (adjustedCapacity / rate).takeIf { it.isFinite() }
+                }
+                BatteryEstimate(
+                    remainingCapacityPct = currentLevel,
+                    avgDischargeRatePctPerKm = lastDischargeRate ?: 0f,
+                    estimatedRangeKm = standbyRange,
+                    routeRemainingKm = routeRemainingKm,
+                    isSufficientForRoute = routeRemainingKm?.let { remaining ->
+                        standbyRange?.let { range -> range >= remaining }
+                    },
+                    chargeState = currentState
+                )
+            }
+            distanceDiffMeters < minMetersForEstimate || levelDiff <= 0 -> BatteryEstimate(
                 remainingCapacityPct = currentLevel,
                 avgDischargeRatePctPerKm = 0f,
                 estimatedRangeKm = null,
@@ -78,6 +105,7 @@ class BatteryEstimator(
         currentState: ChargeState
     ): BatteryEstimate {
         val dischargeRate = calculateAdjustedDischargeRate(levelDiff, distanceDiffMeters)
+        lastDischargeRate = dischargeRate
         val adjustedCapacity = calculateElevationAdjustedCapacity(currentLevel.toFloat())
 
         val estimatedRangeKm = (adjustedCapacity / dischargeRate).takeIf { it.isFinite() }
