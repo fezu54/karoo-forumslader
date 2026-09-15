@@ -63,21 +63,23 @@ class MetricFormatter(
 
             DataFieldId.DYNAMO_POWER -> String.format(locale, "%.1f W", rawValue)
 
+            DataFieldId.BATTERY_RANGE -> when {
+                rawValue.isInfinite() -> context.getString(R.string.charge_state_charging)
+                else -> formatDistance(rawValue / 1000.0)
+            }
+
             DataFieldId.ODOMETER,
             DataFieldId.DAY_DISTANCE,
-            DataFieldId.TOUR_DISTANCE,
-            DataFieldId.BATTERY_RANGE -> {
-                val distanceKm = rawValue / 1000.0
-                if (isImperialDistance) {
-                    String.format(locale, "%.2f mi", distanceKm * 0.621371)
-                } else {
-                    String.format(locale, "%.2f km", distanceKm)
-                }
-            }
+            DataFieldId.TOUR_DISTANCE -> formatDistance(rawValue / 1000.0)
 
             DataFieldId.FREQUENCY -> String.format(locale, "%.1f Hz", rawValue)
             else -> String.format(locale, "%.1f", rawValue)
         }
+    }
+
+    private fun formatDistance(distanceKm: Double): String = when {
+        isImperialDistance -> String.format(locale, "%.2f mi", distanceKm * 0.621371)
+        else -> String.format(locale, "%.2f km", distanceKm)
     }
 
     companion object {

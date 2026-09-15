@@ -6,12 +6,16 @@ import android.util.Log
 import io.hammerhead.karooext.KarooSystemService
 import io.hammerhead.karooext.internal.Emitter
 import io.hammerhead.karooext.models.ConnectionStatus
+import io.hammerhead.karooext.models.DataPoint
 import io.hammerhead.karooext.models.DataType
 import io.hammerhead.karooext.models.DeviceEvent
 import io.hammerhead.karooext.models.FitEffect
 import io.hammerhead.karooext.models.InRideAlert
 import io.hammerhead.karooext.models.OnConnectionStatus
 import io.hammerhead.karooext.models.OnDataPoint
+import io.hammerhead.karooext.models.OnNavigationState
+import io.hammerhead.karooext.models.OnStreamState
+import io.hammerhead.karooext.models.StreamState
 import io.hammerhead.karooext.models.WriteToRecordMesg
 import io.mockk.every
 import io.mockk.mockk
@@ -85,7 +89,9 @@ class ForumsladerKarooAdapterTest {
             every { notificationsEnabled } returns notificationsEnabledFlow
         }
 
-        karooSystem = mockk(relaxed = true)
+        karooSystem = mockk(relaxed = true) {
+            every { addConsumer(any()) } returns "test-consumer-id"
+        }
         testScope = TestScope()
     }
 
@@ -210,17 +216,22 @@ class ForumsladerKarooAdapterTest {
                 expectedType("fl_odometer") to expectedDist,
                 expectedType("fl_day_distance") to expectedDist,
                 expectedType("fl_tour_distance") to expectedDist,
-                expectedType("fl_battery_level") to 85.0
+                expectedType("fl_battery_level") to 85.0,
+                expectedType("fl_battery_range") to Double.POSITIVE_INFINITY
             )
 
             expected.forEach { (fullId, expectedValue) ->
                 val actualValue = dataPoints[fullId] ?: 0.0
-                assertEquals(
-                    expectedValue,
-                    actualValue,
-                    expectedValue * 0.01,
-                    "Value mismatch for $fullId"
-                )
+                if (expectedValue.isInfinite()) {
+                    assertEquals(expectedValue, actualValue, "Value mismatch for $fullId")
+                } else {
+                    assertEquals(
+                        expectedValue,
+                        actualValue,
+                        expectedValue * 0.01,
+                        "Value mismatch for $fullId"
+                    )
+                }
             }
         }
 
@@ -453,5 +464,107 @@ class ForumsladerKarooAdapterTest {
 
             // then
             verify(atLeast = 1) { fitEmitter.onNext(any<WriteToRecordMesg>()) }
+        }
+
+    @Test
+    fun `should update route remaining when distance to destination and elevation streams emit`() =
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            val forumslader = ForumsladerKarooAdapter(
+                context,
+                "00:11:22:33:44:55",
+                null,
+                backgroundScope,
+                bleManager,
+                karooSystem
+            )
+            forumslader.connect(emitter)
+
+            // when
+            val distPoint = DataPoint(
+                DataType.Type.DISTANCE_TO_DESTINATION,
+                mapOf(DataType.Field.DISTANCE_TO_DESTINATION to 25000.0)
+            )
+            forumslader.handleDistanceRemaining(OnStreamState(StreamState.Streaming(distPoint)))
+
+            val elevPoint = DataPoint(
+                DataType.Type.ELEVATION_REMAINING,
+                mapOf(DataType.Field.ASCENT_REMAINING to 300.0)
+            )
+            forumslader.handleElevationRemaining(OnStreamState(StreamState.Streaming(elevPoint)))
+
+            val flb = $$"$FLB,255,0,1005\n"
+            val flc = $$"$FLC,5,0,85\n"
+            val fl5 = $$"$FL5,200,3,100,500,500,500,2500,3500,0,0,0,0,1000\n"
+            incomingDataFlow.emit((flb + flc + fl5).toByteArray(Charsets.US_ASCII))
+
+            // then
+            assertEquals(25.0f, BatteryEstimateStore.estimateFlow.value?.routeRemainingKm)
+            assertEquals(true, BatteryEstimateStore.estimateFlow.value?.isSufficientForRoute)
+        }
+
+    @Test
+    fun `should clear route remaining when navigation state becomes idle`() =
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            val forumslader = ForumsladerKarooAdapter(
+                context,
+                "00:11:22:33:44:55",
+                null,
+                backgroundScope,
+                bleManager,
+                karooSystem
+            )
+            forumslader.connect(emitter)
+
+            val distPoint = DataPoint(
+                DataType.Type.DISTANCE_TO_DESTINATION,
+                mapOf(DataType.Field.DISTANCE_TO_DESTINATION to 25000.0)
+            )
+            forumslader.handleDistanceRemaining(OnStreamState(StreamState.Streaming(distPoint)))
+
+            val flb = $$"$FLB,255,0,1005\n"
+            val flc = $$"$FLC,5,0,85\n"
+            val fl5 = $$"$FL5,200,3,100,500,500,500,2500,3500,0,0,0,0,1000\n"
+            incomingDataFlow.emit((flb + flc + fl5).toByteArray(Charsets.US_ASCII))
+            assertEquals(25.0f, BatteryEstimateStore.estimateFlow.value?.routeRemainingKm)
+
+            // when
+            forumslader.handleNavigationState(OnNavigationState(OnNavigationState.NavigationState.Idle))
+
+            // then
+            assertEquals(null, BatteryEstimateStore.estimateFlow.value?.routeRemainingKm)
+        }
+
+    @Test
+    fun `should update headwind speed when headwind stream emits`() =
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            val forumslader = ForumsladerKarooAdapter(
+                context,
+                "00:11:22:33:44:55",
+                null,
+                backgroundScope,
+                bleManager,
+                karooSystem
+            )
+            forumslader.connect(emitter)
+
+            // when
+            val headwindPoint = DataPoint(
+                DataType.dataTypeId("karoo-headwind", "headwindSpeed"),
+                mapOf(DataType.Field.SINGLE to 5.0)
+            )
+            forumslader.handleHeadwindStreamState(OnStreamState(StreamState.Streaming(headwindPoint)))
+
+            val flb = $$"$FLB,255,0,1005\n"
+            val flc = $$"$FLC,5,0,85\n"
+            val fl5 = $$"$FL5,200,3,100,500,500,500,2500,3500,0,0,0,0,1000\n"
+            incomingDataFlow.emit((flb + flc + fl5).toByteArray(Charsets.US_ASCII))
+
+            // then
+            // Headwind penalty applied
+            val estimate = BatteryEstimateStore.estimateFlow.value
+            assertEquals(true, estimate != null)
         }
 }

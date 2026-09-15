@@ -214,6 +214,104 @@ class ForumsladerDataTypeTest {
         verify { anyConstructed<KarooSystemService>().disconnect() }
     }
 
+    @Test
+    fun `should emit UpdateNumericConfig and register stream for BATTERY_RANGE on startView`() {
+        // given
+        val formatId = DataType.Type.DISTANCE
+        val dataType = ForumsladerDataType("karoo-forumslader", DataFieldId.BATTERY_RANGE, formatId)
+        every { anyConstructed<KarooSystemService>().addConsumer(any()) } returns "listener-id"
+
+        // when
+        dataType.startView(context, config, emitter)
+
+        // then
+        verify { emitter.onNext(UpdateNumericConfig(formatId)) }
+        verify { anyConstructed<KarooSystemService>().addConsumer(any()) }
+    }
+
+    @Test
+    fun `should emit charging when BATTERY_RANGE streams infinite value`() {
+        // given
+        setupStringMocks()
+        val dataType = ForumsladerDataType("karoo-forumslader", DataFieldId.BATTERY_RANGE, DataType.Type.DISTANCE)
+        val dataPoint = DataPoint(
+            dataTypeId = dataType.dataTypeId,
+            values = mapOf(DataType.Field.SINGLE to Double.POSITIVE_INFINITY)
+        )
+
+        // when
+        dataType.handleBatteryRangeStreamState(OnStreamState(StreamState.Streaming(dataPoint)), emitter, context)
+
+        // then
+        verify { emitter.onNext(ShowCustomStreamState("Charging", null)) }
+    }
+
+    @Test
+    fun `should emit null custom state when BATTERY_RANGE streams finite value`() {
+        // given
+        setupStringMocks()
+        val dataType = ForumsladerDataType("karoo-forumslader", DataFieldId.BATTERY_RANGE, DataType.Type.DISTANCE)
+        val dataPoint = DataPoint(
+            dataTypeId = dataType.dataTypeId,
+            values = mapOf(DataType.Field.SINGLE to 45000.0)
+        )
+
+        // when
+        dataType.handleBatteryRangeStreamState(OnStreamState(StreamState.Streaming(dataPoint)), emitter, context)
+
+        // then
+        verify { emitter.onNext(ShowCustomStreamState(null, null)) }
+    }
+
+    @Test
+    fun `should emit calculating when BATTERY_RANGE streams null value`() {
+        // given
+        setupStringMocks()
+        val dataType = ForumsladerDataType("karoo-forumslader", DataFieldId.BATTERY_RANGE, DataType.Type.DISTANCE)
+        val dataPoint = DataPoint(
+            dataTypeId = dataType.dataTypeId,
+            values = emptyMap()
+        )
+
+        // when
+        dataType.handleBatteryRangeStreamState(OnStreamState(StreamState.Streaming(dataPoint)), emitter, context)
+
+        // then
+        verify { emitter.onNext(ShowCustomStreamState("Calculating…", null)) }
+    }
+
+    @Test
+    fun `should emit searching and not available for BATTERY_RANGE`() {
+        // given
+        setupStringMocks()
+        val dataType = ForumsladerDataType("karoo-forumslader", DataFieldId.BATTERY_RANGE, DataType.Type.DISTANCE)
+
+        // when & then
+        dataType.handleBatteryRangeStreamState(OnStreamState(StreamState.Searching), emitter, context)
+        verify { emitter.onNext(ShowCustomStreamState("Searching", null)) }
+
+        dataType.handleBatteryRangeStreamState(OnStreamState(StreamState.NotAvailable), emitter, context)
+        verify { emitter.onNext(ShowCustomStreamState("N/A", null)) }
+    }
+
+    @Test
+    fun `should disconnect KarooSystemService when BATTERY_RANGE view is cancelled`() {
+        // given
+        val dataType = ForumsladerDataType("karoo-forumslader", DataFieldId.BATTERY_RANGE, DataType.Type.DISTANCE)
+        every { anyConstructed<KarooSystemService>().addConsumer(any()) } returns "range-listener-id"
+
+        val cancelSlot = slot<() -> Unit>()
+        every { emitter.setCancellable(capture(cancelSlot)) } returns Unit
+
+        // when
+        dataType.startView(context, config, emitter)
+        cancelSlot.captured()
+
+        // then
+        verify { anyConstructed<KarooSystemService>().removeConsumer("range-listener-id") }
+        verify { anyConstructed<KarooSystemService>().disconnect() }
+    }
+
     private fun setupStringMocks() {
         every { context.getString(R.string.charge_state_standby) } returns "Standby"
         every { context.getString(R.string.charge_state_charging) } returns "Charging"
@@ -221,5 +319,6 @@ class ForumsladerDataTypeTest {
         every { context.getString(R.string.charge_state_full) } returns "Full"
         every { context.getString(R.string.status_searching) } returns "Searching"
         every { context.getString(R.string.status_not_available) } returns "N/A"
+        every { context.getString(R.string.battery_range_calculating) } returns "Calculating…"
     }
 }
