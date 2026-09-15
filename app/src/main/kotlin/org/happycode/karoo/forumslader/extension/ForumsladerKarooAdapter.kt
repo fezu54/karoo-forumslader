@@ -38,6 +38,7 @@ import io.hammerhead.karooext.models.FitEffect
 import io.hammerhead.karooext.models.OnNavigationState
 import io.hammerhead.karooext.models.OnStreamState
 import io.hammerhead.karooext.models.StreamState
+import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
 import org.happycode.karoo.forumslader.application.CsvLogger
 import org.happycode.karoo.forumslader.application.CsvLoggerProvider
 import org.happycode.karoo.forumslader.application.ForumsladerStateStore
@@ -72,10 +73,10 @@ class ForumsladerKarooAdapter(
             "fl_day_distance" to { metrics.distance.dayMeters },
             "fl_tour_distance" to { metrics.distance.tourMeters },
             "fl_battery_level" to { metrics.power.batteryLevelPercentage },
-            "fl_battery_range" to {
-                when (estimate?.chargeState) {
-                    ChargeState.CHARGING, ChargeState.FULL -> Double.POSITIVE_INFINITY
-                    else -> estimate?.estimatedRangeKm?.let { it * 1000.0 }
+            DataFieldId.BATTERY_RANGE to {
+                when (metrics.power.chargeState) {
+                    ChargeState.CHARGING, ChargeState.FULL -> DataFieldId.BATTERY_RANGE_CHARGING
+                    else -> estimate?.estimatedRangeKm?.let { it * 1000.0 } ?: DataFieldId.BATTERY_RANGE_CALCULATING
                 }
             }
         )

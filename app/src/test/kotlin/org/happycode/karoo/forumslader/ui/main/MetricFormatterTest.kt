@@ -270,13 +270,36 @@ class MetricFormatterTest {
     }
 
     @Test
-    fun `should format battery range as charging when value is infinite`() {
+    fun `should format battery range as charging when charging sentinel is received`() {
         val formatter = MetricFormatter(Locale.US,
             isImperialDistance = false,
             isImperialTemperature = false,
             context = context
         )
+        assertEquals("Charging", formatter.format(DataFieldId.BATTERY_RANGE, DataFieldId.BATTERY_RANGE_CHARGING))
         assertEquals("Charging", formatter.format(DataFieldId.BATTERY_RANGE, Double.POSITIVE_INFINITY))
+    }
+
+    @Test
+    fun `should format battery range as calculating when calculating sentinel is received`() {
+        every { context.getString(R.string.battery_range_calculating) } returns "Calculating…"
+        val formatter = MetricFormatter(Locale.US,
+            isImperialDistance = false,
+            isImperialTemperature = false,
+            context = context
+        )
+        assertEquals("Calculating…", formatter.format(DataFieldId.BATTERY_RANGE, DataFieldId.BATTERY_RANGE_CALCULATING))
+    }
+
+    @Test
+    fun `should format battery range as not available when invalid negative value is received`() {
+        every { context.getString(R.string.status_not_available) } returns "N/A"
+        val formatter = MetricFormatter(Locale.US,
+            isImperialDistance = false,
+            isImperialTemperature = false,
+            context = context
+        )
+        assertEquals("N/A", formatter.format(DataFieldId.BATTERY_RANGE, -99.0))
     }
 
     @Test

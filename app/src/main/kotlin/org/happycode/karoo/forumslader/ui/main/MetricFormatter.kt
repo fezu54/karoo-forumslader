@@ -64,8 +64,10 @@ class MetricFormatter(
             DataFieldId.DYNAMO_POWER -> String.format(locale, "%.1f W", rawValue)
 
             DataFieldId.BATTERY_RANGE -> when {
-                rawValue.isInfinite() -> context.getString(R.string.charge_state_charging)
-                else -> formatDistance(rawValue / 1000.0)
+                rawValue == DataFieldId.BATTERY_RANGE_CHARGING || rawValue.isInfinite() -> context.getString(R.string.charge_state_charging)
+                rawValue == DataFieldId.BATTERY_RANGE_CALCULATING -> context.getString(R.string.battery_range_calculating)
+                rawValue >= 0.0 -> formatDistance(rawValue / 1000.0)
+                else -> context.getString(R.string.status_not_available)
             }
 
             DataFieldId.ODOMETER,

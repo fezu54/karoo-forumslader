@@ -32,6 +32,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
+import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
 import org.happycode.karoo.forumslader.application.BatteryEstimateStore
 import org.happycode.karoo.forumslader.application.ForumsladerStateStore
 import org.happycode.karoo.forumslader.model.ForumsladerVersion
@@ -217,22 +218,83 @@ class ForumsladerKarooAdapterTest {
                 expectedType("fl_day_distance") to expectedDist,
                 expectedType("fl_tour_distance") to expectedDist,
                 expectedType("fl_battery_level") to 85.0,
-                expectedType("fl_battery_range") to Double.POSITIVE_INFINITY
+                expectedType(DataFieldId.BATTERY_RANGE) to DataFieldId.BATTERY_RANGE_CHARGING
             )
 
             expected.forEach { (fullId, expectedValue) ->
                 val actualValue = dataPoints[fullId] ?: 0.0
-                if (expectedValue.isInfinite()) {
-                    assertEquals(expectedValue, actualValue, "Value mismatch for $fullId")
-                } else {
-                    assertEquals(
-                        expectedValue,
-                        actualValue,
-                        expectedValue * 0.01,
-                        "Value mismatch for $fullId"
-                    )
+                assertEquals(
+                    expectedValue,
+                    actualValue,
+                    kotlin.math.abs(expectedValue * 0.01).coerceAtLeast(0.001),
+                    "Value mismatch for $fullId"
+                )
+            }
+        }
+
+    @Test
+    fun `should emit only finite floating point values for all metrics to avoid JSON serialization exception`() =
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            val capturedEvents = mutableListOf<DeviceEvent>()
+            every { emitter.onNext(capture(capturedEvents)) } returns Unit
+
+            val forumslader = ForumsladerKarooAdapter(
+                context,
+                "00:11:22:33:44:55",
+                null,
+                backgroundScope,
+                bleManager,
+                karooSystem
+            )
+            forumslader.connect(emitter)
+
+            val flb = $$"$FLB,255,0,1005\n"
+            val flc = $$"$FLC,5,0,100\n"
+            val fl5 = $$"$FL5,200,3,100,500,500,500,2500,3500,0,0,0,0,1000\n"
+
+            // when
+            incomingDataFlow.emit((flb + flc + fl5).toByteArray(Charsets.US_ASCII))
+
+            // then
+            val dataPoints = capturedEvents.filterIsInstance<OnDataPoint>()
+            assert(dataPoints.isNotEmpty())
+            dataPoints.forEach { point ->
+                point.dataPoint.values.forEach { (field, value) ->
+                    assert(value.isFinite()) { "Value for $field in ${point.dataPoint.dataTypeId} must be finite but was $value" }
                 }
             }
+        }
+
+    @Test
+    fun `should emit calculating sentinel for battery range when discharging without sufficient data`() =
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            val capturedEvents = mutableListOf<DeviceEvent>()
+            every { emitter.onNext(capture(capturedEvents)) } returns Unit
+
+            val forumslader = ForumsladerKarooAdapter(
+                context,
+                "00:11:22:33:44:55",
+                null,
+                backgroundScope,
+                bleManager,
+                karooSystem
+            )
+            forumslader.connect(emitter)
+
+            // FL6 with charge state 2 (DISCHARGING), battery 80% but only 1 sample (no distance diff yet)
+            val flc = $$"$FLC,5,0,80\n"
+            val fl6 = $$"$FL6,2,0,0,0,0,0,0,0,0,0,0,0\n"
+
+            // when
+            incomingDataFlow.emit((flc + fl6).toByteArray(Charsets.US_ASCII))
+
+            // then
+            val rangePoint = capturedEvents.filterIsInstance<OnDataPoint>()
+                .firstOrNull { it.dataPoint.dataTypeId == DataType.dataTypeId("karoo-forumslader", DataFieldId.BATTERY_RANGE) }
+
+            assertEquals(DataFieldId.BATTERY_RANGE_CALCULATING, rangePoint?.dataPoint?.values?.get(DataType.Field.SINGLE))
         }
 
     @Test
@@ -566,5 +628,45 @@ class ForumsladerKarooAdapterTest {
             // Headwind penalty applied
             val estimate = BatteryEstimateStore.estimateFlow.value
             assertEquals(true, estimate != null)
+        }
+
+    @Test
+    fun `should reset route distance and elevation remaining when stream states are not streaming`() =
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            val forumslader = ForumsladerKarooAdapter(
+                context,
+                "00:11:22:33:44:55",
+                null,
+                backgroundScope,
+                bleManager,
+                karooSystem
+            )
+            forumslader.connect(emitter)
+
+            val distPoint = DataPoint(
+                DataType.Type.DISTANCE_TO_DESTINATION,
+                mapOf(DataType.Field.DISTANCE_TO_DESTINATION to 25000.0)
+            )
+            forumslader.handleDistanceRemaining(OnStreamState(StreamState.Streaming(distPoint)))
+            val elevPoint = DataPoint(
+                DataType.Type.ELEVATION_REMAINING,
+                mapOf(DataType.Field.ASCENT_REMAINING to 300.0)
+            )
+            forumslader.handleElevationRemaining(OnStreamState(StreamState.Streaming(elevPoint)))
+
+            val flb = $$"$FLB,255,0,1005\n"
+            val flc = $$"$FLC,5,0,85\n"
+            val fl5 = $$"$FL5,200,3,100,500,500,500,2500,3500,0,0,0,0,1000\n"
+            incomingDataFlow.emit((flb + flc + fl5).toByteArray(Charsets.US_ASCII))
+            assertEquals(25.0f, BatteryEstimateStore.estimateFlow.value?.routeRemainingKm)
+
+            // when stream state becomes Searching or NotAvailable
+            forumslader.handleDistanceRemaining(OnStreamState(StreamState.Searching))
+            forumslader.handleElevationRemaining(OnStreamState(StreamState.NotAvailable))
+            forumslader.handleHeadwindStreamState(OnStreamState(StreamState.NotAvailable))
+
+            // then route remaining is cleared
+            assertEquals(null, BatteryEstimateStore.estimateFlow.value?.routeRemainingKm)
         }
 }
