@@ -53,9 +53,10 @@ class ForumsladerDataType(
         emitter.handleCommonState(event, context) { streamingState ->
             val value = streamingState.dataPoint.singleValue
             val stateStr = when {
-                value == null -> context.getString(R.string.battery_range_calculating)
-                value.isInfinite() -> context.getString(R.string.charge_state_charging)
-                else -> null
+                value == null || value == DataFieldId.BATTERY_RANGE_CALCULATING -> context.getString(R.string.battery_range_calculating)
+                value == DataFieldId.BATTERY_RANGE_CHARGING -> context.getString(R.string.charge_state_charging)
+                value >= 0.0 -> null
+                else -> context.getString(R.string.status_not_available)
             }
             emitter.onNext(ShowCustomStreamState(stateStr, null))
         }

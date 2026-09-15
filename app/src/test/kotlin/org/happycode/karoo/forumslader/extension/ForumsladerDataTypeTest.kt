@@ -230,13 +230,13 @@ class ForumsladerDataTypeTest {
     }
 
     @Test
-    fun `should emit charging when BATTERY_RANGE streams infinite value`() {
+    fun `should emit charging when BATTERY_RANGE streams charging sentinel value`() {
         // given
         setupStringMocks()
         val dataType = ForumsladerDataType("karoo-forumslader", DataFieldId.BATTERY_RANGE, DataType.Type.DISTANCE)
         val dataPoint = DataPoint(
             dataTypeId = dataType.dataTypeId,
-            values = mapOf(DataType.Field.SINGLE to Double.POSITIVE_INFINITY)
+            values = mapOf(DataType.Field.SINGLE to DataFieldId.BATTERY_RANGE_CHARGING)
         )
 
         // when
@@ -264,20 +264,42 @@ class ForumsladerDataTypeTest {
     }
 
     @Test
-    fun `should emit calculating when BATTERY_RANGE streams null value`() {
+    fun `should emit calculating when BATTERY_RANGE streams null or calculating sentinel value`() {
         // given
         setupStringMocks()
         val dataType = ForumsladerDataType("karoo-forumslader", DataFieldId.BATTERY_RANGE, DataType.Type.DISTANCE)
-        val dataPoint = DataPoint(
+        val nullPoint = DataPoint(
             dataTypeId = dataType.dataTypeId,
             values = emptyMap()
         )
+        val calcPoint = DataPoint(
+            dataTypeId = dataType.dataTypeId,
+            values = mapOf(DataType.Field.SINGLE to DataFieldId.BATTERY_RANGE_CALCULATING)
+        )
 
         // when
-        dataType.handleBatteryRangeStreamState(OnStreamState(StreamState.Streaming(dataPoint)), emitter, context)
+        dataType.handleBatteryRangeStreamState(OnStreamState(StreamState.Streaming(nullPoint)), emitter, context)
+        dataType.handleBatteryRangeStreamState(OnStreamState(StreamState.Streaming(calcPoint)), emitter, context)
 
         // then
-        verify { emitter.onNext(ShowCustomStreamState("Calculating…", null)) }
+        verify(exactly = 2) { emitter.onNext(ShowCustomStreamState("Calculating…", null)) }
+    }
+
+    @Test
+    fun `should emit not available when BATTERY_RANGE streams invalid negative value`() {
+        // given
+        setupStringMocks()
+        val dataType = ForumsladerDataType("karoo-forumslader", DataFieldId.BATTERY_RANGE, DataType.Type.DISTANCE)
+        val negativePoint = DataPoint(
+            dataTypeId = dataType.dataTypeId,
+            values = mapOf(DataType.Field.SINGLE to -99.0)
+        )
+
+        // when
+        dataType.handleBatteryRangeStreamState(OnStreamState(StreamState.Streaming(negativePoint)), emitter, context)
+
+        // then
+        verify { emitter.onNext(ShowCustomStreamState("N/A", null)) }
     }
 
     @Test

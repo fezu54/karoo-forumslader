@@ -414,4 +414,27 @@ class BatteryEstimatorTest {
             assertEquals(ChargeState.STANDBY, chargeState)
         }
     }
+
+    @Test
+    fun `should calculate route sufficiency in standby when route remaining is provided`() {
+        // given
+        val estimator = BatteryEstimator(minMetersForEstimate = 500.0)
+        estimator.onRouteRemaining(distanceMeters = 10000.0, upcomingElevation = 0.0)
+        estimator.onMetrics(createMetrics(distance = 0.0, batteryPct = 100, chargeState = ChargeState.DISCHARGING))
+        estimator.onMetrics(createMetrics(distance = 1000.0, batteryPct = 95, chargeState = ChargeState.DISCHARGING))
+        estimator.getEstimate()
+
+        // when enters standby
+        estimator.onMetrics(createMetrics(distance = 1000.0, batteryPct = 95, chargeState = ChargeState.STANDBY))
+        val estimate = estimator.getEstimate()
+
+        // then
+        assertNotNull(estimate)
+        with(estimate!!) {
+            assertEquals(19.0f, estimatedRangeKm)
+            assertEquals(10.0f, routeRemainingKm)
+            assertEquals(true, isSufficientForRoute)
+            assertEquals(ChargeState.STANDBY, chargeState)
+        }
+    }
 }
