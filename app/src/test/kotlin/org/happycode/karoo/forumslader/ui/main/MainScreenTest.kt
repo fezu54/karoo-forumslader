@@ -215,6 +215,25 @@ class MainScreenTest {
     }
 
     @Test
+    fun `should display standby text with remaining range when battery estimate state is STANDBY and range exists`() {
+        // given
+        val estimate = BatteryEstimate(
+            remainingCapacityPct = 50,
+            avgDischargeRatePctPerKm = 0.5f,
+            estimatedRangeKm = 100.0f,
+            routeRemainingKm = null,
+            isSufficientForRoute = null,
+            chargeState = ChargeState.STANDBY
+        )
+
+        // when
+        showMainScreen(estimate = estimate)
+
+        // then
+        composeTestRule.onNodeWithText("~100 km remaining").assertIsDisplayed()
+    }
+
+    @Test
     fun `should display not enough data when discharging but no range available`() {
         // given
         val estimate = BatteryEstimate(

@@ -96,4 +96,17 @@ class LogcatDumperTest : ShouldSpec({
         result.shouldNotBeNull()
         result.exists() shouldBe true
     }
+
+    should("use default logcat source with target PID when provided") {
+        // given
+        val tempDir = tempdir().toPath()
+        val dumper = LogcatDumper(directory = tempDir)
+
+        // when
+        val result = dumper.dumpLogcat(targetPid = 1234)
+
+        // then
+        result.shouldNotBeNull()
+        result.exists() shouldBe true
+    }
 })
