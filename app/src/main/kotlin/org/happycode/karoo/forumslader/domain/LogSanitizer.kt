@@ -8,7 +8,7 @@ object LogSanitizer {
     fun sanitize(text: String): String =
         MAC_ADDRESS_REGEX.replace(text) { matchResult ->
             val delimiter = matchResult.groupValues[2]
-            val prefix = matchResult.value.substring(0, 8)
+            val prefix = matchResult.value.take(8)
             "$prefix$delimiter**$delimiter**$delimiter**"
         }
 }

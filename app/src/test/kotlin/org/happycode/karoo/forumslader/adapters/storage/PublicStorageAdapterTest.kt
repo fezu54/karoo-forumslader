@@ -1,43 +1,55 @@
 package org.happycode.karoo.forumslader.adapters.storage
 
-import androidx.test.core.app.ApplicationProvider
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
-import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
+import android.content.Context
+import android.media.MediaScannerConnection
+import android.os.Environment
+import io.kotest.core.spec.style.ShouldSpec
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
+import java.io.File
 import kotlin.io.path.createTempDirectory
 import kotlin.io.path.exists
 import kotlin.io.path.readText
 import kotlin.io.path.writeText
 
-@RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
-class PublicStorageAdapterTest {
+class PublicStorageAdapterTest : ShouldSpec({
 
-    @Test
-    fun `should copy file to destination directory when file exists`() {
+    beforeSpec {
+        mockkStatic(Environment::class)
+        mockkStatic(MediaScannerConnection::class)
+        every { Environment.getExternalStoragePublicDirectory(any()) } returns File("/tmp")
+        every { MediaScannerConnection.scanFile(any(), any(), any(), any()) } returns Unit
+    }
+
+    afterSpec {
+        unmockkStatic(Environment::class)
+        unmockkStatic(MediaScannerConnection::class)
+    }
+
+    should("copy file to destination directory when file exists") {
         //given
-        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val context = mockk<Context>()
         val sourceDir = createTempDirectory()
         val targetDir = createTempDirectory()
         val sourceFile = sourceDir.resolve("sample.txt").apply { writeText("Hello storage") }
         val adapter = PublicStorageAdapter(context = context, targetDirectory = targetDir)
 
         //when
-        val result = adapter.exportToPublicStorage(sourceFile, "exported.txt")
+        val result = adapter.exportToPublicStorage(sourcePath = sourceFile, destinationFileName = "exported.txt")
 
         //then
-        assertTrue(result.isSuccess)
+        result.isSuccess shouldBe true
         val exportedPath = result.getOrThrow()
-        assertTrue(exportedPath.exists())
-        assertEquals("Hello storage", exportedPath.readText())
-        assertEquals("exported.txt", exportedPath.fileName.toString())
+        exportedPath.exists() shouldBe true
+        exportedPath.readText() shouldBe "Hello storage"
+        exportedPath.fileName.toString() shouldBe "exported.txt"
     }
 
-    @Test
-    fun `should fail when source file does not exist`() {
+    should("fail when source file does not exist") {
         //given
         val sourceDir = createTempDirectory()
         val targetDir = createTempDirectory()
@@ -45,18 +57,17 @@ class PublicStorageAdapterTest {
         val adapter = PublicStorageAdapter(context = null, targetDirectory = targetDir)
 
         //when
-        val result = adapter.exportToPublicStorage(nonExistentFile, "exported.txt")
+        val result = adapter.exportToPublicStorage(sourcePath = nonExistentFile, destinationFileName = "exported.txt")
 
         //then
-        assertTrue(result.isFailure)
+        result.isFailure shouldBe true
     }
 
-    @Test
-    fun `should instantiate with default parameters without errors`() {
+    should("instantiate with default parameters without errors") {
         //when
         val adapter = PublicStorageAdapter()
 
         //then
-        org.junit.Assert.assertNotNull(adapter)
+        adapter.shouldNotBeNull()
     }
-}
+})

@@ -1,86 +1,104 @@
 package org.happycode.karoo.forumslader.model
 
 import android.content.Context
-import androidx.test.core.app.ApplicationProvider
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Before
-import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
+import android.content.SharedPreferences
+import io.kotest.core.spec.style.ShouldSpec
+import io.kotest.matchers.shouldBe
+import io.mockk.every
+import io.mockk.mockk
 
-@RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
-class ForumsladerConfigTest {
+class ForumsladerConfigTest : ShouldSpec({
+    val storage = mutableMapOf<String, Any?>()
+    val editor = mockk<SharedPreferences.Editor>(relaxed = true)
+    val prefs = mockk<SharedPreferences>()
+    val context = mockk<Context>()
 
-    private lateinit var context: Context
-    private lateinit var config: ForumsladerConfig
+    beforeEach {
+        storage.clear()
+        every { context.getSharedPreferences("forumslader_prefs", Context.MODE_PRIVATE) } returns prefs
 
-    @Before
-    fun setUp() {
-        context = ApplicationProvider.getApplicationContext()
-        config = ForumsladerConfig(context)
+        every { prefs.getInt(any(), any()) } answers { storage[firstArg()] as? Int ?: secondArg() }
+        every { prefs.getFloat(any(), any()) } answers { storage[firstArg()] as? Float ?: secondArg() }
+        every { prefs.getString(any(), any()) } answers { storage[firstArg()] as? String ?: secondArg() }
+
+        every { prefs.edit() } returns editor
+        every { editor.putInt(any(), any()) } answers { storage[firstArg()] = secondArg(); editor }
+        every { editor.putFloat(any(), any()) } answers { storage[firstArg()] = secondArg(); editor }
+        every { editor.putString(any(), any()) } answers { storage[firstArg()] = secondArg(); editor }
+        every { editor.apply() } returns Unit
     }
 
-    @Test
-    fun `should have default values when initialized`() {
+    should("have default values when initialized") {
+        // given
+        val config = ForumsladerConfig(context)
+
         // then
         with(config) {
-            assertEquals(2200, wheelsize)
-            assertEquals(14, poles)
-            assertEquals(ForumsladerVersion.Unknown, version)
-            assertNull(lockedMacAddress)
+            wheelsize shouldBe 2200
+            poles shouldBe 14
+            version shouldBe ForumsladerVersion.Unknown
+            speedMultiplier shouldBe 1.0f
+            lockedMacAddress shouldBe null
         }
     }
 
-    @Test
-    fun `should persist wheelsize when updated`() {
+    should("persist wheelsize when updated") {
         // given
+        val config = ForumsladerConfig(context)
         val newValue = 2100
 
         // when
         config.wheelsize = newValue
 
         // then
-        assertEquals(newValue, reloadConfig().wheelsize)
+        ForumsladerConfig(context).wheelsize shouldBe newValue
     }
 
-    @Test
-    fun `should persist poles when updated`() {
+    should("persist poles when updated") {
         // given
+        val config = ForumsladerConfig(context)
         val newValue = 28
 
         // when
         config.poles = newValue
 
         // then
-        assertEquals(newValue, reloadConfig().poles)
+        ForumsladerConfig(context).poles shouldBe newValue
     }
 
-    @Test
-    fun `should persist version when updated`() {
+    should("persist version when updated") {
         // given
+        val config = ForumsladerConfig(context)
         val newValue = ForumsladerVersion.V6
 
         // when
         config.version = newValue
 
         // then
-        assertEquals(newValue, reloadConfig().version)
+        ForumsladerConfig(context).version shouldBe newValue
     }
 
-    @Test
-    fun `should persist speedMultiplier when updated`() {
+    should("persist speedMultiplier when updated") {
         // given
+        val config = ForumsladerConfig(context)
         val newValue = 1.05f
 
         // when
         config.speedMultiplier = newValue
 
         // then
-        assertEquals(newValue, reloadConfig().speedMultiplier, 0.001f)
+        ForumsladerConfig(context).speedMultiplier shouldBe newValue
     }
 
-    private fun reloadConfig() = ForumsladerConfig(context)
-}
+    should("persist lockedMacAddress when updated") {
+        // given
+        val config = ForumsladerConfig(context)
+        val newValue = "11:22:33:44:55:66"
+
+        // when
+        config.lockedMacAddress = newValue
+
+        // then
+        ForumsladerConfig(context).lockedMacAddress shouldBe newValue
+    }
+})

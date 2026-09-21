@@ -17,6 +17,9 @@ import io.hammerhead.karooext.internal.Emitter
 import io.hammerhead.karooext.models.Device
 import io.hammerhead.karooext.models.DeviceEvent
 import io.hammerhead.karooext.models.FitEffect
+import io.kotest.core.spec.style.ShouldSpec
+import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
@@ -27,32 +30,24 @@ import io.mockk.verify
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
 import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.MANUFACTURER_ID_FORUMSLADER
 import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.SERVICE_UUID_V6_ALT
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertTrue
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.io.TempDir
 import java.io.File
+import kotlin.io.path.createTempDirectory
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class ForumsladerExtensionTest {
+class ForumsladerExtensionTest : ShouldSpec({
 
-    @TempDir
     lateinit var tempDir: File
+    lateinit var mockPrefs: SharedPreferences
+    lateinit var extension: ForumsladerExtension
 
-    private lateinit var context: Context
-    private lateinit var extension: ForumsladerExtension
-    private lateinit var mockPrefs: SharedPreferences
-
-    @BeforeEach
-    fun setUp() {
+    fun mockLogCalls() {
         mockkStatic(Log::class)
         every { Log.v(any<String>(), any<String>()) } returns 0
         every { Log.d(any<String>(), any<String>()) } returns 0
@@ -61,36 +56,39 @@ class ForumsladerExtensionTest {
         every { Log.w(any<String>(), any<String>(), any<Throwable>()) } returns 0
         every { Log.e(any<String>(), any<String>()) } returns 0
         every { Log.e(any<String>(), any<String>(), any<Throwable>()) } returns 0
-
-        context = mockk(relaxed = true)
-        mockPrefs = mockk(relaxed = true)
-        every { mockPrefs.getString(any(), any()) } returns null
-        every { context.getSharedPreferences(any(), any()) } returns mockPrefs
-        every { context.filesDir } returns tempDir
-
-        extension = ForumsladerExtension(
-            adapterFactory = { _, addr, name ->
-                mockk(relaxed = true) {
-                    every { device } returns Device(
-                        extension = "karoo-forumslader",
-                        uid = "fl-$addr",
-                        dataTypes = emptyList(),
-                        displayName = name ?: "Forumslader"
-                    )
-                }
-            },
-            defaultScope = CoroutineScope(UnconfinedTestDispatcher()),
-            scanSettingsFactory = { mockk(relaxed = true) },
-            bluetoothStateFlowFactory = { flowOf(true) }
-        )
-
-        val applicationContext = mockk<Context>(relaxed = true)
-        every { context.applicationContext } returns applicationContext
-        every { applicationContext.filesDir } returns tempDir
-        every { applicationContext.getSharedPreferences(any(), any()) } returns mockPrefs
     }
 
-    private fun setupScanningEnvironment(
+    fun setupMockExtension(spyExtension: ForumsladerExtension) {
+        val applicationContext = mockk<Context>(relaxed = true).apply {
+            every { getSharedPreferences(any(), any()) } returns mockPrefs
+            every { filesDir } returns tempDir
+        }
+        every { spyExtension.applicationContext } returns applicationContext
+        every { spyExtension.getSharedPreferences(any(), any()) } returns mockPrefs
+        every { spyExtension.filesDir } returns tempDir
+    }
+
+    fun createTestExtension(
+        adapter: ForumsladerKarooAdapter = mockk(relaxed = true),
+        bluetoothStateFlow: Flow<Boolean> = flowOf(true),
+        scope: CoroutineScope = CoroutineScope(UnconfinedTestDispatcher())
+    ): ForumsladerExtension = ForumsladerExtension(
+        adapterFactory = { _, addr, name ->
+            adapter.apply {
+                every { device } returns Device(
+                    extension = "karoo-forumslader",
+                    uid = "fl-$addr",
+                    dataTypes = emptyList(),
+                    displayName = name ?: "Forumslader"
+                )
+            }
+        },
+        defaultScope = scope,
+        scanSettingsFactory = { mockk(relaxed = true) },
+        bluetoothStateFlowFactory = { bluetoothStateFlow }
+    )
+
+    fun setupScanningEnvironment(
         spyExtension: ForumsladerExtension
     ): Pair<ScanCallback, Emitter<Device>> {
         setupMockExtension(spyExtension)
@@ -112,30 +110,25 @@ class ForumsladerExtensionTest {
         return scanCallbackSlot.captured to emitter
     }
 
-    private fun setupMockExtension(spyExtension: ForumsladerExtension) {
-        val applicationContext = mockk<Context>(relaxed = true)
-        every { spyExtension.applicationContext } returns applicationContext
-        every { spyExtension.getSharedPreferences(any(), any()) } returns mockPrefs
-        every { spyExtension.filesDir } returns tempDir
-        every { applicationContext.getSharedPreferences(any(), any()) } returns mockPrefs
-        every { applicationContext.filesDir } returns tempDir
+    beforeEach {
+        tempDir = createTempDirectory().toFile()
+        mockLogCalls()
+
+        mockPrefs = mockk(relaxed = true) {
+            every { getString(any(), any()) } returns null
+        }
+
+        extension = createTestExtension()
     }
 
-    @AfterEach
-    fun tearDown() {
+    afterEach {
         unmockkAll()
     }
 
-    @Test
-    fun `should manage fit emitter lifecycle and propagate to devices when start fit is called`() {
+    should("manage fit emitter lifecycle and propagate to devices when start fit is called") {
         // given
         val mockAdapter = mockk<ForumsladerKarooAdapter>(relaxed = true)
-        val customExtension = ForumsladerExtension(
-            adapterFactory = { _, _, _ -> mockAdapter },
-            defaultScope = CoroutineScope(UnconfinedTestDispatcher()),
-            scanSettingsFactory = { mockk(relaxed = true) },
-            bluetoothStateFlowFactory = { flowOf(true) }
-        )
+        val customExtension = createTestExtension(adapter = mockAdapter)
         val deviceEmitter = mockk<Emitter<DeviceEvent>>(relaxed = true)
         customExtension.connectDevice("fl-00:11:22:33:44:55", deviceEmitter)
 
@@ -157,16 +150,10 @@ class ForumsladerExtensionTest {
         verify { mockAdapter.setFitEmitter(null) }
     }
 
-    @Test
-    fun `should propagate active fit emitter when device connects after start fit`() {
+    should("propagate active fit emitter when device connects after start fit") {
         // given
         val mockAdapter = mockk<ForumsladerKarooAdapter>(relaxed = true)
-        val customExtension = ForumsladerExtension(
-            adapterFactory = { _, _, _ -> mockAdapter },
-            defaultScope = CoroutineScope(UnconfinedTestDispatcher()),
-            scanSettingsFactory = { mockk(relaxed = true) },
-            bluetoothStateFlowFactory = { flowOf(true) }
-        )
+        val customExtension = createTestExtension(adapter = mockAdapter)
         val fitEmitter = mockk<Emitter<FitEffect>>(relaxed = true)
         customExtension.startFit(fitEmitter)
 
@@ -178,21 +165,22 @@ class ForumsladerExtensionTest {
         verify { mockAdapter.setFitEmitter(fitEmitter) }
     }
 
-    @Test
-    fun `should provide all supported data types`() {
+    should("provide all supported data types when types property is accessed") {
+        // given
+        // default extension instance
+
         // when
         val types = extension.types
 
         // then
-        assertEquals(17, types.size, "Should provide exactly 17 data types")
+        types.size shouldBe 17
         val typeIds = types.map { it.typeId }
-        assertTrue(DataFieldId.BATTERY_LEVEL in typeIds, "Should include battery level type")
-        assertTrue(DataFieldId.BATTERY_RANGE in typeIds, "Should include battery range type")
-        assertTrue(DataFieldId.SPEED in typeIds, "Should include speed type")
+        typeIds shouldContain DataFieldId.BATTERY_LEVEL
+        typeIds shouldContain DataFieldId.BATTERY_RANGE
+        typeIds shouldContain DataFieldId.SPEED
     }
 
-    @Test
-    fun `should handle missing permission when start scan is called`() {
+    should("handle missing permission when start scan is called") {
         // given
         val spyExtension = spyk(extension)
         every { spyExtension.checkSelfPermission(any()) } returns PackageManager.PERMISSION_DENIED
@@ -205,8 +193,7 @@ class ForumsladerExtensionTest {
         verify { emitter.setCancellable(any()) }
     }
 
-    @Test
-    fun `should match and emit device when scan result has alternative V6 service UUID`() {
+    should("match and emit device when scan result has alternative V6 service UUID") {
         // given
         val spyExtension = spyk(extension)
         val (scanCallback, emitter) = setupScanningEnvironment(spyExtension)
@@ -229,8 +216,7 @@ class ForumsladerExtensionTest {
         verify { emitter.onNext(match { it.uid == "fl-11:22:33:44:55:66" }) }
     }
 
-    @Test
-    fun `should match and emit device when scan result has Forumslader manufacturer ID`() {
+    should("match and emit device when scan result has Forumslader manufacturer ID") {
         // given
         val spyExtension = spyk(extension)
         val (scanCallback, emitter) = setupScanningEnvironment(spyExtension)
@@ -250,8 +236,7 @@ class ForumsladerExtensionTest {
         verify { emitter.onNext(match { it.uid == "fl-22:33:44:55:66:77" }) }
     }
 
-    @Test
-    fun `should not emit device when scan result does not match Forumslader criteria`() {
+    should("not emit device when scan result does not match Forumslader criteria") {
         // given
         val spyExtension = spyk(extension)
         val (scanCallback, emitter) = setupScanningEnvironment(spyExtension)
@@ -271,24 +256,12 @@ class ForumsladerExtensionTest {
         verify(exactly = 0) { emitter.onNext(match { it.uid == "fl-99:99:99:99:99:99" }) }
     }
 
-    @Test
-    fun `should wait and start scan when bluetooth transitions from disabled to enabled`() {
+    should("wait and start scan when bluetooth transitions from disabled to enabled") {
         // given
         val bluetoothStateFlow = MutableStateFlow(false)
-        val extensionWithFlow = ForumsladerExtension(
-            adapterFactory = { _, addr, name ->
-                mockk(relaxed = true) {
-                    every { device } returns Device(
-                        extension = "karoo-forumslader",
-                        uid = "fl-$addr",
-                        dataTypes = emptyList(),
-                        displayName = name ?: "Forumslader"
-                    )
-                }
-            },
-            defaultScope = CoroutineScope(Dispatchers.Unconfined),
-            scanSettingsFactory = { mockk(relaxed = true) },
-            bluetoothStateFlowFactory = { bluetoothStateFlow }
+        val extensionWithFlow = createTestExtension(
+            bluetoothStateFlow = bluetoothStateFlow,
+            scope = CoroutineScope(Dispatchers.Unconfined)
         )
         val spyExtension = spyk(extensionWithFlow)
         setupMockExtension(spyExtension)
@@ -318,24 +291,12 @@ class ForumsladerExtensionTest {
         verify(exactly = 1) { scanner.startScan(any<List<ScanFilter>>(), any<ScanSettings>(), any<ScanCallback>()) }
     }
 
-    @Test
-    fun `should pause scan when bluetooth transitions to disabled`() {
+    should("pause scan when bluetooth transitions to disabled") {
         // given
         val bluetoothStateFlow = MutableStateFlow(true)
-        val extensionWithFlow = ForumsladerExtension(
-            adapterFactory = { _, addr, name ->
-                mockk(relaxed = true) {
-                    every { device } returns Device(
-                        extension = "karoo-forumslader",
-                        uid = "fl-$addr",
-                        dataTypes = emptyList(),
-                        displayName = name ?: "Forumslader"
-                    )
-                }
-            },
-            defaultScope = CoroutineScope(Dispatchers.Unconfined),
-            scanSettingsFactory = { mockk(relaxed = true) },
-            bluetoothStateFlowFactory = { bluetoothStateFlow }
+        val extensionWithFlow = createTestExtension(
+            bluetoothStateFlow = bluetoothStateFlow,
+            scope = CoroutineScope(Dispatchers.Unconfined)
         )
         val spyExtension = spyk(extensionWithFlow)
         setupMockExtension(spyExtension)
@@ -365,4 +326,4 @@ class ForumsladerExtensionTest {
         // then
         verify(exactly = 1) { scanner.stopScan(any<ScanCallback>()) }
     }
-}
+})

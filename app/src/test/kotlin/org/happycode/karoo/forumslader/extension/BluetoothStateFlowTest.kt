@@ -6,6 +6,9 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import androidx.core.content.ContextCompat
+import io.kotest.core.spec.style.ShouldSpec
+import io.kotest.matchers.shouldBe
+import io.mockk.CapturingSlot
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
@@ -17,25 +20,21 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class BluetoothStateFlowTest {
+class BluetoothStateFlowTest : ShouldSpec({
 
-    private lateinit var context: Context
-    private lateinit var bluetoothManager: BluetoothManager
-    private lateinit var bluetoothAdapter: BluetoothAdapter
-    private val receiverSlot = slot<BroadcastReceiver>()
+    lateinit var context: Context
+    lateinit var bluetoothManager: BluetoothManager
+    lateinit var bluetoothAdapter: BluetoothAdapter
+    lateinit var receiverSlot: CapturingSlot<BroadcastReceiver>
 
-    @BeforeEach
-    fun setUp() {
+    beforeEach {
         mockkStatic(ContextCompat::class)
         context = mockk(relaxed = true)
         bluetoothManager = mockk(relaxed = true)
         bluetoothAdapter = mockk(relaxed = true)
+        receiverSlot = slot()
 
         every { context.getSystemService(BluetoothManager::class.java) } returns bluetoothManager
         every { bluetoothManager.adapter } returns bluetoothAdapter
@@ -49,103 +48,102 @@ class BluetoothStateFlowTest {
         } returns null
     }
 
-    @AfterEach
-    fun tearDown() {
+    afterEach {
         unmockkAll()
     }
 
-    @Test
-    fun `should emit true when bluetooth adapter is initially enabled`() = runTest {
-        // given
-        every { bluetoothAdapter.isEnabled } returns true
-        val emissions = mutableListOf<Boolean>()
+    should("emit true when bluetooth adapter is initially enabled") {
+        runTest {
+            // given
+            every { bluetoothAdapter.isEnabled } returns true
+            val emissions = mutableListOf<Boolean>()
 
-        // when
-        val job = launch(UnconfinedTestDispatcher()) {
-            context.bluetoothStateFlow().toList(emissions)
+            // when
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                context.bluetoothStateFlow().toList(emissions)
+            }
+
+            // then
+            emissions shouldBe listOf(true)
         }
-
-        // then
-        assertEquals(listOf(true), emissions)
-        job.cancel()
     }
 
-    @Test
-    fun `should emit false when bluetooth adapter is initially disabled`() = runTest {
-        // given
-        every { bluetoothAdapter.isEnabled } returns false
-        val emissions = mutableListOf<Boolean>()
+    should("emit false when bluetooth adapter is initially disabled") {
+        runTest {
+            // given
+            every { bluetoothAdapter.isEnabled } returns false
+            val emissions = mutableListOf<Boolean>()
 
-        // when
-        val job = launch(UnconfinedTestDispatcher()) {
-            context.bluetoothStateFlow().toList(emissions)
+            // when
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                context.bluetoothStateFlow().toList(emissions)
+            }
+
+            // then
+            emissions shouldBe listOf(false)
         }
-
-        // then
-        assertEquals(listOf(false), emissions)
-        job.cancel()
     }
 
-    @Test
-    fun `should emit true when ACTION_STATE_CHANGED broadcast is received with STATE_ON`() = runTest {
-        // given
-        every { bluetoothAdapter.isEnabled } returns false
-        val emissions = mutableListOf<Boolean>()
+    should("emit true when ACTION_STATE_CHANGED broadcast is received with STATE_ON") {
+        runTest {
+            // given
+            every { bluetoothAdapter.isEnabled } returns false
+            val emissions = mutableListOf<Boolean>()
 
-        val job = launch(UnconfinedTestDispatcher()) {
-            context.bluetoothStateFlow().toList(emissions)
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                context.bluetoothStateFlow().toList(emissions)
+            }
+
+            val intent = mockk<Intent>(relaxed = true) {
+                every { action } returns BluetoothAdapter.ACTION_STATE_CHANGED
+                every { getIntExtra(BluetoothAdapter.EXTRA_STATE, any()) } returns BluetoothAdapter.STATE_ON
+            }
+
+            // when
+            receiverSlot.captured.onReceive(context, intent)
+
+            // then
+            emissions shouldBe listOf(false, true)
         }
-
-        val intent = mockk<Intent>(relaxed = true) {
-            every { action } returns BluetoothAdapter.ACTION_STATE_CHANGED
-            every { getIntExtra(BluetoothAdapter.EXTRA_STATE, any()) } returns BluetoothAdapter.STATE_ON
-        }
-
-        // when
-        receiverSlot.captured.onReceive(context, intent)
-
-        // then
-        assertEquals(listOf(false, true), emissions)
-        job.cancel()
     }
 
-    @Test
-    fun `should emit false when ACTION_STATE_CHANGED broadcast is received with STATE_OFF`() = runTest {
-        // given
-        every { bluetoothAdapter.isEnabled } returns true
-        val emissions = mutableListOf<Boolean>()
+    should("emit false when ACTION_STATE_CHANGED broadcast is received with STATE_OFF") {
+        runTest {
+            // given
+            every { bluetoothAdapter.isEnabled } returns true
+            val emissions = mutableListOf<Boolean>()
 
-        val job = launch(UnconfinedTestDispatcher()) {
-            context.bluetoothStateFlow().toList(emissions)
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                context.bluetoothStateFlow().toList(emissions)
+            }
+
+            val intent = mockk<Intent>(relaxed = true) {
+                every { action } returns BluetoothAdapter.ACTION_STATE_CHANGED
+                every { getIntExtra(BluetoothAdapter.EXTRA_STATE, any()) } returns BluetoothAdapter.STATE_OFF
+            }
+
+            // when
+            receiverSlot.captured.onReceive(context, intent)
+
+            // then
+            emissions shouldBe listOf(true, false)
         }
-
-        val intent = mockk<Intent>(relaxed = true) {
-            every { action } returns BluetoothAdapter.ACTION_STATE_CHANGED
-            every { getIntExtra(BluetoothAdapter.EXTRA_STATE, any()) } returns BluetoothAdapter.STATE_OFF
-        }
-
-        // when
-        receiverSlot.captured.onReceive(context, intent)
-
-        // then
-        assertEquals(listOf(true, false), emissions)
-        job.cancel()
     }
 
-    @Test
-    fun `should unregister receiver when flow collection is cancelled`() = runTest {
-        // given
-        every { bluetoothAdapter.isEnabled } returns true
-        val emissions = mutableListOf<Boolean>()
+    should("unregister receiver when flow collection is cancelled") {
+        runTest {
+            // given
+            every { bluetoothAdapter.isEnabled } returns true
 
-        val job = launch(UnconfinedTestDispatcher()) {
-            context.bluetoothStateFlow().toList(emissions)
+            val job = launch(UnconfinedTestDispatcher(testScheduler)) {
+                context.bluetoothStateFlow().toList()
+            }
+
+            // when
+            job.cancel()
+
+            // then
+            verify { context.unregisterReceiver(receiverSlot.captured) }
         }
-
-        // when
-        job.cancel()
-
-        // then
-        verify { context.unregisterReceiver(receiverSlot.captured) }
     }
-}
+})
