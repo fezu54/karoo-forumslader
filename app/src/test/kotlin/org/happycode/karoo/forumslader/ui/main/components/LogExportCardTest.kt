@@ -4,8 +4,8 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import io.kotest.matchers.shouldBe
 import org.happycode.karoo.forumslader.theme.AppTheme
-import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -21,20 +21,13 @@ class LogExportCardTest {
 
     @Test
     fun `should display telemetry stats and action buttons when server is idle`() {
-        //given
-        composeTestRule.setContent {
-            AppTheme {
-                LogExportCard(
-                    csvRowCount = 42,
-                    csvFileSize = 2048L,
-                    isServerRunning = false,
-                    serverUrl = null,
-                    onSaveToUsb = {},
-                    onToggleServer = {},
-                    onClearLogs = {}
-                )
-            }
-        }
+        //when
+        renderCard(
+            csvRowCount = 42,
+            csvFileSize = 2048L,
+            isServerRunning = false,
+            serverUrl = null,
+        )
 
         //then
         composeTestRule.onNodeWithText("Diagnostics & Logs").assertIsDisplayed()
@@ -45,99 +38,57 @@ class LogExportCardTest {
     }
 
     @Test
-    fun `should trigger onSaveToUsb when save button clicked`() {
+    fun `should trigger onSaveToUsb when save button is clicked`() {
         //given
         var clicked = false
-        composeTestRule.setContent {
-            AppTheme {
-                LogExportCard(
-                    csvRowCount = 10,
-                    csvFileSize = 500L,
-                    isServerRunning = false,
-                    serverUrl = null,
-                    onSaveToUsb = { clicked = true },
-                    onToggleServer = {},
-                    onClearLogs = {}
-                )
-            }
-        }
+        renderCard(onSaveToUsb = { clicked = true })
 
         //when
         composeTestRule.onNodeWithText("Save to USB Storage").performClick()
 
         //then
-        assertTrue(clicked)
+        clicked shouldBe true
     }
 
     @Test
-    fun `should trigger onToggleServer when share wifi button clicked`() {
+    fun `should trigger onToggleServer when share wifi button is clicked`() {
         //given
         var clicked = false
-        composeTestRule.setContent {
-            AppTheme {
-                LogExportCard(
-                    csvRowCount = 10,
-                    csvFileSize = 500L,
-                    isServerRunning = false,
-                    serverUrl = null,
-                    onSaveToUsb = {},
-                    onToggleServer = { clicked = true },
-                    onClearLogs = {}
-                )
-            }
-        }
+        renderCard(onToggleServer = { clicked = true })
 
         //when
         composeTestRule.onNodeWithText("Share to Phone (Wi-Fi)").performClick()
 
         //then
-        assertTrue(clicked)
+        clicked shouldBe true
     }
 
     @Test
-    fun `should trigger onClearLogs when clear logs clicked`() {
+    fun `should trigger onClearLogs when clear logs button is clicked`() {
         //given
         var clicked = false
-        composeTestRule.setContent {
-            AppTheme {
-                LogExportCard(
-                    csvRowCount = 10,
-                    csvFileSize = 500L,
-                    isServerRunning = false,
-                    serverUrl = null,
-                    onSaveToUsb = {},
-                    onToggleServer = {},
-                    onClearLogs = { clicked = true }
-                )
-            }
-        }
+        renderCard(onClearLogs = { clicked = true })
 
         //when
         composeTestRule.onNodeWithText("Clear Logs").performClick()
 
         //then
-        assertTrue(clicked)
+        clicked shouldBe true
     }
 
     @Test
-    fun `should display qr code and stop server button when server is active`() {
+    fun `should display qr code and server info when server is active`() {
         //given
-        var stopClicked = false
         val testUrl = "http://192.168.1.100:8080"
-        composeTestRule.setContent {
-            AppTheme {
-                LogExportCard(
-                    csvRowCount = 15,
-                    csvFileSize = 1024L * 1024L * 3L, // 3.0 MB
-                    isServerRunning = true,
-                    serverUrl = testUrl,
-                    statusMessage = "Server active",
-                    onSaveToUsb = {},
-                    onToggleServer = { stopClicked = true },
-                    onClearLogs = {}
-                )
-            }
-        }
+
+        //when
+        renderCard(
+            csvRowCount = 15,
+            csvFileSize = 3L * 1024L * 1024L,
+            isServerRunning = true,
+            serverUrl = testUrl,
+            statusMessage = "Server active",
+        )
 
         //then
         composeTestRule.onNodeWithText("15 rows (3.0 MB)").assertIsDisplayed()
@@ -145,32 +96,60 @@ class LogExportCardTest {
         composeTestRule.onNodeWithText(testUrl).assertIsDisplayed()
         composeTestRule.onNodeWithText("Stop Server").assertIsDisplayed()
         composeTestRule.onNodeWithText("Server active").assertIsDisplayed()
+    }
+
+    @Test
+    fun `should trigger onToggleServer when stop server button is clicked`() {
+        //given
+        var stopClicked = false
+        renderCard(
+            isServerRunning = true,
+            serverUrl = "http://192.168.1.100:8080",
+            onToggleServer = { stopClicked = true },
+        )
 
         //when
         composeTestRule.onNodeWithText("Stop Server").performClick()
 
         //then
-        assertTrue(stopClicked)
+        stopClicked shouldBe true
     }
 
     @Test
-    fun `should display bytes format when file size is under 1 KB`() {
-        //given
-        composeTestRule.setContent {
-            AppTheme {
-                LogExportCard(
-                    csvRowCount = 2,
-                    csvFileSize = 512L,
-                    isServerRunning = false,
-                    serverUrl = null,
-                    onSaveToUsb = {},
-                    onToggleServer = {},
-                    onClearLogs = {}
-                )
-            }
-        }
+    fun `should format file size in bytes when file size is under 1 KB`() {
+        //when
+        renderCard(
+            csvRowCount = 2,
+            csvFileSize = 512L,
+        )
 
         //then
         composeTestRule.onNodeWithText("2 rows (512 B)").assertIsDisplayed()
+    }
+
+    private fun renderCard(
+        csvRowCount: Int = 10,
+        csvFileSize: Long = 500L,
+        isServerRunning: Boolean = false,
+        serverUrl: String? = null,
+        statusMessage: String? = null,
+        onSaveToUsb: () -> Unit = {},
+        onToggleServer: () -> Unit = {},
+        onClearLogs: () -> Unit = {},
+    ) {
+        composeTestRule.setContent {
+            AppTheme {
+                LogExportCard(
+                    csvRowCount = csvRowCount,
+                    csvFileSize = csvFileSize,
+                    isServerRunning = isServerRunning,
+                    serverUrl = serverUrl,
+                    statusMessage = statusMessage,
+                    onSaveToUsb = onSaveToUsb,
+                    onToggleServer = onToggleServer,
+                    onClearLogs = onClearLogs,
+                )
+            }
+        }
     }
 }

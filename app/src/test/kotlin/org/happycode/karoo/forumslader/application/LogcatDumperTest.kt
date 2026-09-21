@@ -1,18 +1,19 @@
 package org.happycode.karoo.forumslader.application
 
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNotNull
-import org.junit.jupiter.api.Assertions.assertNull
-import org.junit.jupiter.api.Test
-import kotlin.io.path.createTempDirectory
+import io.kotest.core.spec.style.ShouldSpec
+import io.kotest.engine.spec.tempdir
+import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import kotlin.io.path.exists
 import kotlin.io.path.readLines
 
-class LogcatDumperTest {
+class LogcatDumperTest : ShouldSpec({
 
-    @Test
-    fun `should dump and sanitize logs matching target pid`() {
-        //given
-        val tempDir = createTempDirectory()
+    should("dump and sanitize logs matching target PID when target PID is provided") {
+        // given
+        val tempDir = tempdir().toPath()
         val mockLines = sequenceOf(
             "09-03 10:00:00.000 (1234) D/SomeTag: Connected to 00:11:22:33:44:55",
             "09-03 10:00:01.000 (9999) D/OtherApp: Secret info",
@@ -20,60 +21,79 @@ class LogcatDumperTest {
         )
         val dumper = LogcatDumper(directory = tempDir, logcatSource = { mockLines })
 
-        //when
+        // when
         val resultPath = dumper.dumpLogcat(targetPid = 1234)
 
-        //then
-        assertNotNull(resultPath)
-        val lines = resultPath.readLines()
-        assertEquals(2, lines.size)
-        assertEquals("09-03 10:00:00.000 (1234) D/SomeTag: Connected to 00:11:22:**:**:**", lines[0])
-        assertEquals("09-03 10:00:02.000 (1234) I/FL_BLE: Device AA:BB:CC:**:**:** paired", lines[1])
+        // then
+        resultPath.shouldNotBeNull()
+        resultPath.readLines() shouldContainExactly listOf(
+            "09-03 10:00:00.000 (1234) D/SomeTag: Connected to 00:11:22:**:**:**",
+            "09-03 10:00:02.000 (1234) I/FL_BLE: Device AA:BB:CC:**:**:** paired"
+        )
     }
 
-    @Test
-    fun `should include lines matching Forumslader tag even without matching pid`() {
-        //given
-        val tempDir = createTempDirectory()
+    should("include lines matching Forumslader tag when target PID is different") {
+        // given
+        val tempDir = tempdir().toPath()
         val mockLines = sequenceOf(
             "09-03 10:00:00.000 (9999) D/Forumslader: Telemetry parsed with MAC 12:34:56:78:9A:BC",
             "09-03 10:00:01.000 (9999) D/Unrelated: Unrelated message"
         )
         val dumper = LogcatDumper(directory = tempDir, logcatSource = { mockLines })
 
-        //when
+        // when
         val resultPath = dumper.dumpLogcat(targetPid = 1234)
 
-        //then
-        val lines = resultPath.readLines()
-        assertEquals(1, lines.size)
-        assertEquals("09-03 10:00:00.000 (9999) D/Forumslader: Telemetry parsed with MAC 12:34:56:**:**:**", lines[0])
+        // then
+        resultPath.shouldNotBeNull()
+        resultPath.readLines() shouldContainExactly listOf(
+            "09-03 10:00:00.000 (9999) D/Forumslader: Telemetry parsed with MAC 12:34:56:**:**:**"
+        )
     }
 
-    @Test
-    fun `should clear log file when clear invoked`() {
-        //given
-        val tempDir = createTempDirectory()
+    should("include all sanitized lines when no target PID is specified") {
+        // given
+        val tempDir = tempdir().toPath()
+        val mockLines = sequenceOf(
+            "09-03 10:00:00.000 (1234) D/SomeTag: Connected to 00:11:22:33:44:55",
+            "09-03 10:00:01.000 (9999) D/OtherApp: Device AA:BB:CC:DD:EE:FF paired"
+        )
+        val dumper = LogcatDumper(directory = tempDir, logcatSource = { mockLines })
+
+        // when
+        val resultPath = dumper.dumpLogcat(targetPid = null)
+
+        // then
+        resultPath.shouldNotBeNull()
+        resultPath.readLines() shouldContainExactly listOf(
+            "09-03 10:00:00.000 (1234) D/SomeTag: Connected to 00:11:22:**:**:**",
+            "09-03 10:00:01.000 (9999) D/OtherApp: Device AA:BB:CC:**:**:** paired"
+        )
+    }
+
+    should("clear log file when clear is invoked") {
+        // given
+        val tempDir = tempdir().toPath()
         val dumper = LogcatDumper(directory = tempDir, logcatSource = { sequenceOf("Log line") })
         dumper.dumpLogcat()
 
-        //when
+        // when
         dumper.clear()
 
-        //then
-        assertNull(dumper.getLogcatPath())
+        // then
+        dumper.getLogcatPath().shouldBeNull()
     }
 
-    @Test
-    fun `should use default logcat source when none provided`() {
-        //given
-        val tempDir = createTempDirectory()
+    should("use default logcat source when none provided") {
+        // given
+        val tempDir = tempdir().toPath()
         val dumper = LogcatDumper(directory = tempDir)
 
-        //when
+        // when
         val result = dumper.dumpLogcat()
 
-        //then
-        assertNotNull(result)
+        // then
+        result.shouldNotBeNull()
+        result.exists() shouldBe true
     }
-}
+})

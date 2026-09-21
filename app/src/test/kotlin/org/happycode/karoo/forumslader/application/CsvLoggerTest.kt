@@ -1,20 +1,20 @@
 package org.happycode.karoo.forumslader.application
 
+import io.kotest.core.spec.style.ShouldSpec
+import io.kotest.engine.spec.tempdir
+import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.comparables.shouldBeGreaterThan
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
 import org.happycode.karoo.forumslader.domain.ChargeState
 import org.happycode.karoo.forumslader.domain.ForumsladerMetrics
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNotNull
-import org.junit.jupiter.api.Assertions.assertTrue
-import org.junit.jupiter.api.Test
 import java.time.Instant
-import kotlin.io.path.createTempDirectory
 import kotlin.io.path.exists
 import kotlin.io.path.readLines
-import kotlin.io.path.readText
 
-class CsvLoggerTest {
+class CsvLoggerTest : ShouldSpec({
 
-    private fun sampleMetrics(
+    fun sampleMetrics(
         voltage: Float = 7.2f,
         batteryCurrent: Float = 0.35f,
         consumerCurrent: Float = 0.12f,
@@ -58,11 +58,9 @@ class CsvLoggerTest {
         )
     )
 
-    @Test
-    fun `should write header and row when first telemetry logged`() {
+    should("write header and row when first telemetry logged") {
         //given
-        val tempDir = createTempDirectory()
-        val logger = CsvLogger(directory = tempDir)
+        val logger = CsvLogger(directory = tempdir().toPath())
         val timestamp = Instant.parse("2024-01-15T10:30:00Z")
         val metrics = sampleMetrics()
 
@@ -70,21 +68,18 @@ class CsvLoggerTest {
         logger.logTelemetry(metrics, timestamp)
 
         //then
-        val csvPath = logger.getCsvPath()
-        assertNotNull(csvPath)
-        val lines = csvPath!!.readLines()
-        assertEquals(2, lines.size)
-        assertEquals(CsvLogger.CSV_HEADER, lines[0])
-        assertEquals("0.000,7.20,0.350,0.120,85,120.5,25.3,12345.6,22.5,3,CHARGING,45.2,3.8", lines[1])
-        assertEquals(1, logger.getRowCount())
-        assertTrue(logger.getFileSize() > 0)
+        val csvPath = logger.getCsvPath().shouldNotBeNull()
+        val lines = csvPath.readLines()
+        lines shouldHaveSize 2
+        lines.first() shouldBe CsvLogger.CSV_HEADER
+        lines.last() shouldBe "0.000,7.20,0.350,0.120,85,120.5,25.3,12345.6,22.5,3,CHARGING,45.2,3.8"
+        logger.getRowCount() shouldBe 1
+        logger.getFileSize() shouldBeGreaterThan 0L
     }
 
-    @Test
-    fun `should calculate relative elapsed seconds on subsequent telemetry records`() {
+    should("calculate relative elapsed seconds on subsequent telemetry records") {
         //given
-        val tempDir = createTempDirectory()
-        val logger = CsvLogger(directory = tempDir)
+        val logger = CsvLogger(directory = tempdir().toPath())
         val startTime = Instant.parse("2024-01-15T10:30:00Z")
         val secondTime = startTime.plusMillis(3250)
         val metrics = sampleMetrics()
@@ -94,16 +89,15 @@ class CsvLoggerTest {
         logger.logTelemetry(metrics, secondTime)
 
         //then
-        val lines = logger.getCsvPath()!!.readLines()
-        assertEquals("0.000", lines[1].split(",")[0])
-        assertEquals("3.250", lines[2].split(",")[0])
+        val csvPath = logger.getCsvPath().shouldNotBeNull()
+        val lines = csvPath.readLines()
+        lines[1].split(",")[0] shouldBe "0.000"
+        lines[2].split(",")[0] shouldBe "3.250"
     }
 
-    @Test
-    fun `should reset session start time when clear invoked`() {
+    should("reset session start time when clear invoked") {
         //given
-        val tempDir = createTempDirectory()
-        val logger = CsvLogger(directory = tempDir)
+        val logger = CsvLogger(directory = tempdir().toPath())
         val time1 = Instant.parse("2024-01-15T10:30:00Z")
         val time2 = time1.plusMillis(5000)
         val time3 = time1.plusMillis(10000)
@@ -111,22 +105,20 @@ class CsvLoggerTest {
 
         logger.logTelemetry(metrics, time1)
         logger.logTelemetry(metrics, time2)
-        assertEquals("5.000", logger.getCsvPath()!!.readLines()[2].split(",")[0])
 
         //when
         logger.clear()
         logger.logTelemetry(metrics, time3)
 
         //then
-        val lines = logger.getCsvPath()!!.readLines()
-        assertEquals("0.000", lines[1].split(",")[0])
+        val csvPath = logger.getCsvPath().shouldNotBeNull()
+        val lines = csvPath.readLines()
+        lines[1].split(",")[0] shouldBe "0.000"
     }
 
-    @Test
-    fun `should append rows without duplicating header on subsequent calls`() {
+    should("append rows without duplicating header on subsequent calls") {
         //given
-        val tempDir = createTempDirectory()
-        val logger = CsvLogger(directory = tempDir)
+        val logger = CsvLogger(directory = tempdir().toPath())
         val metrics = sampleMetrics()
 
         //when
@@ -134,15 +126,15 @@ class CsvLoggerTest {
         logger.logTelemetry(metrics)
 
         //then
-        assertEquals(2, logger.getRowCount())
-        val csvContent = logger.getCsvPath()!!.readText()
-        assertEquals(1, csvContent.split(CsvLogger.CSV_HEADER).size - 1)
+        logger.getRowCount() shouldBe 2
+        val csvPath = logger.getCsvPath().shouldNotBeNull()
+        val lines = csvPath.readLines()
+        lines.count { it == CsvLogger.CSV_HEADER } shouldBe 1
     }
 
-    @Test
-    fun `should rotate file when maximum file size exceeded`() {
+    should("rotate file when maximum file size exceeded") {
         //given
-        val tempDir = createTempDirectory()
+        val tempDir = tempdir().toPath()
         val smallLimitBytes = 180L
         val logger = CsvLogger(directory = tempDir, maxFileSizeBytes = smallLimitBytes)
         val metrics = sampleMetrics()
@@ -153,56 +145,49 @@ class CsvLoggerTest {
 
         //then
         val backupPath = tempDir.resolve("telemetry_backup.csv")
-        assertTrue(backupPath.exists())
-        assertTrue(logger.getCsvPath()!!.exists())
-        assertEquals(1, logger.getRowCount())
+        backupPath.exists() shouldBe true
+        val csvPath = logger.getCsvPath().shouldNotBeNull()
+        csvPath.exists() shouldBe true
+        logger.getRowCount() shouldBe 1
     }
 
-    @Test
-    fun `should clear all telemetry files when clear called`() {
+    should("clear all telemetry files when clear called") {
         //given
-        val tempDir = createTempDirectory()
-        val logger = CsvLogger(directory = tempDir)
+        val logger = CsvLogger(directory = tempdir().toPath())
         logger.logTelemetry(sampleMetrics())
 
         //when
         logger.clear()
 
         //then
-        assertEquals(0, logger.getRowCount())
+        logger.getRowCount() shouldBe 0
     }
 
-    @Test
-    fun `should handle null battery level percentage gracefully`() {
+    should("handle null battery level percentage gracefully") {
         //given
-        val tempDir = createTempDirectory()
-        val logger = CsvLogger(directory = tempDir)
+        val logger = CsvLogger(directory = tempdir().toPath())
         val metrics = sampleMetrics(batteryLevel = null)
 
         //when
         logger.logTelemetry(metrics)
 
         //then
-        val row = logger.getCsvPath()!!.readLines()[1]
+        val csvPath = logger.getCsvPath().shouldNotBeNull()
+        val row = csvPath.readLines()[1]
         val fields = row.split(",")
-        assertEquals("", fields[4])
+        fields[4] shouldBe ""
     }
 
-    @Test
-    fun `should return zero rows and size when active file contains only header`() {
+    should("return zero rows and size when active file contains only header") {
         //given
-        val tempDir = createTempDirectory()
-        val logger = CsvLogger(directory = tempDir)
+        val logger = CsvLogger(directory = tempdir().toPath())
 
-        //then (no telemetry logged)
-        assertEquals(0, logger.getRowCount())
-
-        //when (ensure header exists via getCsvPath)
+        //when
         val path = logger.getCsvPath()
 
-        //then (file exists with only header)
-        assertNotNull(path)
-        assertEquals(0, logger.getRowCount())
-        assertTrue(logger.getFileSize() > 0)
+        //then
+        path.shouldNotBeNull()
+        logger.getRowCount() shouldBe 0
+        logger.getFileSize() shouldBeGreaterThan 0L
     }
-}
+})

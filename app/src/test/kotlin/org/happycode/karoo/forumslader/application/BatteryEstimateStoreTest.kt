@@ -1,14 +1,14 @@
 package org.happycode.karoo.forumslader.application
 
+import io.kotest.core.spec.style.ShouldSpec
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.shouldBe
 import org.happycode.karoo.forumslader.domain.BatteryEstimate
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Test
 
-class BatteryEstimateStoreTest {
+class BatteryEstimateStoreTest : ShouldSpec({
 
-    @Test
-    fun `should update and clear estimate`() {
+    should("update and clear estimate") {
+        //given
         val estimate = BatteryEstimate(
             remainingCapacityPct = 80,
             avgDischargeRatePctPerKm = 1.0f,
@@ -17,10 +17,18 @@ class BatteryEstimateStoreTest {
             isSufficientForRoute = null
         )
 
-        BatteryEstimateStore.updateEstimate(estimate)
-        assertEquals(estimate, BatteryEstimateStore.estimateFlow.value)
+        with(BatteryEstimateStore) {
+            // when
+            updateEstimate(estimate)
 
-        BatteryEstimateStore.clear()
-        assertNull(BatteryEstimateStore.estimateFlow.value)
+            // then
+            estimateFlow.value shouldBe estimate
+
+            // when
+            clear()
+
+            // then
+            estimateFlow.value.shouldBeNull()
+        }
     }
-}
+})

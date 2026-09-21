@@ -1,17 +1,15 @@
 package org.happycode.karoo.forumslader.adapters.network
 
+import io.kotest.assertions.nondeterministic.eventually
+import io.kotest.core.spec.style.ShouldSpec
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldStartWith
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.runBlocking
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertTrue
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertNull
 import java.net.HttpURLConnection
 import java.net.URI
 import java.nio.file.Path
@@ -19,16 +17,15 @@ import kotlin.io.path.createTempDirectory
 import kotlin.io.path.writeText
 import kotlin.time.Duration.Companion.milliseconds
 
-class CoroutineLogServerTest {
+class CoroutineLogServerTest : ShouldSpec({
 
-    private lateinit var scope: CoroutineScope
-    private lateinit var tempDir: Path
-    private lateinit var logcatFile: Path
-    private lateinit var csvFile: Path
-    private lateinit var server: CoroutineLogServer
+    lateinit var scope: CoroutineScope
+    lateinit var tempDir: Path
+    lateinit var logcatFile: Path
+    lateinit var csvFile: Path
+    lateinit var server: CoroutineLogServer
 
-    @BeforeEach
-    fun setUp() {
+    beforeEach {
         scope = CoroutineScope(Dispatchers.IO)
         tempDir = createTempDirectory()
         logcatFile = tempDir.resolve("forumslader-logcat.txt").apply {
@@ -45,99 +42,85 @@ class CoroutineLogServerTest {
         )
     }
 
-    @AfterEach
-    fun tearDown() {
+    afterEach {
         server.stop()
         scope.cancel()
+        tempDir.toFile().deleteRecursively()
     }
 
-    @Test
-    fun `should start server and expose correct url with injected ip`() {
+    should("start server and expose correct url when started with valid ip") {
         //when
         val result = server.start(port = 0)
 
         //then
-        assertTrue(result.isSuccess)
-        assertTrue(server.isRunning.value)
-        assertTrue(server.serverUrl.value!!.startsWith("http://127.0.0.1:"))
+        result.isSuccess shouldBe true
+        server.isRunning.value shouldBe true
+        server.serverUrl.value.shouldNotBeNull().shouldStartWith("http://127.0.0.1:")
     }
 
-    @Test
-    fun `should serve index html on get root`() {
+    should("serve index html when root url requested") {
         //given
         val url = server.start(port = 0).getOrThrow()
 
         //when
-        val connection = URI(url).toURL().openConnection() as HttpURLConnection
-        val responseCode = connection.responseCode
-        val responseBody = connection.inputStream.bufferedReader().use { it.readText() }
+        val response = httpGet(url)
 
         //then
-        assertEquals(200, responseCode)
-        assertTrue(responseBody.contains("Forumslader Diagnostics"))
-        assertTrue(responseBody.contains("/logcat"))
-        assertTrue(responseBody.contains("/telemetry.csv"))
+        response.code shouldBe HttpURLConnection.HTTP_OK
+        response.body shouldContain "Forumslader Diagnostics"
+        response.body shouldContain "/logcat"
+        response.body shouldContain "/telemetry.csv"
     }
 
-    @Test
-    fun `should serve logcat file on get logcat`() {
+    should("serve logcat file content when logcat endpoint requested") {
         //given
         val url = server.start(port = 0).getOrThrow()
 
         //when
-        val connection = URI("$url/logcat").toURL().openConnection() as HttpURLConnection
-        val responseCode = connection.responseCode
-        val responseBody = connection.inputStream.bufferedReader().use { it.readText() }
+        val response = httpGet("$url/logcat")
 
         //then
-        assertEquals(200, responseCode)
-        assertEquals("Log line 1\nLog line 2", responseBody)
+        response.code shouldBe HttpURLConnection.HTTP_OK
+        response.body shouldBe "Log line 1\nLog line 2"
     }
 
-    @Test
-    fun `should serve telemetry csv file on get telemetry csv`() {
+    should("serve telemetry csv file content when telemetry endpoint requested") {
         //given
         val url = server.start(port = 0).getOrThrow()
 
         //when
-        val connection = URI("$url/telemetry.csv").toURL().openConnection() as HttpURLConnection
-        val responseCode = connection.responseCode
-        val responseBody = connection.inputStream.bufferedReader().use { it.readText() }
+        val response = httpGet("$url/telemetry.csv")
 
         //then
-        assertEquals(200, responseCode)
-        assertEquals("col1,col2\nval1,val2", responseBody)
+        response.code shouldBe HttpURLConnection.HTTP_OK
+        response.body shouldBe "col1,col2\nval1,val2"
     }
 
-    @Test
-    fun `should return 404 for unknown path`() {
+    should("return 404 response code when unknown path requested") {
         //given
         val url = server.start(port = 0).getOrThrow()
 
         //when
-        val connection = URI("$url/unknown").toURL().openConnection() as HttpURLConnection
-        val responseCode = connection.responseCode
+        val response = httpGet("$url/unknown")
 
         //then
-        assertEquals(404, responseCode)
+        response.code shouldBe HttpURLConnection.HTTP_NOT_FOUND
     }
 
-    @Test
-    fun `should stop server and update isRunning state when stop called`() {
+    should("stop server and update isRunning state when stop is called") {
         //given
         server.start(port = 0)
-        assertTrue(server.isRunning.value)
+        server.isRunning.value shouldBe true
 
         //when
         server.stop()
 
         //then
-        assertFalse(server.isRunning.value)
-        assertNull(server.serverUrl.value)
+        server.isRunning.value shouldBe false
+        server.serverUrl.value.shouldBeNull()
     }
 
-    @Test
-    fun `should return existing url when start called while already running`() {
+    should("return existing url when start is called while already running") {
         //given
         val firstUrl = server.start(port = 0).getOrThrow()
 
@@ -145,11 +128,10 @@ class CoroutineLogServerTest {
         val secondUrl = server.start(port = 0).getOrThrow()
 
         //then
-        assertEquals(firstUrl, secondUrl)
+        firstUrl shouldBe secondUrl
     }
 
-    @Test
-    fun `should return 404 when requested log file is missing`() {
+    should("return 404 response code when requested log file path is null") {
         //given
         val serverWithMissingFiles = CoroutineLogServer(
             scope = scope,
@@ -160,16 +142,14 @@ class CoroutineLogServerTest {
         val url = serverWithMissingFiles.start(port = 0).getOrThrow()
 
         //when
-        val connection = URI("$url/logcat").toURL().openConnection() as HttpURLConnection
-        val responseCode = connection.responseCode
+        val response = httpGet("$url/logcat")
         serverWithMissingFiles.stop()
 
         //then
-        assertEquals(404, responseCode)
+        response.code shouldBe HttpURLConnection.HTTP_NOT_FOUND
     }
 
-    @Test
-    fun `should auto stop when timeout duration expires`() = runBlocking {
+    should("auto stop server when auto stop duration expires") {
         //given
         val shortTimeoutServer = CoroutineLogServer(
             scope = scope,
@@ -179,17 +159,15 @@ class CoroutineLogServerTest {
             autoStopDurationMs = 50L
         )
         shortTimeoutServer.start(port = 0)
-        assertTrue(shortTimeoutServer.isRunning.value)
+        shortTimeoutServer.isRunning.value shouldBe true
 
-        //when
-        delay(100L.milliseconds)
-
-        //then
-        assertFalse(shortTimeoutServer.isRunning.value)
+        //when & then
+        eventually(500.milliseconds) {
+            shortTimeoutServer.isRunning.value shouldBe false
+        }
     }
 
-    @Test
-    fun `should use default ip address provider when none supplied`() {
+    should("succeed when started with default ip address provider") {
         //given
         val defaultServer = CoroutineLogServer(
             scope = scope,
@@ -202,6 +180,23 @@ class CoroutineLogServerTest {
         defaultServer.stop()
 
         //then
-        assertTrue(result.isSuccess)
+        result.isSuccess shouldBe true
+    }
+})
+
+private data class HttpResponse(val code: Int, val body: String)
+
+private fun httpGet(url: String): HttpResponse {
+    val connection = URI(url).toURL().openConnection() as HttpURLConnection
+    return try {
+        val code = connection.responseCode
+        val body = if (code == HttpURLConnection.HTTP_OK) {
+            connection.inputStream.bufferedReader().use { it.readText() }
+        } else {
+            ""
+        }
+        HttpResponse(code, body)
+    } finally {
+        connection.disconnect()
     }
 }

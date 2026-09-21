@@ -14,16 +14,17 @@ import io.hammerhead.karooext.models.DataPoint
 import io.hammerhead.karooext.models.StreamState
 import io.hammerhead.karooext.models.UserProfile
 import io.hammerhead.karooext.models.UserProfile.PreferredUnit
+import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
 import org.happycode.karoo.forumslader.domain.BatteryEstimate
+import org.happycode.karoo.forumslader.domain.ChargeState
 import org.happycode.karoo.forumslader.domain.CommandBus
 import org.happycode.karoo.forumslader.model.ForumsladerConfig
 import org.happycode.karoo.forumslader.theme.AppTheme
-import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -40,11 +41,30 @@ class MainScreenTest {
     val composeTestRule = createComposeRule()
 
     private val config by lazy { ForumsladerConfig(ApplicationProvider.getApplicationContext()) }
+    private val streamingState = StreamState.Streaming(DataPoint("", emptyMap(), ""))
+
+    private val imperialProfile by lazy { createUserProfile(PreferredUnit.UnitType.IMPERIAL) }
+    private val metricProfile by lazy { createUserProfile(PreferredUnit.UnitType.METRIC) }
 
     @Before
     fun setup() {
         Locale.setDefault(Locale.US)
     }
+
+    private fun createUserProfile(unitType: PreferredUnit.UnitType) = UserProfile(
+        weight = 70f,
+        preferredUnit = PreferredUnit(
+            distance = unitType,
+            elevation = unitType,
+            temperature = unitType,
+            weight = unitType
+        ),
+        maxHr = 190,
+        restingHr = 60,
+        heartRateZones = emptyList(),
+        ftp = 250,
+        powerZones = emptyList()
+    )
 
     private fun showMainScreen(
         connected: Boolean = true,
@@ -58,12 +78,9 @@ class MainScreenTest {
         versionKey: String = config.version.key,
         speedMultiplier: Float = config.speedMultiplier,
         lockedMacAddress: String? = config.lockedMacAddress,
-        onSpeedMultiplierChange: (Float) -> Unit = {},
         onForgetDevice: () -> Unit = {},
         batteryLowThreshold: Int = 20,
         highTempThreshold: Float = 50f,
-        onBatteryLowThresholdChange: (Int) -> Unit = {},
-        onHighTempThresholdChange: (Float) -> Unit = {},
         onResetDayDistance: () -> Unit = {},
         onResetTourDistance: () -> Unit = {},
         hasMissingStreams: Boolean = false,
@@ -82,12 +99,12 @@ class MainScreenTest {
                     versionKey = versionKey,
                     speedMultiplier = speedMultiplier,
                     lockedMacAddress = lockedMacAddress,
-                    onSpeedMultiplierChange = onSpeedMultiplierChange,
+                    onSpeedMultiplierChange = {},
                     onForgetDevice = onForgetDevice,
                     batteryLowThreshold = batteryLowThreshold,
                     highTempThreshold = highTempThreshold,
-                    onBatteryLowThresholdChange = onBatteryLowThresholdChange,
-                    onHighTempThresholdChange = onHighTempThresholdChange,
+                    onBatteryLowThresholdChange = {},
+                    onHighTempThresholdChange = {},
                     onResetDayDistance = onResetDayDistance,
                     onResetTourDistance = onResetTourDistance,
                     hasMissingStreams = hasMissingStreams,
@@ -97,6 +114,10 @@ class MainScreenTest {
                 )
             }
         }
+    }
+
+    private fun swipeToConfigPage() {
+        composeTestRule.onRoot().performTouchInput { swipeLeft() }
     }
 
     @Test
@@ -164,7 +185,7 @@ class MainScreenTest {
             estimatedRangeKm = null,
             routeRemainingKm = null,
             isSufficientForRoute = null,
-            chargeState = org.happycode.karoo.forumslader.domain.ChargeState.CHARGING
+            chargeState = ChargeState.CHARGING
         )
 
         // when
@@ -183,7 +204,7 @@ class MainScreenTest {
             estimatedRangeKm = null,
             routeRemainingKm = null,
             isSufficientForRoute = null,
-            chargeState = org.happycode.karoo.forumslader.domain.ChargeState.STANDBY
+            chargeState = ChargeState.STANDBY
         )
 
         // when
@@ -202,7 +223,7 @@ class MainScreenTest {
             estimatedRangeKm = null,
             routeRemainingKm = null,
             isSufficientForRoute = null,
-            chargeState = org.happycode.karoo.forumslader.domain.ChargeState.DISCHARGING
+            chargeState = ChargeState.DISCHARGING
         )
 
         // when
@@ -215,7 +236,7 @@ class MainScreenTest {
     @Test
     fun `should display connected status when connected`() {
         // when
-        showMainScreen(sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")))
+        showMainScreen(sensorState = streamingState)
 
         // then
         composeTestRule.onNodeWithContentDescription("Connected").assertIsDisplayed()
@@ -228,7 +249,7 @@ class MainScreenTest {
 
         // when
         showMainScreen(
-            sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+            sensorState = streamingState,
             metrics = metrics
         )
 
@@ -240,24 +261,10 @@ class MainScreenTest {
     fun `should display speed in mph when system unit is Imperial`() {
         // given
         val metrics = mapOf(DataFieldId.SPEED to 10.0) // 10 m/s = 36 km/h = 22.37 mph
-        val imperialProfile = UserProfile(
-            weight = 70f,
-            preferredUnit = PreferredUnit(
-                distance = PreferredUnit.UnitType.IMPERIAL,
-                elevation = PreferredUnit.UnitType.IMPERIAL,
-                temperature = PreferredUnit.UnitType.IMPERIAL,
-                weight = PreferredUnit.UnitType.IMPERIAL
-            ),
-            maxHr = 190,
-            restingHr = 60,
-            heartRateZones = emptyList(),
-            ftp = 250,
-            powerZones = emptyList()
-        )
 
         // when
         showMainScreen(
-            sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+            sensorState = streamingState,
             metrics = metrics,
             userProfile = imperialProfile
         )
@@ -270,24 +277,10 @@ class MainScreenTest {
     fun `should display speed in kmh when system unit is Metric`() {
         // given
         val metrics = mapOf(DataFieldId.SPEED to 10.0) // 10 m/s = 36 km/h
-        val metricProfile = UserProfile(
-            weight = 70f,
-            preferredUnit = PreferredUnit(
-                distance = PreferredUnit.UnitType.METRIC,
-                elevation = PreferredUnit.UnitType.METRIC,
-                temperature = PreferredUnit.UnitType.METRIC,
-                weight = PreferredUnit.UnitType.METRIC
-            ),
-            maxHr = 190,
-            restingHr = 60,
-            heartRateZones = emptyList(),
-            ftp = 250,
-            powerZones = emptyList()
-        )
 
         // when
         showMainScreen(
-            sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+            sensorState = streamingState,
             metrics = metrics,
             userProfile = metricProfile
         )
@@ -318,24 +311,10 @@ class MainScreenTest {
     fun `should display trip distance in miles when system unit is Imperial`() {
         // given
         val metrics = mapOf(DataFieldId.TRIP_DISTANCE to 1609.34) // 1 mile = 1609.34 meters
-        val imperialProfile = UserProfile(
-            weight = 70f,
-            preferredUnit = PreferredUnit(
-                distance = PreferredUnit.UnitType.IMPERIAL,
-                elevation = PreferredUnit.UnitType.IMPERIAL,
-                temperature = PreferredUnit.UnitType.IMPERIAL,
-                weight = PreferredUnit.UnitType.IMPERIAL
-            ),
-            maxHr = 190,
-            restingHr = 60,
-            heartRateZones = emptyList(),
-            ftp = 250,
-            powerZones = emptyList()
-        )
 
         // when
         showMainScreen(
-            sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+            sensorState = streamingState,
             metrics = metrics,
             userProfile = imperialProfile
         )
@@ -348,24 +327,10 @@ class MainScreenTest {
     fun `should display trip distance in km when system unit is Metric`() {
         // given
         val metrics = mapOf(DataFieldId.TRIP_DISTANCE to 2500.0) // 2.5 km
-        val metricProfile = UserProfile(
-            weight = 70f,
-            preferredUnit = PreferredUnit(
-                distance = PreferredUnit.UnitType.METRIC,
-                elevation = PreferredUnit.UnitType.METRIC,
-                temperature = PreferredUnit.UnitType.METRIC,
-                weight = PreferredUnit.UnitType.METRIC
-            ),
-            maxHr = 190,
-            restingHr = 60,
-            heartRateZones = emptyList(),
-            ftp = 250,
-            powerZones = emptyList()
-        )
 
         // when
         showMainScreen(
-            sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+            sensorState = streamingState,
             metrics = metrics,
             userProfile = metricProfile
         )
@@ -378,24 +343,10 @@ class MainScreenTest {
     fun `should display battery range in km when system unit is Metric`() {
         // given
         val metrics = mapOf(DataFieldId.BATTERY_RANGE to 50000.0) // 50 km
-        val metricProfile = UserProfile(
-            weight = 70f,
-            preferredUnit = PreferredUnit(
-                distance = PreferredUnit.UnitType.METRIC,
-                elevation = PreferredUnit.UnitType.METRIC,
-                temperature = PreferredUnit.UnitType.METRIC,
-                weight = PreferredUnit.UnitType.METRIC
-            ),
-            maxHr = 190,
-            restingHr = 60,
-            heartRateZones = emptyList(),
-            ftp = 250,
-            powerZones = emptyList()
-        )
 
         // when
         showMainScreen(
-            sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+            sensorState = streamingState,
             metrics = metrics,
             userProfile = metricProfile
         )
@@ -408,24 +359,10 @@ class MainScreenTest {
     fun `should display battery range in miles when system unit is Imperial`() {
         // given
         val metrics = mapOf(DataFieldId.BATTERY_RANGE to 80467.2) // 50 miles
-        val imperialProfile = UserProfile(
-            weight = 70f,
-            preferredUnit = PreferredUnit(
-                distance = PreferredUnit.UnitType.IMPERIAL,
-                elevation = PreferredUnit.UnitType.IMPERIAL,
-                temperature = PreferredUnit.UnitType.IMPERIAL,
-                weight = PreferredUnit.UnitType.IMPERIAL
-            ),
-            maxHr = 190,
-            restingHr = 60,
-            heartRateZones = emptyList(),
-            ftp = 250,
-            powerZones = emptyList()
-        )
 
         // when
         showMainScreen(
-            sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+            sensorState = streamingState,
             metrics = metrics,
             userProfile = imperialProfile
         )
@@ -435,13 +372,13 @@ class MainScreenTest {
     }
 
     @Test
-    fun `should display consumer current`() {
+    fun `should display consumer current when metric provided`() {
         // given
         val metrics = mapOf(DataFieldId.CONSUMER_CURRENT to 1250.0)
 
         // when
         showMainScreen(
-            sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+            sensorState = streamingState,
             metrics = metrics
         )
 
@@ -450,13 +387,13 @@ class MainScreenTest {
     }
 
     @Test
-    fun `should display battery voltage`() {
+    fun `should display battery voltage when metric provided`() {
         // given
         val metrics = mapOf(DataFieldId.BATTERY_VOLTAGE to 48.2)
 
         // when
         showMainScreen(
-            sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+            sensorState = streamingState,
             metrics = metrics
         )
 
@@ -465,13 +402,13 @@ class MainScreenTest {
     }
 
     @Test
-    fun `should display battery current`() {
+    fun `should display battery current when metric provided`() {
         // given
         val metrics = mapOf(DataFieldId.BATTERY_CURRENT to -1500.0)
 
         // when
         showMainScreen(
-            sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+            sensorState = streamingState,
             metrics = metrics
         )
 
@@ -480,27 +417,13 @@ class MainScreenTest {
     }
 
     @Test
-    fun `should display temperature in C when metric`() {
+    fun `should display temperature in C when system unit is Metric`() {
         // given
         val metrics = mapOf(DataFieldId.TEMPERATURE to 22.5)
-        val metricProfile = UserProfile(
-            weight = 70f,
-            preferredUnit = PreferredUnit(
-                distance = PreferredUnit.UnitType.METRIC,
-                elevation = PreferredUnit.UnitType.METRIC,
-                temperature = PreferredUnit.UnitType.METRIC,
-                weight = PreferredUnit.UnitType.METRIC
-            ),
-            maxHr = 190,
-            restingHr = 60,
-            heartRateZones = emptyList(),
-            ftp = 250,
-            powerZones = emptyList()
-        )
 
         // when
         showMainScreen(
-            sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+            sensorState = streamingState,
             metrics = metrics,
             userProfile = metricProfile
         )
@@ -510,27 +433,13 @@ class MainScreenTest {
     }
 
     @Test
-    fun `should display temperature in F when imperial`() {
+    fun `should display temperature in F when system unit is Imperial`() {
         // given
         val metrics = mapOf(DataFieldId.TEMPERATURE to 22.5)
-        val imperialProfile = UserProfile(
-            weight = 70f,
-            preferredUnit = PreferredUnit(
-                distance = PreferredUnit.UnitType.IMPERIAL,
-                elevation = PreferredUnit.UnitType.IMPERIAL,
-                temperature = PreferredUnit.UnitType.IMPERIAL,
-                weight = PreferredUnit.UnitType.IMPERIAL
-            ),
-            maxHr = 190,
-            restingHr = 60,
-            heartRateZones = emptyList(),
-            ftp = 250,
-            powerZones = emptyList()
-        )
 
         // when
         showMainScreen(
-            sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+            sensorState = streamingState,
             metrics = metrics,
             userProfile = imperialProfile
         )
@@ -541,16 +450,16 @@ class MainScreenTest {
     }
 
     @Test
-    fun `should display configuration values`() {
+    fun `should display configuration values when configuration page shown`() {
         // when
         showMainScreen(
-            sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+            sensorState = streamingState,
             wheelsize = 2150,
             poles = 28
         )
+        swipeToConfigPage()
 
         // then
-        composeTestRule.onRoot().performTouchInput { swipeLeft() }
         composeTestRule.onNodeWithText("Configuration").performScrollTo().assertIsDisplayed()
         composeTestRule.onNodeWithText("2150 mm", substring = true).performScrollTo().assertIsDisplayed()
         composeTestRule.onNodeWithText("28").performScrollTo().assertIsDisplayed()
@@ -565,27 +474,25 @@ class MainScreenTest {
         )
 
         // then
-        // Verify the warning text is displayed using substring matching because the full string is long
         composeTestRule.onNodeWithText("Some data fields are unsupported", substring = true).assertIsDisplayed()
     }
 
     @Test
-    fun `should invoke onForgetDevice when Forget is clicked`() {
+    fun `should invoke onForgetDevice when forget button clicked`() {
         // given
         var forgetClicked = false
 
         // when
         showMainScreen(
-            sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+            sensorState = streamingState,
             lockedMacAddress = "00:11:22:33:44:55",
             onForgetDevice = { forgetClicked = true }
         )
-
-        composeTestRule.onRoot().performTouchInput { swipeLeft() }
+        swipeToConfigPage()
         composeTestRule.onNodeWithText("Forget").performScrollTo().performClick()
 
         // then
-        assert(forgetClicked)
+        forgetClicked shouldBe true
     }
 
     @Test
@@ -595,7 +502,7 @@ class MainScreenTest {
 
         // when
         showMainScreen(
-            sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+            sensorState = streamingState,
             metrics = metrics,
             onResetDayDistance = { CommandBus.sendCommand($$"$FLT,7*45\n") }
         )
@@ -608,7 +515,7 @@ class MainScreenTest {
         composeTestRule.onNodeWithText("OK").performClick()
 
         // then
-        assertEquals($$"$FLT,7*45\n", deferred.await())
+        deferred.await() shouldBe $$"$FLT,7*45\n"
     }
 
     @Test
@@ -618,7 +525,7 @@ class MainScreenTest {
 
         // when
         showMainScreen(
-            sensorState = StreamState.Streaming(DataPoint("", emptyMap(), "")),
+            sensorState = streamingState,
             metrics = metrics,
             onResetTourDistance = { CommandBus.sendCommand($$"$FLT,6*44\n") }
         )
@@ -631,27 +538,24 @@ class MainScreenTest {
         composeTestRule.onNodeWithText("OK").performClick()
 
         // then
-        assertEquals($$"$FLT,6*44\n", deferred.await())
+        deferred.await() shouldBe $$"$FLT,6*44\n"
     }
 
     @Test
-    fun `should display battery low threshold slider`() {
+    fun `should display battery low threshold slider on configuration page`() {
         // when
         showMainScreen()
-
-        composeTestRule.onRoot().performTouchInput { swipeLeft() }
+        swipeToConfigPage()
 
         // then
-        // The slider for battery low threshold is in AlertsConfigCard
         composeTestRule.onNodeWithText("Low Battery Threshold", substring = true).assertIsDisplayed()
     }
 
     @Test
-    fun `should display diagnostics card on config page`() {
+    fun `should display diagnostics card on configuration page`() {
         // when
         showMainScreen()
-
-        composeTestRule.onRoot().performTouchInput { swipeLeft() }
+        swipeToConfigPage()
 
         // then
         composeTestRule.onNodeWithText("Diagnostics & Logs").performScrollTo().assertIsDisplayed()
@@ -659,10 +563,13 @@ class MainScreenTest {
     }
 
     @Test
-    fun `should render MainScreenPreview without errors`() {
+    fun `should render main screen preview without errors`() {
+        // when
         composeTestRule.setContent {
             MainScreenPreview()
         }
+
+        // then
         composeTestRule.onNodeWithText("85%", substring = true).performScrollTo().assertIsDisplayed()
     }
 }

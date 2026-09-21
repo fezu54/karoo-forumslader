@@ -1,12 +1,15 @@
 package org.happycode.karoo.forumslader.extension
 
 import io.hammerhead.karooext.internal.Emitter
+import io.hammerhead.karooext.models.FieldValue
 import io.hammerhead.karooext.models.FitEffect
 import io.hammerhead.karooext.models.WriteToRecordMesg
-import io.mockk.every
+import io.kotest.core.spec.style.ShouldSpec
+import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.mockk
 import io.mockk.slot
-import io.mockk.unmockkAll
 import io.mockk.verify
 import org.happycode.karoo.forumslader.domain.ChargeState
 import org.happycode.karoo.forumslader.domain.ForumsladerMetrics
@@ -15,140 +18,20 @@ import org.happycode.karoo.forumslader.domain.ForumsladerMetrics.Dynamics
 import org.happycode.karoo.forumslader.domain.ForumsladerMetrics.Energy
 import org.happycode.karoo.forumslader.domain.ForumsladerMetrics.Environment
 import org.happycode.karoo.forumslader.domain.ForumsladerMetrics.Power
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertTrue
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Test
+import org.happycode.karoo.forumslader.extension.ForumsladerFitRecorder.Companion.FIELD_CURRENT
+import org.happycode.karoo.forumslader.extension.ForumsladerFitRecorder.Companion.FIELD_ENERGY
+import org.happycode.karoo.forumslader.extension.ForumsladerFitRecorder.Companion.FIELD_POWER
+import org.happycode.karoo.forumslader.extension.ForumsladerFitRecorder.Companion.FIELD_SPEED
+import org.happycode.karoo.forumslader.extension.ForumsladerFitRecorder.Companion.FIELD_TEMP
+import org.happycode.karoo.forumslader.extension.ForumsladerFitRecorder.Companion.FIELD_VOLTAGE
 
-class ForumsladerFitRecorderTest {
+class ForumsladerFitRecorderTest : ShouldSpec({
 
-    private lateinit var recorder: ForumsladerFitRecorder
-    private lateinit var emitter: Emitter<FitEffect>
-    private var currentTimeMs: Long = 1000L
+    lateinit var emitter: Emitter<FitEffect>
+    lateinit var recorder: ForumsladerFitRecorder
+    var currentTimeMs: Long
 
-    @BeforeEach
-    fun setUp() {
-        emitter = mockk(relaxed = true)
-        currentTimeMs = 1000L
-        recorder = ForumsladerFitRecorder(
-            fitEmitter = emitter,
-            timeProvider = { currentTimeMs }
-        )
-    }
-
-    @AfterEach
-    fun tearDown() {
-        unmockkAll()
-    }
-
-    @Test
-    fun `should emit metrics when fitEmitter is present`() {
-        // given
-        val metrics = createDummyMetrics()
-        val effectSlot = slot<FitEffect>()
-        every { emitter.onNext(capture(effectSlot)) } returns Unit
-
-        // when
-        recorder.onMetricsReceived(metrics)
-
-        // then
-        assertTrue(effectSlot.captured is WriteToRecordMesg)
-        val message = effectSlot.captured as WriteToRecordMesg
-        assertEquals(6, message.values.size)
-
-        val voltageValue = message.values.find { it.developerField?.fieldName == "Battery Voltage" }
-        assertEquals(12.5, voltageValue?.value)
-
-        val speedValue = message.values.find { it.developerField?.fieldName == "Speed" }
-        assertEquals(10.0 * 3.6, speedValue?.value) // 36.0 km/h
-    }
-
-    @Test
-    fun `should not emit metrics when fitEmitter is null`() {
-        // given
-        recorder.fitEmitter = null
-        val metrics = createDummyMetrics()
-
-        // when
-        recorder.onMetricsReceived(metrics)
-
-        // then
-        verify(exactly = 0) { emitter.onNext(any()) }
-    }
-
-    @Test
-    fun `should rate limit emissions to 1Hz`() {
-        // given
-        val metrics = createDummyMetrics()
-        val effectSlot = slot<FitEffect>()
-        every { emitter.onNext(capture(effectSlot)) } returns Unit
-
-        // when - first emission at t=1000ms
-        recorder.onMetricsReceived(metrics)
-
-        // then - first emission succeeds
-        verify(exactly = 1) { emitter.onNext(any()) }
-
-        // when - second emission at t=1500ms (within 1000ms throttle interval)
-        currentTimeMs = 1500L
-        recorder.onMetricsReceived(metrics)
-
-        // then - second emission is throttled
-        verify(exactly = 1) { emitter.onNext(any()) }
-
-        // when - third emission at t=2000ms (1000ms passed)
-        currentTimeMs = 2000L
-        recorder.onMetricsReceived(metrics)
-
-        // then - third emission succeeds
-        verify(exactly = 2) { emitter.onNext(any()) }
-    }
-
-    @Test
-    fun `should emit developer fields with correct values and units`() {
-        // given
-        val metrics = createDummyMetrics()
-        val effectSlot = slot<FitEffect>()
-        every { emitter.onNext(capture(effectSlot)) } returns Unit
-
-        // when
-        recorder.onMetricsReceived(metrics)
-
-        // then
-        val message = effectSlot.captured as WriteToRecordMesg
-        val voltage = message.values.first { it.developerField?.fieldDefinitionNumber == 0.toShort() }
-        assertEquals("Battery Voltage", voltage.developerField?.fieldName)
-        assertEquals("V", voltage.developerField?.units)
-        assertEquals(12.5, voltage.value)
-
-        val current = message.values.first { it.developerField?.fieldDefinitionNumber == 1.toShort() }
-        assertEquals("Battery Current", current.developerField?.fieldName)
-        assertEquals("A", current.developerField?.units)
-        assertEquals(1.0, current.value)
-
-        val power = message.values.first { it.developerField?.fieldDefinitionNumber == 2.toShort() }
-        assertEquals("Dynamo Power", power.developerField?.fieldName)
-        assertEquals("W", power.developerField?.units)
-        assertEquals(5.0, power.value)
-
-        val temp = message.values.first { it.developerField?.fieldDefinitionNumber == 3.toShort() }
-        assertEquals("Temperature", temp.developerField?.fieldName)
-        assertEquals("C", temp.developerField?.units)
-        assertEquals(20.0, temp.value)
-
-        val speed = message.values.first { it.developerField?.fieldDefinitionNumber == 4.toShort() }
-        assertEquals("Speed", speed.developerField?.fieldName)
-        assertEquals("km/h", speed.developerField?.units)
-        assertEquals(36.0, speed.value)
-
-        val energy = message.values.first { it.developerField?.fieldDefinitionNumber == 5.toShort() }
-        assertEquals("Trip Energy", energy.developerField?.fieldName)
-        assertEquals("Wh", energy.developerField?.units)
-        assertEquals(10.0, energy.value)
-    }
-
-    private fun createDummyMetrics() = ForumsladerMetrics(
+    fun createDummyMetrics() = ForumsladerMetrics(
         power = Power(
             batteryVoltage = 12.5f,
             batteryCurrent = 1.0f,
@@ -178,4 +61,87 @@ class ForumsladerFitRecorderTest {
             tourWattHours = 50.0
         )
     )
-}
+
+    beforeEach {
+        emitter = mockk(relaxed = true)
+        currentTimeMs = 1000L
+        recorder = ForumsladerFitRecorder(
+            fitEmitter = emitter,
+            timeProvider = { currentTimeMs }
+        )
+    }
+
+    should("emit metrics when fitEmitter is present") {
+        // given
+        val metrics = createDummyMetrics()
+
+        // when
+        recorder.onMetricsReceived(metrics)
+
+        // then
+        val effectSlot = slot<FitEffect>()
+        verify { emitter.onNext(capture(effectSlot)) }
+
+        val message = effectSlot.captured.shouldBeInstanceOf<WriteToRecordMesg>()
+        message.values.shouldHaveSize(6)
+    }
+
+    should("not emit metrics when fitEmitter is null") {
+        // given
+        recorder.fitEmitter = null
+        val metrics = createDummyMetrics()
+
+        // when
+        recorder.onMetricsReceived(metrics)
+
+        // then
+        verify(exactly = 0) { emitter.onNext(any()) }
+    }
+
+    should("rate limit emissions to 1Hz") {
+        // given
+        val metrics = createDummyMetrics()
+
+        // when - first emission at t=1000ms
+        recorder.onMetricsReceived(metrics)
+
+        // then - first emission succeeds
+        verify(exactly = 1) { emitter.onNext(any()) }
+
+        // when - second emission at t=1500ms (within 1000ms throttle interval)
+        currentTimeMs = 1500L
+        recorder.onMetricsReceived(metrics)
+
+        // then - second emission is throttled
+        verify(exactly = 1) { emitter.onNext(any()) }
+
+        // when - third emission at t=2000ms (1000ms passed)
+        currentTimeMs = 2000L
+        recorder.onMetricsReceived(metrics)
+
+        // then - third emission succeeds
+        verify(exactly = 2) { emitter.onNext(any()) }
+    }
+
+    should("emit developer fields with correct values and units") {
+        // given
+        val metrics = createDummyMetrics()
+
+        // when
+        recorder.onMetricsReceived(metrics)
+
+        // then
+        val effectSlot = slot<FitEffect>()
+        verify { emitter.onNext(capture(effectSlot)) }
+
+        val message = effectSlot.captured.shouldBeInstanceOf<WriteToRecordMesg>()
+        message.values shouldBe listOf(
+            FieldValue(FIELD_VOLTAGE, 12.5),
+            FieldValue(FIELD_CURRENT, 1.0),
+            FieldValue(FIELD_POWER, 5.0),
+            FieldValue(FIELD_TEMP, 20.0),
+            FieldValue(FIELD_SPEED, 36.0),
+            FieldValue(FIELD_ENERGY, 10.0)
+        )
+    }
+})
