@@ -32,7 +32,17 @@ class BatteryEstimator(
 
         if (state == ChargeState.CHARGING && samples.isNotEmpty() && level > samples.last().batteryLevelPct) {
             samples.removeAll { it.batteryLevelPct < level }
-            lastDischargeRate = null
+        }
+
+        if (state == ChargeState.DISCHARGING) {
+            val lastChargingIndex = samples.indexOfLast {
+                it.chargeState == ChargeState.CHARGING || it.chargeState == ChargeState.FULL
+            }
+            if (lastChargingIndex != -1) {
+                repeat(lastChargingIndex + 1) {
+                    samples.removeFirst()
+                }
+            }
         }
 
         samples.addLast(Sample(dist, level, state))
@@ -70,55 +80,33 @@ class BatteryEstimator(
                 isSufficientForRoute = routeRemainingKm?.let { true },
                 chargeState = currentState
             )
-            currentState == ChargeState.STANDBY -> {
-                val standbyRange = lastDischargeRate?.takeIf { it > 0f }?.let { rate ->
-                    val adjustedCapacity = calculateElevationAdjustedCapacity(currentLevel.toFloat())
-                    (adjustedCapacity / rate).takeIf { it.isFinite() }
-                }
-                BatteryEstimate(
-                    remainingCapacityPct = currentLevel,
-                    avgDischargeRatePctPerKm = lastDischargeRate ?: 0f,
-                    estimatedRangeKm = standbyRange,
-                    routeRemainingKm = routeRemainingKm,
-                    isSufficientForRoute = routeRemainingKm?.let { remaining ->
-                        standbyRange?.let { range -> range >= remaining }
-                    },
-                    chargeState = currentState
-                )
+            currentState == ChargeState.STANDBY || distanceDiffMeters < minMetersForEstimate || levelDiff <= 0 ->
+                buildEstimate(rate = lastDischargeRate, currentLevel, currentState)
+            else -> {
+                val rate = calculateAdjustedDischargeRate(levelDiff, distanceDiffMeters)
+                lastDischargeRate = rate
+                buildEstimate(rate, currentLevel, currentState)
             }
-            distanceDiffMeters < minMetersForEstimate || levelDiff <= 0 -> BatteryEstimate(
-                remainingCapacityPct = currentLevel,
-                avgDischargeRatePctPerKm = 0f,
-                estimatedRangeKm = null,
-                routeRemainingKm = routeRemainingKm,
-                isSufficientForRoute = null,
-                chargeState = currentState
-            )
-            else -> calculateDischargingEstimate(levelDiff, distanceDiffMeters, currentLevel, currentState)
         }
     }
 
-    private fun calculateDischargingEstimate(
-        levelDiff: Float, 
-        distanceDiffMeters: Double, 
-        currentLevel: Int, 
+    private fun buildEstimate(
+        rate: Float?,
+        currentLevel: Int,
         currentState: ChargeState
     ): BatteryEstimate {
-        val dischargeRate = calculateAdjustedDischargeRate(levelDiff, distanceDiffMeters)
-        lastDischargeRate = dischargeRate
-        val adjustedCapacity = calculateElevationAdjustedCapacity(currentLevel.toFloat())
-
-        val estimatedRangeKm = (adjustedCapacity / dischargeRate).takeIf { it.isFinite() }
-        val isSufficient = routeRemainingKm?.let { remaining ->
-            estimatedRangeKm?.let { range -> range >= remaining }
+        val estimatedRangeKm = rate?.takeIf { it > 0f }?.let { dischargeRate ->
+            val adjustedCapacity = calculateElevationAdjustedCapacity(currentLevel.toFloat())
+            (adjustedCapacity / dischargeRate).takeIf { range -> range.isFinite() }
         }
-
         return BatteryEstimate(
             remainingCapacityPct = currentLevel,
-            avgDischargeRatePctPerKm = dischargeRate,
+            avgDischargeRatePctPerKm = rate ?: 0f,
             estimatedRangeKm = estimatedRangeKm,
             routeRemainingKm = routeRemainingKm,
-            isSufficientForRoute = isSufficient,
+            isSufficientForRoute = routeRemainingKm?.let { remaining ->
+                estimatedRangeKm?.let { range -> range >= remaining }
+            },
             chargeState = currentState
         )
     }

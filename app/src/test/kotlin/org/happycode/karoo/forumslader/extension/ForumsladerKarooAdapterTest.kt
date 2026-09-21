@@ -274,6 +274,45 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
         }
     }
 
+    should("emit estimated range in meters when transitioning to discharging if previous discharge rate exists") {
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            val capturedEvents = mutableListOf<DeviceEvent>()
+            every { emitter.onNext(capture(capturedEvents)) } returns Unit
+
+            val forumslader = createAdapter(scope = backgroundScope)
+            forumslader.connect(emitter)
+
+            // Step 1: establish initial discharge sample at 0.0km, 100% battery
+            val flc1 = $$"$FLC,5,0,100\n"
+            val fld1 = $$"$FLD,19,,0,50,12.0,-0.5,0.5,-,7,0,0,0,0,0.0\n"
+            incomingDataFlow.emit((flc1 + fld1).toByteArray(Charsets.US_ASCII))
+
+            // Step 2: discharge over 1.0km to 95% battery (rate = 5.0% per km)
+            val flc2 = $$"$FLC,5,0,95\n"
+            val fld2 = $$"$FLD,19,,0,50,12.0,-0.5,0.5,-,7,0,0,0,0,1.0\n"
+            incomingDataFlow.emit((flc2 + fld2).toByteArray(Charsets.US_ASCII))
+
+            // Step 3: intermittent charging phase at 2.0km with 98% battery
+            val flc3 = $$"$FLC,5,0,98\n"
+            val fld3 = $$"$FLD,19,,0,50,12.0,1.5,0.5,+,7,0,0,0,0,2.0\n"
+            incomingDataFlow.emit((flc3 + fld3).toByteArray(Charsets.US_ASCII))
+
+            // when transitioning back to discharging before minimum window is satisfied
+            capturedEvents.clear()
+            val flc4 = $$"$FLC,5,0,98\n"
+            val fld4 = $$"$FLD,19,,0,50,12.0,-0.5,0.5,-,7,0,0,0,0,2.1\n"
+            incomingDataFlow.emit((flc4 + fld4).toByteArray(Charsets.US_ASCII))
+
+            // then battery range emits fallback estimate in meters (98 / 5.0 * 1000 = 19600m)
+            val rangePoint = capturedEvents.filterIsInstance<OnDataPoint>()
+                .firstOrNull { it.dataPoint.dataTypeId == DataType.dataTypeId("karoo-forumslader", DataFieldId.BATTERY_RANGE) }
+
+            rangePoint.shouldNotBeNull()
+            rangePoint.dataPoint.values[DataType.Field.SINGLE] shouldBe (19600.0 plusOrMinus 1.0)
+        }
+    }
+
     should("start parameter request loop when bluetooth notifications are enabled") {
         runTest(UnconfinedTestDispatcher()) {
             // given
