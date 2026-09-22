@@ -24,8 +24,9 @@ class ForumsladerDataFieldsAdapter(private val context: Context) {
         const val DAY_DISTANCE = "fl_day_distance"
         const val TOUR_DISTANCE = "fl_tour_distance"
         const val BATTERY_RANGE = "fl_battery_range"
-        const val BATTERY_RANGE_CHARGING = -1.0
-        const val BATTERY_RANGE_CALCULATING = -2.0
+        /** High positive sentinel values used for custom status overlays in Karoo data field streams (prevents Karoo displaying negative numbers as 0). */
+        const val BATTERY_RANGE_CHARGING = 200_000_000.0
+        const val BATTERY_RANGE_CALCULATING = 100_000_000.0
     }
 
     fun getDataFieldNames(): Map<String, String> = mapOf(

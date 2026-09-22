@@ -393,100 +393,72 @@ class BatteryEstimatorTest : ShouldSpec({
         }
     }
 
-    should("purge samples accumulated during charging when entering discharging") {
+    should("calculate net discharge rate over window including charging periods") {
         // given
         val estimator = BatteryEstimator(minMetersForEstimate = 500.0).apply {
-            onMetrics(createMetrics(distance = 0.0, batteryPct = 80, chargeState = ChargeState.CHARGING))
-            onMetrics(createMetrics(distance = 2000.0, batteryPct = 85, chargeState = ChargeState.CHARGING))
+            onMetrics(createMetrics(distance = 0.0, batteryPct = 80, chargeState = ChargeState.DISCHARGING))
+            // Discharged to 75% over 1km
+            onMetrics(createMetrics(distance = 1000.0, batteryPct = 75, chargeState = ChargeState.DISCHARGING))
         }
 
-        // when enters discharging (charging samples are purged, window starts fresh at 85%)
-        estimator.onMetrics(createMetrics(distance = 2100.0, batteryPct = 85, chargeState = ChargeState.DISCHARGING))
-
-        // then initial estimate without prior rate has no range
-        val initialEstimate = estimator.getEstimate()
-        initialEstimate.shouldNotBeNull()
-        initialEstimate.estimatedRangeKm.shouldBeNull()
-
-        // and when 1km of discharging completes from 85% to 83%
-        estimator.onMetrics(createMetrics(distance = 3100.0, batteryPct = 83, chargeState = ChargeState.DISCHARGING))
+        // when charging occurs for 1km (+3%)
+        estimator.onMetrics(createMetrics(distance = 2000.0, batteryPct = 78, chargeState = ChargeState.CHARGING))
+        
+        // then net discharge from 80% to 78% over 2km is 1.0% per km
+        estimator.onMetrics(createMetrics(distance = 2000.0, batteryPct = 78, chargeState = ChargeState.DISCHARGING))
         val activeEstimate = estimator.getEstimate()
         activeEstimate.shouldNotBeNull()
         with(activeEstimate) {
-            remainingCapacityPct shouldBe 83
-            avgDischargeRatePctPerKm shouldBe 2.0f
-            estimatedRangeKm shouldBe 41.5f
+            remainingCapacityPct shouldBe 78
+            avgDischargeRatePctPerKm shouldBe 1.0f
+            estimatedRangeKm shouldBe 78.0f
             chargeState shouldBe ChargeState.DISCHARGING
         }
     }
 
-    should("fall back to last discharge rate in discharging state when distance is under threshold") {
+    should("freeze last discharge rate when window has net positive charge") {
         // given
         val estimator = BatteryEstimator(minMetersForEstimate = 500.0).apply {
-            onMetrics(createMetrics(distance = 0.0, batteryPct = 100, chargeState = ChargeState.DISCHARGING))
-            onMetrics(createMetrics(distance = 1000.0, batteryPct = 95, chargeState = ChargeState.DISCHARGING))
-            getEstimate()
-            onMetrics(createMetrics(distance = 2000.0, batteryPct = 98, chargeState = ChargeState.CHARGING))
+            onMetrics(createMetrics(distance = 0.0, batteryPct = 70, chargeState = ChargeState.DISCHARGING))
+            onMetrics(createMetrics(distance = 1000.0, batteryPct = 65, chargeState = ChargeState.DISCHARGING))
         }
+        val estimateBefore = estimator.getEstimate()
+        estimateBefore?.avgDischargeRatePctPerKm shouldBe 5.0f
 
-        // when enters discharging with distance under threshold
-        estimator.onMetrics(createMetrics(distance = 2200.0, batteryPct = 98, chargeState = ChargeState.DISCHARGING))
-        val estimate = estimator.getEstimate()
+        // when net charge over the window becomes positive (charged to 72% over next 1km)
+        estimator.onMetrics(createMetrics(distance = 2000.0, batteryPct = 72, chargeState = ChargeState.DISCHARGING)) // Net +2%
+        val estimateAfter = estimator.getEstimate()
 
-        // then
-        estimate.shouldNotBeNull()
-        with(estimate) {
-            remainingCapacityPct shouldBe 98
+        // then last discharge rate is frozen (5.0f) instead of using the negative rate
+        estimateAfter.shouldNotBeNull()
+        with(estimateAfter) {
+            remainingCapacityPct shouldBe 72
             avgDischargeRatePctPerKm shouldBe 5.0f
-            estimatedRangeKm shouldBe 19.6f
-            chargeState shouldBe ChargeState.DISCHARGING
+            estimatedRangeKm shouldBe 14.4f // 72 / 5.0
         }
     }
 
-    should("fall back to last discharge rate in discharging state when battery level has not dropped yet") {
+    should("prune pre-charging samples when entering discharging without prior discharge rate") {
         // given
         val estimator = BatteryEstimator(minMetersForEstimate = 500.0).apply {
-            onMetrics(createMetrics(distance = 0.0, batteryPct = 100, chargeState = ChargeState.DISCHARGING))
-            onMetrics(createMetrics(distance = 1000.0, batteryPct = 95, chargeState = ChargeState.DISCHARGING))
-            getEstimate()
-            onMetrics(createMetrics(distance = 2000.0, batteryPct = 98, chargeState = ChargeState.CHARGING))
-            onMetrics(createMetrics(distance = 2100.0, batteryPct = 98, chargeState = ChargeState.DISCHARGING))
+            onMetrics(createMetrics(distance = 0.0, batteryPct = 50, chargeState = ChargeState.CHARGING))
+            onMetrics(createMetrics(distance = 2000.0, batteryPct = 70, chargeState = ChargeState.CHARGING))
         }
 
-        // when riding past minMetersForEstimate but battery level has not dropped
-        estimator.onMetrics(createMetrics(distance = 3100.0, batteryPct = 98, chargeState = ChargeState.DISCHARGING))
+        // when starts discharging without prior discharge rate
+        estimator.onMetrics(createMetrics(distance = 2100.0, batteryPct = 70, chargeState = ChargeState.DISCHARGING))
+        estimator.getEstimate()?.estimatedRangeKm.shouldBeNull()
+
+        // and completes 1km of discharging from 70% to 68%
+        estimator.onMetrics(createMetrics(distance = 3100.0, batteryPct = 68, chargeState = ChargeState.DISCHARGING))
         val estimate = estimator.getEstimate()
 
-        // then
+        // then calculates new discharge rate using discharging samples
         estimate.shouldNotBeNull()
         with(estimate) {
-            remainingCapacityPct shouldBe 98
-            avgDischargeRatePctPerKm shouldBe 5.0f
-            estimatedRangeKm shouldBe 19.6f
-            chargeState shouldBe ChargeState.DISCHARGING
-        }
-    }
-
-    should("update last discharge rate to new rate when distance and level drop thresholds are met during discharge") {
-        // given
-        val estimator = BatteryEstimator(minMetersForEstimate = 500.0).apply {
-            onMetrics(createMetrics(distance = 0.0, batteryPct = 100, chargeState = ChargeState.DISCHARGING))
-            onMetrics(createMetrics(distance = 1000.0, batteryPct = 95, chargeState = ChargeState.DISCHARGING))
-            getEstimate()
-            onMetrics(createMetrics(distance = 2000.0, batteryPct = 98, chargeState = ChargeState.CHARGING))
-            onMetrics(createMetrics(distance = 2100.0, batteryPct = 98, chargeState = ChargeState.DISCHARGING))
-        }
-
-        // when distance and level drop thresholds are met (1000m and 2% drop -> 2.0% per km)
-        estimator.onMetrics(createMetrics(distance = 3100.0, batteryPct = 96, chargeState = ChargeState.DISCHARGING))
-        val estimate = estimator.getEstimate()
-
-        // then
-        estimate.shouldNotBeNull()
-        with(estimate) {
-            remainingCapacityPct shouldBe 96
+            remainingCapacityPct shouldBe 68
             avgDischargeRatePctPerKm shouldBe 2.0f
-            estimatedRangeKm shouldBe 48.0f
+            estimatedRangeKm shouldBe 34.0f
             chargeState shouldBe ChargeState.DISCHARGING
         }
     }
@@ -574,28 +546,6 @@ class BatteryEstimatorTest : ShouldSpec({
             estimatedRangeKm shouldBe 19.0f
             routeRemainingKm shouldBe 50.0f
             isSufficientForRoute shouldBe false
-        }
-    }
-
-    should("purge lower battery level samples when battery level increases during charging") {
-        // given
-        val estimator = BatteryEstimator(minMetersForEstimate = 500.0).apply {
-            onMetrics(createMetrics(distance = 0.0, batteryPct = 70, chargeState = ChargeState.CHARGING))
-            onMetrics(createMetrics(distance = 500.0, batteryPct = 72, chargeState = ChargeState.CHARGING))
-            onMetrics(createMetrics(distance = 1000.0, batteryPct = 75, chargeState = ChargeState.CHARGING))
-        }
-
-        // when starts discharging
-        estimator.onMetrics(createMetrics(distance = 1500.0, batteryPct = 75, chargeState = ChargeState.DISCHARGING))
-        estimator.onMetrics(createMetrics(distance = 2500.0, batteryPct = 70, chargeState = ChargeState.DISCHARGING))
-        val estimate = estimator.getEstimate()
-
-        // then
-        estimate.shouldNotBeNull()
-        with(estimate) {
-            remainingCapacityPct shouldBe 70
-            avgDischargeRatePctPerKm shouldBe 5.0f
-            estimatedRangeKm shouldBe 14.0f
         }
     }
 })
