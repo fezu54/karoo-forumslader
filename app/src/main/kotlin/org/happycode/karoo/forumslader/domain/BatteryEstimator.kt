@@ -18,7 +18,11 @@ class BatteryEstimator(
     private var headwindSpeedMs: Float? = null
     private var lastDischargeRate: Float? = null
 
-    private data class Sample(val distanceMeters: Double, val batteryLevelPct: Int, val chargeState: ChargeState)
+    private data class Sample(
+        val distanceMeters: Double,
+        val batteryLevelPct: Int,
+        val chargeState: ChargeState
+    )
 
     fun onMetrics(metrics: ForumsladerMetrics) {
         val level = metrics.power.batteryLevelPercentage ?: return
@@ -28,21 +32,6 @@ class BatteryEstimator(
         if (samples.isNotEmpty() && dist < samples.last().distanceMeters) {
             samples.clear()
             lastDischargeRate = null
-        }
-
-        if (state == ChargeState.CHARGING && samples.isNotEmpty() && level > samples.last().batteryLevelPct) {
-            samples.removeAll { it.batteryLevelPct < level }
-        }
-
-        if (state == ChargeState.DISCHARGING) {
-            val lastChargingIndex = samples.indexOfLast {
-                it.chargeState == ChargeState.CHARGING || it.chargeState == ChargeState.FULL
-            }
-            if (lastChargingIndex != -1) {
-                repeat(lastChargingIndex + 1) {
-                    samples.removeFirst()
-                }
-            }
         }
 
         samples.addLast(Sample(dist, level, state))
@@ -64,11 +53,22 @@ class BatteryEstimator(
 
     fun getEstimate(): BatteryEstimate? {
         val lastSample = samples.lastOrNull() ?: return null
-        val firstSample = samples.first()
-
-        val currentLevel = lastSample.batteryLevelPct
-        val distanceDiffMeters = lastSample.distanceMeters - firstSample.distanceMeters
         val currentState = lastSample.chargeState
+        val currentLevel = lastSample.batteryLevelPct
+
+        val initialFirst = samples.first()
+        val initialLevelDiff = (initialFirst.batteryLevelPct - currentLevel).toFloat()
+
+        val isNewDischargeWithoutLevelDrop =
+            currentState == ChargeState.DISCHARGING && lastDischargeRate == null && initialLevelDiff <= 0
+
+        if (isNewDischargeWithoutLevelDrop) {
+            pruneNonDischargingSamples()
+        }
+
+        val firstSample =
+            samples.firstOrNull() ?: return buildEstimate(rate = null, currentLevel, currentState)
+        val distanceDiffMeters = lastSample.distanceMeters - firstSample.distanceMeters
         val levelDiff = (firstSample.batteryLevelPct - currentLevel).toFloat()
 
         return when {
@@ -80,8 +80,10 @@ class BatteryEstimator(
                 isSufficientForRoute = routeRemainingKm?.let { true },
                 chargeState = currentState
             )
+
             currentState == ChargeState.STANDBY || distanceDiffMeters < minMetersForEstimate || levelDiff <= 0 ->
                 buildEstimate(rate = lastDischargeRate, currentLevel, currentState)
+
             else -> {
                 val rate = calculateAdjustedDischargeRate(levelDiff, distanceDiffMeters)
                 lastDischargeRate = rate
@@ -111,7 +113,17 @@ class BatteryEstimator(
         )
     }
 
-    private fun calculateAdjustedDischargeRate(levelDiff: Float, distanceDiffMeters: Double): Float {
+    private fun pruneNonDischargingSamples() =
+        samples.indexOfLast { it.chargeState != ChargeState.DISCHARGING }
+            .takeIf { it >= 0 }
+            ?.let { lastNonDischargingIndex ->
+                repeat(lastNonDischargingIndex + 1) { samples.removeFirst() }
+            }
+
+    private fun calculateAdjustedDischargeRate(
+        levelDiff: Float,
+        distanceDiffMeters: Double
+    ): Float {
         val distanceDiffKm = (distanceDiffMeters / 1000.0).toFloat()
         val baseRate = levelDiff / distanceDiffKm
         val headwind = headwindSpeedMs?.coerceAtLeast(0f) ?: 0f

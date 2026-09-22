@@ -304,12 +304,12 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
             val fld4 = $$"$FLD,19,,0,50,12.0,-0.5,0.5,-,7,0,0,0,0,2.1\n"
             incomingDataFlow.emit((flc4 + fld4).toByteArray(Charsets.US_ASCII))
 
-            // then battery range emits fallback estimate in meters (98 / 5.0 * 1000 = 19600m)
+            // then battery range emits the correctly updated moving average range in meters (98 / (2.0 / 2.1) * 1000 = 102900m)
             val rangePoint = capturedEvents.filterIsInstance<OnDataPoint>()
                 .firstOrNull { it.dataPoint.dataTypeId == DataType.dataTypeId("karoo-forumslader", DataFieldId.BATTERY_RANGE) }
 
             rangePoint.shouldNotBeNull()
-            rangePoint.dataPoint.values[DataType.Field.SINGLE] shouldBe (19600.0 plusOrMinus 1.0)
+            rangePoint.dataPoint.values[DataType.Field.SINGLE] shouldBe (102900.0 plusOrMinus 1.0)
         }
     }
 
