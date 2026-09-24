@@ -74,9 +74,9 @@ class ForumsladerKarooAdapter(
             "fl_tour_distance" to { metrics.distance.tourMeters },
             "fl_battery_level" to { metrics.power.batteryLevelPercentage },
             DataFieldId.BATTERY_RANGE to {
-                when (metrics.power.chargeState) {
+                estimate?.estimatedRangeKm?.let { it * 1000.0 } ?: when (metrics.power.chargeState) {
                     ChargeState.CHARGING, ChargeState.FULL -> DataFieldId.BATTERY_RANGE_CHARGING
-                    else -> estimate?.estimatedRangeKm?.let { it * 1000.0 } ?: DataFieldId.BATTERY_RANGE_CALCULATING
+                    else -> DataFieldId.BATTERY_RANGE_CALCULATING
                 }
             }
         )
