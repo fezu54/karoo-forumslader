@@ -610,5 +610,76 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
             BatteryEstimateStore.estimateFlow.value?.routeRemainingKm.shouldBeNull()
         }
     }
+
+    should("emit range in meters when charging with known discharge rate") {
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            val capturedEvents = mutableListOf<DeviceEvent>()
+            every { emitter.onNext(capture(capturedEvents)) } returns Unit
+
+            val forumslader = createAdapter(scope = backgroundScope)
+            forumslader.connect(emitter)
+
+            // Step 1: establish initial discharge rate = 5% per km (100% -> 95% over 1km)
+            val flc1 = $$"$FLC,5,0,100\n"
+            val fld1 = $$"$FLD,19,,0,50,12.0,-0.5,0.5,-,7,0,0,0,0,0.0\n"
+            incomingDataFlow.emit((flc1 + fld1).toByteArray(Charsets.US_ASCII))
+
+            val flc2 = $$"$FLC,5,0,95\n"
+            val fld2 = $$"$FLD,19,,0,50,12.0,-0.5,0.5,-,7,0,0,0,0,1.0\n"
+            incomingDataFlow.emit((flc2 + fld2).toByteArray(Charsets.US_ASCII))
+
+            // when: transitions to charging at 2.0km with 96% battery
+            capturedEvents.clear()
+            val flc3 = $$"$FLC,5,0,96\n"
+            val fld3 = $$"$FLD,19,,0,50,12.0,1.5,0.5,+,7,0,0,0,0,2.0\n"
+            incomingDataFlow.emit((flc3 + fld3).toByteArray(Charsets.US_ASCII))
+
+            // then: battery range emits estimated range in meters (96 / 5.0 * 1000 = 19200m) instead of sentinel
+            val rangePoint = capturedEvents.filterIsInstance<OnDataPoint>()
+                .firstOrNull { it.dataPoint.dataTypeId == DataType.dataTypeId("karoo-forumslader", DataFieldId.BATTERY_RANGE) }
+
+            rangePoint.shouldNotBeNull()
+            rangePoint.dataPoint.values[DataType.Field.SINGLE] shouldBe (19200.0 plusOrMinus 1.0)
+        }
+    }
+
+    should("emit range based on lastDischargeRate when discharging without sufficient window data but prior rate exists") {
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            val capturedEvents = mutableListOf<DeviceEvent>()
+            every { emitter.onNext(capture(capturedEvents)) } returns Unit
+
+            val forumslader = createAdapter(scope = backgroundScope)
+            forumslader.connect(emitter)
+
+            // Discharge: 50% to 45% over 1km -> 5% per km
+            val flc1 = $$"$FLC,5,0,50\n"
+            val fld1 = $$"$FLD,19,,0,50,12.0,-0.5,0.5,-,7,0,0,0,0,0.0\n"
+            incomingDataFlow.emit((flc1 + fld1).toByteArray(Charsets.US_ASCII))
+
+            val flc2 = $$"$FLC,5,0,45\n"
+            val fld2 = $$"$FLD,19,,0,50,12.0,-0.5,0.5,-,7,0,0,0,0,1.0\n"
+            incomingDataFlow.emit((flc2 + fld2).toByteArray(Charsets.US_ASCII))
+
+            // Charge up to 55% (net charge over window: 50% -> 55%, so initialLevelDiff <= 0)
+            val flc3 = $$"$FLC,5,0,55\n"
+            val fld3 = $$"$FLD,19,,0,50,12.0,1.5,0.5,+,7,0,0,0,0,2.0\n"
+            incomingDataFlow.emit((flc3 + fld3).toByteArray(Charsets.US_ASCII))
+
+            // when: transitions back to discharging at 2.05km (initialLevelDiff = 50 - 55 = -5 <= 0 prunes, only 50m of discharging)
+            capturedEvents.clear()
+            val flc4 = $$"$FLC,5,0,55\n"
+            val fld4 = $$"$FLD,19,,0,50,12.0,-0.5,0.5,-,7,0,0,0,0,2.05\n"
+            incomingDataFlow.emit((flc4 + fld4).toByteArray(Charsets.US_ASCII))
+
+            // then: emits estimated range using lastDischargeRate (55 / 5.0 * 1000 = 11000m)
+            val rangePoint = capturedEvents.filterIsInstance<OnDataPoint>()
+                .firstOrNull { it.dataPoint.dataTypeId == DataType.dataTypeId("karoo-forumslader", DataFieldId.BATTERY_RANGE) }
+
+            rangePoint.shouldNotBeNull()
+            rangePoint.dataPoint.values[DataType.Field.SINGLE] shouldBe (11000.0 plusOrMinus 1.0)
+        }
+    }
 })
 
