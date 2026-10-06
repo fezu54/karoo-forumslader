@@ -6,6 +6,7 @@ import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
+import org.happycode.karoo.forumslader.PreferencesConstants.PREFS_NAME
 
 class ForumsladerConfigTest : ShouldSpec({
     val storage = mutableMapOf<String, Any?>()
@@ -15,16 +16,17 @@ class ForumsladerConfigTest : ShouldSpec({
 
     beforeEach {
         storage.clear()
-        every { context.getSharedPreferences("forumslader_prefs", Context.MODE_PRIVATE) } returns prefs
+        every { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) } returns prefs
 
         every { prefs.getInt(any(), any()) } answers { storage[firstArg()] as? Int ?: secondArg() }
-        every { prefs.getFloat(any(), any()) } answers { storage[firstArg()] as? Float ?: secondArg() }
+        every { prefs.getBoolean(any(), any()) } answers { storage[firstArg()] as? Boolean ?: secondArg() }
         every { prefs.getString(any(), any()) } answers { storage[firstArg()] as? String ?: secondArg() }
 
         every { prefs.edit() } returns editor
         every { editor.putInt(any(), any()) } answers { storage[firstArg()] = secondArg(); editor }
-        every { editor.putFloat(any(), any()) } answers { storage[firstArg()] = secondArg(); editor }
+        every { editor.putBoolean(any(), any()) } answers { storage[firstArg()] = secondArg(); editor }
         every { editor.putString(any(), any()) } answers { storage[firstArg()] = secondArg(); editor }
+        every { editor.remove(any()) } answers { storage.remove(firstArg()); editor }
         every { editor.apply() } returns Unit
     }
 
@@ -37,7 +39,6 @@ class ForumsladerConfigTest : ShouldSpec({
             wheelsize shouldBe 2200
             poles shouldBe 14
             version shouldBe ForumsladerVersion.Unknown
-            speedMultiplier shouldBe 1.0f
             lockedMacAddress shouldBe null
         }
     }
@@ -76,18 +77,6 @@ class ForumsladerConfigTest : ShouldSpec({
 
         // then
         ForumsladerConfig(context).version shouldBe newValue
-    }
-
-    should("persist speedMultiplier when updated") {
-        // given
-        val config = ForumsladerConfig(context)
-        val newValue = 1.05f
-
-        // when
-        config.speedMultiplier = newValue
-
-        // then
-        ForumsladerConfig(context).speedMultiplier shouldBe newValue
     }
 
     should("persist lockedMacAddress when updated") {

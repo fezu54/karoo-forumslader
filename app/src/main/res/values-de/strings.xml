@@ -62,7 +62,6 @@
     <string name="label_wheel_size">Radumfang</string>
     <string name="label_poles">Pole</string>
     <string name="label_version">Version</string>
-    <string name="label_speed_multiplier">Geschwindigkeitsfaktor</string>
     <string name="label_locked_device">Gekoppeltes Gerät</string>
     <string name="forget_device_action">Löschen</string>
 
@@ -98,4 +97,8 @@
     <string name="status_logs_cleared">Protokolle gelöscht</string>
     <string name="instruction_scan_qr">Mit Kamera scannen zum Herunterladen:</string>
     <string name="server_running_format">Server läuft unter %1$s</string>
+
+    <string name="label_use_device_values">Gerätewerte verwenden ($FLP)</string>
+    <string name="label_override_wheel_size">Radumfang überschreiben (mm)</string>
+    <string name="label_override_poles">Pole überschreiben</string>
 </resources>

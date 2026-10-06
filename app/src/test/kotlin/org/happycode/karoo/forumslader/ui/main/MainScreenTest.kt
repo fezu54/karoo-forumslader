@@ -23,6 +23,7 @@ import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.Dat
 import org.happycode.karoo.forumslader.domain.BatteryEstimate
 import org.happycode.karoo.forumslader.domain.ChargeState
 import org.happycode.karoo.forumslader.domain.CommandBus
+import org.happycode.karoo.forumslader.domain.ForumsladerCommand
 import org.happycode.karoo.forumslader.model.ForumsladerConfig
 import org.happycode.karoo.forumslader.theme.AppTheme
 import org.junit.Before
@@ -76,8 +77,8 @@ class MainScreenTest {
         wheelsize: Int = config.wheelsize,
         poles: Int = config.poles,
         versionKey: String = config.version.key,
-        speedMultiplier: Float = config.speedMultiplier,
         lockedMacAddress: String? = config.lockedMacAddress,
+        onConfigUpdate: (Int, Int) -> Unit = { _, _ -> },
         onForgetDevice: () -> Unit = {},
         batteryLowThreshold: Int = 20,
         highTempThreshold: Float = 50f,
@@ -97,9 +98,8 @@ class MainScreenTest {
                     wheelsize = wheelsize,
                     poles = poles,
                     versionKey = versionKey,
-                    speedMultiplier = speedMultiplier,
                     lockedMacAddress = lockedMacAddress,
-                    onSpeedMultiplierChange = {},
+                    onConfigUpdate = onConfigUpdate,
                     onForgetDevice = onForgetDevice,
                     batteryLowThreshold = batteryLowThreshold,
                     highTempThreshold = highTempThreshold,
@@ -328,7 +328,6 @@ class MainScreenTest {
 
     @Test
     fun `should display trip distance in miles when system unit is Imperial`() {
-        // given
         val metrics = mapOf(DataFieldId.TRIP_DISTANCE to 1609.34) // 1 mile = 1609.34 meters
 
         // when
@@ -480,7 +479,7 @@ class MainScreenTest {
 
         // then
         composeTestRule.onNodeWithText("Configuration").performScrollTo().assertIsDisplayed()
-        composeTestRule.onNodeWithText("2150 mm", substring = true).performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText("2150").performScrollTo().assertIsDisplayed()
         composeTestRule.onNodeWithText("28").performScrollTo().assertIsDisplayed()
     }
 
@@ -523,7 +522,7 @@ class MainScreenTest {
         showMainScreen(
             sensorState = streamingState,
             metrics = metrics,
-            onResetDayDistance = { CommandBus.sendCommand($$"$FLT,7*45\n") }
+            onResetDayDistance = { CommandBus.sendCommand(ForumsladerCommand.ResetDayDistance) }
         )
 
         val deferred = async(start = CoroutineStart.UNDISPATCHED) {
@@ -534,7 +533,7 @@ class MainScreenTest {
         composeTestRule.onNodeWithText("OK").performClick()
 
         // then
-        deferred.await() shouldBe $$"$FLT,7*45\n"
+        deferred.await() shouldBe ForumsladerCommand.ResetDayDistance
     }
 
     @Test
@@ -546,7 +545,7 @@ class MainScreenTest {
         showMainScreen(
             sensorState = streamingState,
             metrics = metrics,
-            onResetTourDistance = { CommandBus.sendCommand($$"$FLT,6*44\n") }
+            onResetTourDistance = { CommandBus.sendCommand(ForumsladerCommand.ResetTourDistance) }
         )
 
         val deferred = async(start = CoroutineStart.UNDISPATCHED) {
@@ -557,7 +556,7 @@ class MainScreenTest {
         composeTestRule.onNodeWithText("OK").performClick()
 
         // then
-        deferred.await() shouldBe $$"$FLT,6*44\n"
+        deferred.await() shouldBe ForumsladerCommand.ResetTourDistance
     }
 
     @Test
@@ -590,5 +589,22 @@ class MainScreenTest {
 
         // then
         composeTestRule.onNodeWithText("85%", substring = true).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun `should display config fields`() {
+        // given / when
+        showMainScreen(
+            sensorState = streamingState,
+            wheelsize = 2100,
+            poles = 20
+        )
+        swipeToConfigPage()
+
+        // then
+        composeTestRule.onNodeWithText("Override Wheel Size (mm)").assertIsDisplayed()
+        composeTestRule.onNodeWithText("2100").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Override Poles").assertIsDisplayed()
+        composeTestRule.onNodeWithText("20").assertIsDisplayed()
     }
 }

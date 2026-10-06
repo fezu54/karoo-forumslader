@@ -49,9 +49,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_BATTERY_LOW_THRESHOLD
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_HIGH_TEMP_THRESHOLD
+import org.happycode.karoo.forumslader.domain.ForumsladerCommand
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_LOCKED_MAC_ADDRESS
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_POLES
-import org.happycode.karoo.forumslader.PreferencesConstants.KEY_SPEED_MULTIPLIER
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_VERSION
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_WHEEL_SIZE
 import org.happycode.karoo.forumslader.PreferencesConstants.PREFS_NAME
@@ -117,7 +117,6 @@ fun MainScreen() {
             prefs.getString(KEY_VERSION, "unknown") ?: "unknown"
         )
     }
-    var speedMultiplier by remember { mutableFloatStateOf(prefs.getFloat(KEY_SPEED_MULTIPLIER, 1.0f)) }
     var lockedMacAddress by remember { mutableStateOf(prefs.getString(KEY_LOCKED_MAC_ADDRESS, null)) }
     var batteryLowThreshold by remember { mutableIntStateOf(prefs.getInt(KEY_BATTERY_LOW_THRESHOLD, 20)) }
     var highTempThreshold by remember { mutableFloatStateOf(prefs.getFloat(KEY_HIGH_TEMP_THRESHOLD, 50f)) }
@@ -130,8 +129,6 @@ fun MainScreen() {
                     KEY_POLES -> poles = sharedPreferences.getInt(KEY_POLES, 14)
                     KEY_VERSION -> versionKey =
                         sharedPreferences.getString(KEY_VERSION, "unknown") ?: "unknown"
-                    KEY_SPEED_MULTIPLIER -> speedMultiplier =
-                        sharedPreferences.getFloat(KEY_SPEED_MULTIPLIER, 1.0f)
                     KEY_LOCKED_MAC_ADDRESS -> lockedMacAddress =
                         sharedPreferences.getString(KEY_LOCKED_MAC_ADDRESS, null)
                     KEY_BATTERY_LOW_THRESHOLD -> batteryLowThreshold =
@@ -238,7 +235,6 @@ fun MainScreen() {
         wheelsize = wheelsize,
         poles = poles,
         versionKey = versionKey,
-        speedMultiplier = speedMultiplier,
         lockedMacAddress = lockedMacAddress,
         batteryLowThreshold = batteryLowThreshold,
         highTempThreshold = highTempThreshold,
@@ -247,8 +243,8 @@ fun MainScreen() {
         isServerRunning = isServerRunning,
         serverUrl = serverUrl,
         logExportStatus = logExportStatus,
-        onSpeedMultiplierChange = {
-            prefs.edit { putFloat(KEY_SPEED_MULTIPLIER, it) }
+        onConfigUpdate = { ws, p ->
+            CommandBus.sendCommand(ForumsladerCommand.UpdateConfig(ws, p))
         },
         onForgetDevice = {
             prefs.edit { putString(KEY_LOCKED_MAC_ADDRESS, null) }
@@ -260,10 +256,10 @@ fun MainScreen() {
             prefs.edit { putFloat(KEY_HIGH_TEMP_THRESHOLD, it) }
         },
         onResetDayDistance = {
-            CommandBus.sendCommand($$"$FLT,7*45\n")
+            CommandBus.sendCommand(ForumsladerCommand.ResetDayDistance)
         },
         onResetTourDistance = {
-            CommandBus.sendCommand($$"$FLT,6*44\n")
+            CommandBus.sendCommand(ForumsladerCommand.ResetTourDistance)
         },
         onSaveToUsb = {
             coroutineScope.launch(Dispatchers.IO) {
@@ -316,7 +312,6 @@ fun MainScreenContent(
     wheelsize: Int,
     poles: Int,
     versionKey: String,
-    speedMultiplier: Float,
     lockedMacAddress: String?,
     batteryLowThreshold: Int,
     highTempThreshold: Float,
@@ -325,7 +320,7 @@ fun MainScreenContent(
     isServerRunning: Boolean = false,
     serverUrl: String? = null,
     logExportStatus: String? = null,
-    onSpeedMultiplierChange: (Float) -> Unit,
+    onConfigUpdate: (Int, Int) -> Unit,
     onForgetDevice: () -> Unit,
     onBatteryLowThresholdChange: (Int) -> Unit,
     onHighTempThresholdChange: (Float) -> Unit,
@@ -367,9 +362,8 @@ fun MainScreenContent(
                             wheelsize = wheelsize,
                             poles = poles,
                             versionKey = versionKey,
-                            speedMultiplier = speedMultiplier,
                             lockedMacAddress = lockedMacAddress,
-                            onSpeedMultiplierChange = onSpeedMultiplierChange,
+                            onConfigUpdate = onConfigUpdate,
                             onForgetDevice = onForgetDevice
                         )
                         AlertsConfigCard(
@@ -437,7 +431,6 @@ fun MainScreenPreview() {
             wheelsize = 2200,
             poles = 14,
             versionKey = "v6",
-            speedMultiplier = 1.0f,
             lockedMacAddress = "00:11:22:33:44:55",
             batteryLowThreshold = 20,
             highTempThreshold = 50f,
@@ -446,7 +439,7 @@ fun MainScreenPreview() {
             isServerRunning = false,
             serverUrl = null,
             logExportStatus = null,
-            onSpeedMultiplierChange = {},
+            onConfigUpdate = { _, _ -> },
             onForgetDevice = {},
             onBatteryLowThresholdChange = {},
             onHighTempThresholdChange = {},
