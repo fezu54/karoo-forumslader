@@ -62,7 +62,6 @@
     <string name="label_wheel_size">Wheel Size</string>
     <string name="label_poles">Poles</string>
     <string name="label_version">Version</string>
-    <string name="label_speed_multiplier">Speed Multiplier</string>
     <string name="label_locked_device">Locked Device</string>
     <string name="forget_device_action">Forget</string>
 
@@ -98,4 +97,8 @@
     <string name="status_logs_cleared">Logs cleared</string>
     <string name="instruction_scan_qr">Scan with phone camera to download logs:</string>
     <string name="server_running_format">Server running on %1$s</string>
+
+    <string name="label_use_device_values">Use device values ($FLP)</string>
+    <string name="label_override_wheel_size">Override Wheel Size (mm)</string>
+    <string name="label_override_poles">Override Poles</string>
 </resources>

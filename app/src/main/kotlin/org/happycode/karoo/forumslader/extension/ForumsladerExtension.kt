@@ -28,8 +28,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.ConcurrentMap
 import org.happycode.karoo.forumslader.BuildConfig
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
 import org.happycode.karoo.forumslader.domain.CommandBus
@@ -38,6 +36,8 @@ import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.SERVICE_UUID_
 import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.SERVICE_UUID_V6
 import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.SERVICE_UUID_V6_ALT
 import org.happycode.karoo.forumslader.model.ForumsladerConfig
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentMap
 
 class ForumsladerExtension(
     private val adapterFactory: (Context, String, String?) -> ForumsladerKarooAdapter = { ctx, addr, name ->
@@ -60,13 +60,10 @@ class ForumsladerExtension(
         super.onCreate()
         serviceScope.launch {
             CommandBus.commands.collect { command ->
-                val hasConnectPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
-                } else {
-                    true
-                }
+                val hasConnectPermission =
+                    Build.VERSION.SDK_INT < Build.VERSION_CODES.S || checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
                 if (hasConnectPermission) {
-                    devices.values.forEach { it.sendCommand(command) }
+                    devices.values.forEach { it.executeCommand(command) }
                 }
             }
         }
@@ -79,7 +76,11 @@ class ForumsladerExtension(
 
     override val types: List<DataTypeImpl> by lazy {
         listOf(
-            ForumsladerDataType(extension, DataFieldId.BATTERY_LEVEL, DataType.Type.BATTERY_PERCENT),
+            ForumsladerDataType(
+                extension,
+                DataFieldId.BATTERY_LEVEL,
+                DataType.Type.BATTERY_PERCENT
+            ),
             ForumsladerDataType(extension, DataFieldId.BATTERY_VOLTAGE),
             ForumsladerDataType(extension, DataFieldId.BATTERY_CURRENT),
             ForumsladerDataType(extension, DataFieldId.CONSUMER_CURRENT),
@@ -107,13 +108,16 @@ class ForumsladerExtension(
 
         val hasScanPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED &&
-                checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+                    checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
         } else {
             checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
         }
 
         if (!hasScanPermission) {
-            Log.e(TAG, "startScan() failed: Missing BLUETOOTH_SCAN or ACCESS_FINE_LOCATION permission")
+            Log.e(
+                TAG,
+                "startScan() failed: Missing BLUETOOTH_SCAN or ACCESS_FINE_LOCATION permission"
+            )
             emitter.setCancellable { job.cancel() }
             return
         }
@@ -123,10 +127,13 @@ class ForumsladerExtension(
             locationManager?.isLocationEnabled == true
         } else {
             locationManager?.isProviderEnabled(LocationManager.GPS_PROVIDER) == true ||
-                locationManager?.isProviderEnabled(LocationManager.NETWORK_PROVIDER) == true
+                    locationManager?.isProviderEnabled(LocationManager.NETWORK_PROVIDER) == true
         }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S && !isLocationEnabled) {
-            Log.w(TAG, "startScan(): System location services (GPS) are DISABLED! BLE discovery will not return results on Android 8.")
+            Log.w(
+                TAG,
+                "startScan(): System location services (GPS) are DISABLED! BLE discovery will not return results on Android 8."
+            )
         }
 
         val config = ForumsladerConfig(this)
@@ -142,40 +149,47 @@ class ForumsladerExtension(
         val callback = object : ScanCallback() {
             @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
             override fun onScanResult(callbackType: Int, result: ScanResult) {
-                val hasConnectPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
-                } else {
-                    true
-                }
+                val hasConnectPermission =
+                    Build.VERSION.SDK_INT < Build.VERSION_CODES.S || checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
                 if (!hasConnectPermission) {
-                    Log.w(TAG, "onScanResult(): Ignored result due to missing BLUETOOTH_CONNECT permission")
+                    Log.w(
+                        TAG,
+                        "onScanResult(): Ignored result due to missing BLUETOOTH_CONNECT permission"
+                    )
                     return
                 }
 
                 val deviceAddress = result.device.address
                 val name = result.device.name ?: result.scanRecord?.deviceName
                 val uuids = result.scanRecord?.serviceUuids
-                val manufacturerData = result.scanRecord?.getManufacturerSpecificData(MANUFACTURER_ID_FORUMSLADER)
+                val manufacturerData =
+                    result.scanRecord?.getManufacturerSpecificData(MANUFACTURER_ID_FORUMSLADER)
                 val rssi = result.rssi
 
-                Log.d(TAG, "onScanResult(): address=$deviceAddress, name=$name, rssi=$rssi, uuids=$uuids, hasMfgData=${manufacturerData != null}")
+                Log.d(
+                    TAG,
+                    "onScanResult(): address=$deviceAddress, name=$name, rssi=$rssi, uuids=$uuids, hasMfgData=${manufacturerData != null}"
+                )
 
                 val hasForumsladerName = name?.run {
                     contains(other = "Forumslader", ignoreCase = true) ||
-                    startsWith(prefix = "FL", ignoreCase = true) ||
-                    contains(other = "Ahead", ignoreCase = true)
+                            startsWith(prefix = "FL", ignoreCase = true) ||
+                            contains(other = "Ahead", ignoreCase = true)
                 } ?: false
 
                 val hasForumsladerService = uuids?.any { parcelUuid ->
                     parcelUuid.uuid == SERVICE_UUID_V5 ||
-                    parcelUuid.uuid == SERVICE_UUID_V6 ||
-                    parcelUuid.uuid == SERVICE_UUID_V6_ALT
+                            parcelUuid.uuid == SERVICE_UUID_V6 ||
+                            parcelUuid.uuid == SERVICE_UUID_V6_ALT
                 } ?: false
 
                 val hasForumsladerMfg = manufacturerData != null
 
                 if (hasForumsladerName || hasForumsladerService || hasForumsladerMfg) {
-                    Log.i(TAG, "Matched Forumslader: address=$deviceAddress, name=$name, byName=$hasForumsladerName, byService=$hasForumsladerService, byMfg=$hasForumsladerMfg")
+                    Log.i(
+                        TAG,
+                        "Matched Forumslader: address=$deviceAddress, name=$name, byName=$hasForumsladerName, byService=$hasForumsladerService, byMfg=$hasForumsladerMfg"
+                    )
                     val displayName = name ?: "Forumslader"
                     val forumslader = getOrCreateAdapter(deviceAddress, displayName)
                     emitter.onNext(forumslader.device)
@@ -210,15 +224,24 @@ class ForumsladerExtension(
             bluetoothStateFlowFactory(this@ForumsladerExtension)
                 .distinctUntilChanged()
                 .collect { isEnabled ->
-                    val scanner = bluetoothManager?.adapter?.takeIf { it.isEnabled }?.bluetoothLeScanner
+                    val scanner =
+                        bluetoothManager?.adapter?.takeIf { it.isEnabled }?.bluetoothLeScanner
                     when {
                         !isEnabled -> {
-                            Log.w(TAG, "startScan(): Bluetooth adapter is disabled / turning off, pausing scan")
+                            Log.w(
+                                TAG,
+                                "startScan(): Bluetooth adapter is disabled / turning off, pausing scan"
+                            )
                             stopActiveScan()
                         }
+
                         scanner == null -> {
-                            Log.w(TAG, "startScan(): Bluetooth enabled reported, but scanner is not yet available")
+                            Log.w(
+                                TAG,
+                                "startScan(): Bluetooth enabled reported, but scanner is not yet available"
+                            )
                         }
+
                         activeScanner == null -> {
                             startLeScan(scanner)
                         }
@@ -229,11 +252,8 @@ class ForumsladerExtension(
         emitter.setCancellable {
             Log.d(TAG, "startScan(): Scan cancelled / stopped")
             job.cancel()
-            val canStop = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED
-            } else {
-                true
-            }
+            val canStop =
+                Build.VERSION.SDK_INT < Build.VERSION_CODES.S || checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED
             if (canStop) {
                 stopActiveScan()
             }
@@ -243,11 +263,8 @@ class ForumsladerExtension(
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     override fun connectDevice(uid: String, emitter: Emitter<DeviceEvent>) {
         Log.d(TAG, "connectDevice() called for uid=$uid")
-        val hasConnectPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
-        } else {
-            true
-        }
+        val hasConnectPermission =
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.S || checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
         if (!hasConnectPermission) {
             Log.w(TAG, "connectDevice() failed for uid=$uid: Missing BLUETOOTH_CONNECT permission")
             return
@@ -258,7 +275,10 @@ class ForumsladerExtension(
         getOrCreateAdapter(address).connect(emitter = emitter)
     }
 
-    private fun getOrCreateAdapter(address: String, displayName: String? = null): ForumsladerKarooAdapter {
+    private fun getOrCreateAdapter(
+        address: String,
+        displayName: String? = null
+    ): ForumsladerKarooAdapter {
         val normalizedAddress = address.uppercase()
         return devices.getOrPut(key = normalizedAddress) {
             adapterFactory(this, normalizedAddress, displayName)

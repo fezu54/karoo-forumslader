@@ -13,17 +13,20 @@ class CommandBusTest : ShouldSpec({
     should("emit commands to subscribers when commands are sent") {
         runTest {
             // given
-            val commands = mutableListOf<String>()
+            val commands = mutableListOf<ForumsladerCommand>()
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
                 CommandBus.commands.collect { commands.add(it) }
             }
 
             // when
-            CommandBus.sendCommand("test_command_1")
-            CommandBus.sendCommand("test_command_2")
+            CommandBus.sendCommand(ForumsladerCommand.ResetDayDistance)
+            CommandBus.sendCommand(ForumsladerCommand.UpdateConfig(2100, 20))
 
             // then
-            commands shouldBe listOf("test_command_1", "test_command_2")
+            commands shouldBe listOf(
+                ForumsladerCommand.ResetDayDistance,
+                ForumsladerCommand.UpdateConfig(2100, 20)
+            )
         }
     }
 })

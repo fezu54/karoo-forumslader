@@ -567,4 +567,40 @@ class ForumsladerParserTest : ShouldSpec({
         // then
         verify { Log.i(any(), match { it.contains("Configuration updated") }) }
     }
+
+    should("calculate speed and distance using configured wheelsize and poles") {
+        // given
+        val mockConfig = mockk<ForumsladerConfig>(relaxed = true)
+        every { mockConfig.wheelsize } returns 2200
+        every { mockConfig.poles } returns 14
+
+        val customParser = ForumsladerParser(config = mockConfig)
+        val payload = $$"$FL6,0,0,100,4100,4120,4110,-150,250,0,0,0,12345"
+
+        // when
+        val result = customParser.processIncomingBytes(payload.toFrameBytes()).shouldNotBeNull()
+
+        // then
+        result.run {
+            dynamics.speedMetersPerSecond shouldBe (1.57f plusOrMinus 0.01f)
+            distance.tripMeters shouldBe (1939.93 plusOrMinus 0.01)
+        }
+    }
+
+    should("initialize isConfigLoadedFlow to false initially") {
+        // given
+        val mockConfig = mockk<ForumsladerConfig>(relaxed = true)
+
+        // when
+        val customParser = ForumsladerParser(config = mockConfig)
+
+        // then
+        customParser.isConfigLoadedFlow.value shouldBe false
+
+        // when
+        customParser.resetConfigLoaded()
+
+        // then
+        customParser.isConfigLoadedFlow.value shouldBe false
+    }
 })

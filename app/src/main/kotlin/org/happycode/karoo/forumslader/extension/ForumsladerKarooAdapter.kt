@@ -28,6 +28,7 @@ import org.happycode.karoo.forumslader.domain.ChargeState
 import org.happycode.karoo.forumslader.R
 import org.happycode.karoo.forumslader.domain.BatteryLowRule
 import org.happycode.karoo.forumslader.domain.ForumsladerAlert
+import org.happycode.karoo.forumslader.domain.ForumsladerCommand
 import org.happycode.karoo.forumslader.domain.ForumsladerAlertManager
 import org.happycode.karoo.forumslader.domain.ForumsladerMetrics
 import org.happycode.karoo.forumslader.domain.HighTemperatureRule
@@ -306,11 +307,16 @@ class ForumsladerKarooAdapter(
     }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-    fun sendCommand(command: String) {
-        bleManager.writeCommand(command.toByteArray(Charsets.US_ASCII))
-        if (command.startsWith($$"$FLT,6") || command.startsWith($$"$FLT,7")) {
-            parser.resetConfigLoaded()
-            protocol.startParameterRequestLoop()
+    fun executeCommand(command: ForumsladerCommand) {
+        val payload = when (command) {
+            ForumsladerCommand.ResetDayDistance -> "FLT,7"
+            ForumsladerCommand.ResetTourDistance -> "FLT,6"
+            is ForumsladerCommand.UpdateConfig -> "FLT,9,${command.wheelsize},${command.poles}"
         }
+        val checksum = payload.fold(0) { acc, char -> acc xor char.code }.toString(16).uppercase().padStart(2, '0')
+        val cmdBytes = $$"$$$payload*$$checksum\r\n".toByteArray(Charsets.US_ASCII)
+        bleManager.writeCommand(cmdBytes)
+        parser.resetConfigLoaded()
+        protocol.startParameterRequestLoop()
     }
 }

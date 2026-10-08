@@ -44,6 +44,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
 import org.happycode.karoo.forumslader.application.BatteryEstimateStore
+import org.happycode.karoo.forumslader.domain.ForumsladerCommand
 import org.happycode.karoo.forumslader.application.CsvLogger
 import org.happycode.karoo.forumslader.application.ForumsladerStateStore
 import org.happycode.karoo.forumslader.model.ForumsladerVersion
@@ -446,7 +447,7 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
             incomingDataFlow.emit((flb + fl5).toByteArray(Charsets.US_ASCII))
 
             // when
-            forumslader.sendCommand($$"$FLT,6\n")
+            forumslader.executeCommand(ForumsladerCommand.ResetTourDistance)
 
             // then
             verifyOrder {
@@ -456,6 +457,23 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
 
             yield()
             ForumsladerStateStore.isConfigLoadedFlow.value shouldBe false
+        }
+    }
+
+    should("send proper config update command and request config when sendConfigUpdate is called") {
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            val forumslader = createAdapter(scope = backgroundScope)
+            forumslader.connect(emitter)
+
+            // when
+            forumslader.executeCommand(ForumsladerCommand.UpdateConfig(2100, 20))
+
+            // then
+            verifyOrder {
+                bleManager.writeCommand(match { it.decodeToString() == $$"$FLT,9,2100,20*4A\r\n" })
+                bleManager.writeCommand(match { it.decodeToString().startsWith($$"$FLT,5") })
+            }
         }
     }
 
