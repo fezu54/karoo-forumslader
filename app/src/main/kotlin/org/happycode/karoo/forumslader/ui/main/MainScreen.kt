@@ -2,6 +2,7 @@ package org.happycode.karoo.forumslader.ui.main
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.net.Uri
 import android.os.Process
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -17,9 +18,10 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
@@ -49,7 +51,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_BATTERY_LOW_THRESHOLD
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_HIGH_TEMP_THRESHOLD
-import org.happycode.karoo.forumslader.domain.ForumsladerCommand
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_LOCKED_MAC_ADDRESS
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_POLES
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_VERSION
@@ -67,18 +68,21 @@ import org.happycode.karoo.forumslader.application.LogcatDumper
 import org.happycode.karoo.forumslader.application.PublicStorageGateway
 import org.happycode.karoo.forumslader.domain.BatteryEstimate
 import org.happycode.karoo.forumslader.domain.CommandBus
+import org.happycode.karoo.forumslader.domain.DfuState
+import org.happycode.karoo.forumslader.domain.ForumsladerCommand
+import org.happycode.karoo.forumslader.model.ForumsladerVersion
 import org.happycode.karoo.forumslader.theme.AppTheme
 import org.happycode.karoo.forumslader.ui.main.components.AlertsConfigCard
 import org.happycode.karoo.forumslader.ui.main.components.BatteryEstimateCard
 import org.happycode.karoo.forumslader.ui.main.components.ConfigCard
+import org.happycode.karoo.forumslader.ui.main.components.FirmwareUpdateCard
 import org.happycode.karoo.forumslader.ui.main.components.LogExportCard
 import org.happycode.karoo.forumslader.ui.main.components.MetricsList
 import org.happycode.karoo.forumslader.ui.main.components.MissingStreamsWarning
 import org.happycode.karoo.forumslader.ui.main.components.StatusCard
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen() {
+fun MainScreen(sharedUri: Uri? = null) {
     val context = LocalContext.current
     val karooSystem = remember { KarooSystemService(context) }
     var connected by remember { mutableStateOf(false) }
@@ -86,7 +90,6 @@ fun MainScreen() {
     var userProfile by remember { mutableStateOf<UserProfile?>(null) }
     val streamStates = remember { mutableStateMapOf<String, StreamState>() }
     val estimate by BatteryEstimateStore.estimateFlow.collectAsState(null)
-
     val hasMissingStreams by remember {
         derivedStateOf {
             val hasActive = streamStates.values.any { it is StreamState.Streaming || it is StreamState.Searching }
@@ -193,6 +196,8 @@ fun MainScreen() {
     val configLoaded by ForumsladerStateStore.isConfigLoadedFlow.collectAsState(false)
 
     val coroutineScope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val dfuNotImplementedMessage = stringResource(R.string.dfu_not_implemented)
     val telemetryDir = remember { context.filesDir.toPath().resolve("telemetry") }
     val csvLogger = remember { CsvLoggerProvider.getInstance(telemetryDir) }
     val logcatDumper = remember { LogcatDumper(telemetryDir) }
@@ -243,6 +248,19 @@ fun MainScreen() {
         isServerRunning = isServerRunning,
         serverUrl = serverUrl,
         logExportStatus = logExportStatus,
+        sharedUri = sharedUri,
+        dfuState = DfuState.Idle,
+        snackbarHostState = snackbarHostState,
+        onStartUpdate = { _ ->
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar(dfuNotImplementedMessage)
+            }
+        },
+        onDownloadLatest = {
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar(dfuNotImplementedMessage)
+            }
+        },
         onConfigUpdate = { ws, p ->
             CommandBus.sendCommand(ForumsladerCommand.UpdateConfig(ws, p))
         },
@@ -320,6 +338,11 @@ fun MainScreenContent(
     isServerRunning: Boolean = false,
     serverUrl: String? = null,
     logExportStatus: String? = null,
+    sharedUri: Uri? = null,
+    dfuState: DfuState = DfuState.Idle,
+    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
+    onStartUpdate: (Uri) -> Unit = {},
+    onDownloadLatest: () -> Unit = {},
     onConfigUpdate: (Int, Int) -> Unit,
     onForgetDevice: () -> Unit,
     onBatteryLowThresholdChange: (Int) -> Unit,
@@ -330,7 +353,9 @@ fun MainScreenContent(
     onToggleServer: () -> Unit = {},
     onClearLogs: () -> Unit = {}
 ) {
-    Scaffold { padding ->
+    Scaffold(
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+    ) { padding ->
         val pagerState = rememberPagerState(pageCount = { 2 })
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             HorizontalPager(
@@ -372,6 +397,14 @@ fun MainScreenContent(
                             onBatteryLowThresholdChange = onBatteryLowThresholdChange,
                             onHighTempThresholdChange = onHighTempThresholdChange
                         )
+                        if (versionKey != ForumsladerVersion.V5.key) {
+                            FirmwareUpdateCard(
+                                dfuState = dfuState,
+                                sharedUri = sharedUri,
+                                onStartUpdate = onStartUpdate,
+                                onDownloadLatest = onDownloadLatest
+                            )
+                        }
                         LogExportCard(
                             csvRowCount = csvRowCount,
                             csvFileSize = csvFileSize,

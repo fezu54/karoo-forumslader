@@ -1,5 +1,9 @@
 package org.happycode.karoo.forumslader.ui.main
 
+import android.net.Uri
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -18,6 +22,7 @@ import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
 import org.happycode.karoo.forumslader.domain.BatteryEstimate
@@ -85,6 +90,8 @@ class MainScreenTest {
         onResetDayDistance: () -> Unit = {},
         onResetTourDistance: () -> Unit = {},
         hasMissingStreams: Boolean = false,
+        onStartUpdate: (Uri) -> Unit = {},
+        onDownloadLatest: () -> Unit = {},
     ) {
         composeTestRule.setContent {
             AppTheme {
@@ -108,6 +115,8 @@ class MainScreenTest {
                     onResetDayDistance = onResetDayDistance,
                     onResetTourDistance = onResetTourDistance,
                     hasMissingStreams = hasMissingStreams,
+                    onStartUpdate = onStartUpdate,
+                    onDownloadLatest = onDownloadLatest,
                     onSaveToUsb = {},
                     onToggleServer = {},
                     onClearLogs = {}
@@ -606,5 +615,66 @@ class MainScreenTest {
         composeTestRule.onNodeWithText("2100").assertIsDisplayed()
         composeTestRule.onNodeWithText("Override Poles").assertIsDisplayed()
         composeTestRule.onNodeWithText("20").assertIsDisplayed()
+    }
+
+    @Test
+    fun `should invoke onDownloadLatest when download latest button clicked on configuration page`() {
+        // given
+        var downloaded = false
+        showMainScreen(
+            versionKey = "v6",
+            onDownloadLatest = { downloaded = true }
+        )
+        swipeToConfigPage()
+
+        // when
+        composeTestRule.onNodeWithText("Download Latest (Requires Internet)").performScrollTo().performClick()
+
+        // then
+        downloaded shouldBe true
+    }
+
+    @Test
+    fun `should show snackbar message when download latest clicked on main screen`() {
+        // given
+        composeTestRule.setContent {
+            val scope = rememberCoroutineScope()
+            val snackbarHostState = remember { SnackbarHostState() }
+            AppTheme {
+                MainScreenContent(
+                    connected = true,
+                    configLoaded = true,
+                    sensorState = StreamState.Idle,
+                    metrics = emptyMap(),
+                    userProfile = null,
+                    estimate = null,
+                    wheelsize = 2200,
+                    poles = 14,
+                    versionKey = "v6",
+                    lockedMacAddress = null,
+                    batteryLowThreshold = 20,
+                    highTempThreshold = 50f,
+                    snackbarHostState = snackbarHostState,
+                    onDownloadLatest = {
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Currently not implemented, waiting for further information…")
+                        }
+                    },
+                    onConfigUpdate = { _, _ -> },
+                    onForgetDevice = {},
+                    onBatteryLowThresholdChange = {},
+                    onHighTempThresholdChange = {},
+                    onResetDayDistance = {},
+                    onResetTourDistance = {}
+                )
+            }
+        }
+        swipeToConfigPage()
+
+        // when
+        composeTestRule.onNodeWithText("Download Latest (Requires Internet)").performScrollTo().performClick()
+
+        // then
+        composeTestRule.onNodeWithText("Currently not implemented, waiting for further information…").assertIsDisplayed()
     }
 }

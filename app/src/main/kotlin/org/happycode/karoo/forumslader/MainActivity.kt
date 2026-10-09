@@ -1,12 +1,15 @@
 package org.happycode.karoo.forumslader
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.core.content.ContextCompat
+import androidx.core.content.IntentCompat
 import org.happycode.karoo.forumslader.ui.main.MainScreen
 import org.happycode.karoo.forumslader.theme.AppTheme
 
@@ -16,9 +19,12 @@ class MainActivity : ComponentActivity() {
 
         requestNeededPermissions()
 
+        val sharedUri: Uri? = intent?.takeIf { it.action == Intent.ACTION_SEND }?.let {
+            IntentCompat.getParcelableExtra(it, Intent.EXTRA_STREAM, Uri::class.java)
+        }
         setContent {
             AppTheme {
-                MainScreen()
+                MainScreen(sharedUri = sharedUri)
             }
         }
     }

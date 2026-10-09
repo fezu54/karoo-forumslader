@@ -71,7 +71,7 @@ fun LogExportCard(
                 )
                 val formattedSize = formatFileSize(csvFileSize)
                 Text(
-                    text = "$csvRowCount rows ($formattedSize)",
+                    text = stringResource(R.string.telemetry_rows_format, csvRowCount, formattedSize),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold
                 )

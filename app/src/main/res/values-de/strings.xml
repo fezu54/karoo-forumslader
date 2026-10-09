@@ -101,4 +101,23 @@
     <string name="label_use_device_values">Gerätewerte verwenden ($FLP)</string>
     <string name="label_override_wheel_size">Radumfang überschreiben (mm)</string>
     <string name="label_override_poles">Pole überschreiben</string>
+    <string name="label_pole_preset_format">%1$s (%2$d Polpaare)</string>
+
+    <!-- Firmware Update -->
+    <string name="firmware_update_title">Firmware-Update (V6)</string>
+    <string name="action_download_latest">Neueste herunterladen (Internet erforderlich)</string>
+    <string name="label_select_local_file">Oder lokale .hex-Datei auswählen:</string>
+    <string name="label_selected_file">Datei: %1$s</string>
+    <string name="action_browse">Durchsuchen</string>
+    <string name="action_start_update">Update starten</string>
+    <string name="status_dfu_connecting">Verbinde mit Forumslader…</string>
+    <string name="status_dfu_validating">Prüfe Firmware…</string>
+    <string name="status_dfu_uploading">Übertrage: %1$d%%</string>
+    <string name="status_dfu_verifying">Verifiziere Update…</string>
+    <string name="status_dfu_success">Update erfolgreich!</string>
+    <string name="status_dfu_error">Fehler: %1$s</string>
+    <string name="dfu_not_implemented">Derzeit nicht implementiert, warte auf weitere Informationen…</string>
+
+    <string name="action_reset_metric">%1$s zurücksetzen</string>
+    <string name="telemetry_rows_format">%1$d Zeilen (%2$s)</string>
 </resources>

@@ -101,4 +101,23 @@
     <string name="label_use_device_values">Use device values ($FLP)</string>
     <string name="label_override_wheel_size">Override Wheel Size (mm)</string>
     <string name="label_override_poles">Override Poles</string>
+    <string name="label_pole_preset_format">%1$s (%2$d pairs)</string>
+
+    <!-- Firmware Update -->
+    <string name="firmware_update_title">Firmware Update (V6)</string>
+    <string name="action_download_latest">Download Latest (Requires Internet)</string>
+    <string name="label_select_local_file">Or select local .hex file:</string>
+    <string name="label_selected_file">File: %1$s</string>
+    <string name="action_browse">Browse</string>
+    <string name="action_start_update">Start Update</string>
+    <string name="status_dfu_connecting">Connecting to Forumslader…</string>
+    <string name="status_dfu_validating">Validating Firmware…</string>
+    <string name="status_dfu_uploading">Uploading: %1$d%%</string>
+    <string name="status_dfu_verifying">Verifying Update…</string>
+    <string name="status_dfu_success">Update Successful!</string>
+    <string name="status_dfu_error">Error: %1$s</string>
+    <string name="dfu_not_implemented">Currently not implemented, waiting for further information…</string>
+
+    <string name="action_reset_metric">Reset %1$s</string>
+    <string name="telemetry_rows_format">%1$d rows (%2$s)</string>
 </resources>
