@@ -183,7 +183,15 @@ private fun PolesOverrideField(
         ) {
             DynamoPolePreset.ALL.forEach { preset ->
                 DropdownMenuItem(
-                    text = { Text(preset.label) },
+                    text = {
+                        Text(
+                            stringResource(
+                                R.string.label_pole_preset_format,
+                                preset.name,
+                                preset.poles
+                            )
+                        )
+                    },
                     onClick = {
                         text = preset.poles.toString()
                         onValueChange(preset.poles)

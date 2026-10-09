@@ -163,7 +163,7 @@ fun MetricItem(label: String, value: String, onResetClick: (() -> Unit)? = null,
                 ) {
                     Icon(
                         imageVector = Icons.Default.Refresh,
-                        contentDescription = "Reset $label",
+                        contentDescription = stringResource(R.string.action_reset_metric, label),
                         modifier = Modifier.size(20.dp)
                     )
                 }

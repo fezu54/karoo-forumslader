@@ -65,6 +65,7 @@ kover {
 dependencies {
     implementation(libs.hammerhead.karoo.ext)
     implementation(libs.kable.core)
+    implementation(libs.nordic.dfu)
     implementation(libs.androidx.core.ktx)
     implementation(libs.bundles.androidx.lifeycle)
     implementation(libs.androidx.activity.compose)
