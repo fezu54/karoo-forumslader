@@ -7,7 +7,7 @@ nordicDfu = "2.11.0"
 kotlinxCoroutines = "1.11.0"
 qrcodeKotlin = "4.5.0"
 
-androidxCore = "1.19.0"
+androidxCore = "1.19.1"
 androidxLifecycle = "2.11.0"
 androidxActivity = "1.13.0"
 androidxComposeUi = "1.12.0"
@@ -19,7 +19,7 @@ junit-vintage = "6.1.3"
 kotest = "6.2.5"
 mockk = "1.14.11"
 mockito-kotlin = "6.3.0"
-robolectric = "4.16.1"
+robolectric = "4.17"
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
