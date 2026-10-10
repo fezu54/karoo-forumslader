@@ -1,13 +1,13 @@
 [versions]
-agp = "9.3.1"
-kotlin = "2.4.10"
-kover = "0.9.9"
+agp = "9.4.1"
+kotlin = "2.4.20"
+kover = "0.9.11"
 kable = "0.44.3"
 nordicDfu = "2.11.0"
 kotlinxCoroutines = "1.11.0"
 qrcodeKotlin = "4.5.0"
 
-androidxCore = "1.19.0"
+androidxCore = "1.19.1"
 androidxLifecycle = "2.11.0"
 androidxActivity = "1.13.0"
 androidxComposeUi = "1.12.0"
