@@ -69,10 +69,16 @@ jobs:
         if: github.ref == 'refs/heads/main'
         id: check_commit
         run: |
-          commit_msg=$(git log -1 --pretty=%B $GITHUB_SHA)
-          echo "Commit message:"
-          echo "$commit_msg"
-          if echo "$commit_msg" | grep -qE '^(feat|fix|refactor)(\(.*\))?!?:|\[BREAKING\]'; then
+          commit_subject=$(git log -1 --pretty=%s $GITHUB_SHA)
+          commit_body=$(git log -1 --pretty=%b $GITHUB_SHA)
+          echo "Commit subject: $commit_subject"
+          
+          is_breaking=false
+          if echo "$commit_subject" | grep -qE '^(feat|fix|refactor)(\(.*\))?!:|\[BREAKING\]' || echo "$commit_body" | grep -qE '^BREAKING[- ]CHANGE:'; then
+            is_breaking=true
+          fi
+
+          if [ "$is_breaking" = true ] || echo "$commit_subject" | grep -qE '^(feat|fix|refactor)(\(.*\))?:'; then
             echo "should_release=true" >> $GITHUB_ENV
             echo "Matches release criteria."
             
@@ -94,14 +100,14 @@ jobs:
             minor=$((10#$minor))
             patch=$((10#$patch))
             
-            if echo "$commit_msg" | grep -qE '!:|\[BREAKING\]'; then
+            if [ "$is_breaking" = true ]; then
               major=$((major + 1))
               minor=0
               patch=0
-            elif echo "$commit_msg" | grep -qE '^(feat|refactor)(\(.*\))?:'; then
+            elif echo "$commit_subject" | grep -qE '^(feat|refactor)(\(.*\))?:'; then
               minor=$((minor + 1))
               patch=0
-            elif echo "$commit_msg" | grep -qE '^fix(\(.*\))?:'; then
+            elif echo "$commit_subject" | grep -qE '^fix(\(.*\))?:'; then
               patch=$((patch + 1))
             fi
             
@@ -142,6 +148,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ env.new_tag }}
+          target_commitish: ${{ github.sha }}
           name: Release ${{ env.new_tag }}
           body_path: release_notes.md
           draft: false
