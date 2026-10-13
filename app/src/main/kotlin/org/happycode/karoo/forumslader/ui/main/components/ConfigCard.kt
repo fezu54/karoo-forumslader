@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
@@ -28,10 +29,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.Switch
 import org.happycode.karoo.forumslader.R
 import org.happycode.karoo.forumslader.domain.DynamoPolePreset
 import org.happycode.karoo.forumslader.domain.WheelSizePreset
@@ -42,6 +45,8 @@ fun ConfigCard(
     poles: Int,
     versionKey: String,
     lockedMacAddress: String?,
+    autoDisableUsbOnLight: Boolean = false,
+    onAutoDisableUsbOnLightChange: (Boolean) -> Unit = {},
     onConfigUpdate: (wheelsize: Int, poles: Int) -> Unit,
     onForgetDevice: () -> Unit
 ) {
@@ -74,11 +79,52 @@ fun ConfigCard(
                 }
             )
 
+            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+            AutoDisableUsbOnLightToggle(
+                checked = autoDisableUsbOnLight,
+                onCheckedChange = onAutoDisableUsbOnLightChange
+            )
+
             if (lockedMacAddress != null) {
                 HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
                 LockedMacSection(macAddress = lockedMacAddress, onForgetDevice = onForgetDevice)
             }
         }
+    }
+}
+
+@Composable
+private fun AutoDisableUsbOnLightToggle(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .toggleable(
+                value = checked,
+                role = Role.Switch,
+                onValueChange = onCheckedChange
+            ),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+            Text(
+                text = stringResource(R.string.label_auto_disable_usb_on_light),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = stringResource(R.string.desc_auto_disable_usb_on_light),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = null
+        )
     }
 }
 

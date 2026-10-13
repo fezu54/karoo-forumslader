@@ -38,6 +38,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -48,6 +49,11 @@ import org.happycode.karoo.forumslader.domain.ForumsladerCommand
 import org.happycode.karoo.forumslader.application.CsvLogger
 import org.happycode.karoo.forumslader.application.ForumsladerStateStore
 import org.happycode.karoo.forumslader.model.ForumsladerVersion
+import org.happycode.karoo.forumslader.PreferencesConstants.KEY_AUTO_DISABLE_USB_ON_LIGHT
+import org.happycode.karoo.forumslader.R
+import org.happycode.karoo.forumslader.domain.CommandBus
+import org.happycode.karoo.forumslader.domain.LightLoadDetector
+import kotlin.time.Duration
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ForumsladerKarooAdapterTest : ShouldSpec({
@@ -68,7 +74,8 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
     fun createAdapter(
         address: String = "00:11:22:33:44:55",
         displayName: String? = null,
-        scope: CoroutineScope = testScope
+        scope: CoroutineScope = testScope,
+        lightLoadDetector: LightLoadDetector = LightLoadDetector()
     ) = ForumsladerKarooAdapter(
         context = context,
         address = address,
@@ -76,7 +83,8 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
         adapterScope = scope,
         bleManager = bleManager,
         karooSystem = karooSystem,
-        csvLogger = csvLogger
+        csvLogger = csvLogger,
+        lightLoadDetector = lightLoadDetector
     )
 
     beforeEach {
@@ -95,6 +103,7 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
         every { mockPrefs.getFloat("speedMultiplier", 1.0f) } returns 1.0f
         every { mockPrefs.getInt("battery_low_threshold", any()) } returns 20
         every { mockPrefs.getFloat("high_temp_threshold", any()) } returns 50f
+        every { mockPrefs.getBoolean(KEY_AUTO_DISABLE_USB_ON_LIGHT, any()) } returns false
         every { context.getSharedPreferences(any(), any()) } returns mockPrefs
         every { context.applicationContext } returns context
 
@@ -698,6 +707,102 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
             rangePoint.shouldNotBeNull()
             rangePoint.dataPoint.values[DataType.Field.SINGLE] shouldBe (11000.0 plusOrMinus 1.0)
         }
+    }
+
+    should("dispatch alert and send command when 12V light detected and auto-disable USB setting is enabled") {
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            every { mockPrefs.getBoolean(KEY_AUTO_DISABLE_USB_ON_LIGHT, false) } returns true
+            val detector = LightLoadDetector(debounceDuration = Duration.ZERO)
+            val forumslader = createAdapter(scope = backgroundScope, lightLoadDetector = detector)
+            forumslader.connect(emitter)
+
+            val dispatchedCommands = mutableListOf<ForumsladerCommand>()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                CommandBus.commands.collect { dispatchedCommands.add(it) }
+            }
+
+            val fld = $$"$FLD,19,,0,50,12.0,-0.5,0.0,-,7,0,0,0,0,1.0\n"
+
+            // when
+            incomingDataFlow.emit(fld.toByteArray(Charsets.US_ASCII))
+
+            // then
+            verify {
+                karooSystem.dispatch(match {
+                    it is InRideAlert && it.id == "fl_usb_disabled_by_light"
+                })
+            }
+            dispatchedCommands shouldBe listOf(ForumsladerCommand.SetConsumerState(enabled = false))
+        }
+    }
+
+    should("not dispatch alert or send command when 12V light detected but auto-disable USB setting is disabled") {
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            every { mockPrefs.getBoolean(KEY_AUTO_DISABLE_USB_ON_LIGHT, false) } returns false
+            val detector = LightLoadDetector(debounceDuration = Duration.ZERO)
+            val forumslader = createAdapter(scope = backgroundScope, lightLoadDetector = detector)
+            forumslader.connect(emitter)
+
+            val dispatchedCommands = mutableListOf<ForumsladerCommand>()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                CommandBus.commands.collect { dispatchedCommands.add(it) }
+            }
+
+            val fld = $$"$FLD,19,,0,50,12.0,-0.5,0.0,-,7,0,0,0,0,1.0\n"
+
+            // when
+            incomingDataFlow.emit(fld.toByteArray(Charsets.US_ASCII))
+
+            // then
+            verify(exactly = 0) {
+                karooSystem.dispatch(match {
+                    it is InRideAlert && it.id == "fl_usb_disabled_by_light"
+                })
+            }
+            dispatchedCommands shouldBe emptyList()
+        }
+    }
+
+    should("not send command again while 12V light remains detected") {
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            every { mockPrefs.getBoolean(KEY_AUTO_DISABLE_USB_ON_LIGHT, false) } returns true
+            val detector = LightLoadDetector(debounceDuration = Duration.ZERO)
+            val forumslader = createAdapter(scope = backgroundScope, lightLoadDetector = detector)
+            forumslader.connect(emitter)
+
+            val dispatchedCommands = mutableListOf<ForumsladerCommand>()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                CommandBus.commands.collect { dispatchedCommands.add(it) }
+            }
+
+            val fld = $$"$FLD,19,,0,50,12.0,-0.5,0.0,-,7,0,0,0,0,1.0\n"
+
+            // when
+            incomingDataFlow.emit(fld.toByteArray(Charsets.US_ASCII))
+            incomingDataFlow.emit(fld.toByteArray(Charsets.US_ASCII))
+
+            // then
+            verify(exactly = 1) {
+                karooSystem.dispatch(match {
+                    it is InRideAlert && it.id == "fl_usb_disabled_by_light"
+                })
+            }
+            dispatchedCommands shouldBe listOf(ForumsladerCommand.SetConsumerState(enabled = false))
+        }
+    }
+
+    should("handle SetConsumerState command in executeCommand without sending invalid bytes") {
+        // given
+        val forumslader = createAdapter()
+
+        // when
+        forumslader.executeCommand(ForumsladerCommand.SetConsumerState(enabled = false))
+
+        // then
+        verify(exactly = 0) { bleManager.writeCommand(any()) }
     }
 })
 

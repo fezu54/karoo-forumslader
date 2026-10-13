@@ -7,6 +7,7 @@ sealed interface ForumsladerCommand {
     data object ResetDayDistance : ForumsladerCommand
     data object ResetTourDistance : ForumsladerCommand
     data class UpdateConfig(val wheelsize: Int, val poles: Int) : ForumsladerCommand
+    data class SetConsumerState(val enabled: Boolean) : ForumsladerCommand
 }
 
 object CommandBus {

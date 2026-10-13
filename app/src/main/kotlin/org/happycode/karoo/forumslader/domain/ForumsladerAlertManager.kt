@@ -28,6 +28,12 @@ sealed interface ForumsladerAlert {
         override val id = "fl_hi_temp"
         override val detail = "High Temperature (${temperature.toInt()}°C)"
     }
+
+    data object UsbDisabledByLight : ForumsladerAlert {
+        override val id = "fl_usb_disabled_by_light"
+        override val title = "USB Output Disabled"
+        override val detail = "12V headlight active. Preserving battery."
+    }
 }
 
 interface AlertRule {
