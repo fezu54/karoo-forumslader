@@ -3,47 +3,188 @@ package org.happycode.karoo.forumslader.domain
 import kotlin.collections.ArrayDeque
 
 /**
- * Estimates battery range based on a sliding window of distance/percentage samples.
- * Accounts for environmental factors like elevation and headwind.
+ * Estimates battery range based on a virtual discharging coordinate system
+ * and exponential moving average (EMA) smoothing of discharge rates.
  */
 class BatteryEstimator(
     private val windowMeters: Double = 20000.0,
     private val minMetersForEstimate: Double = 1000.0,
     private val elevationPenaltyPctPer100m: Float = 1.5f,
-    private val headwindPenaltyPctPerKmPerMs: Float = 0.5f
+    private val headwindPenaltyPctPerKmPerMs: Float = 0.5f,
+    private val maxStepMeters: Double = MAX_STEP_METERS,
+    private val minCredibleDischargeRate: Float = MIN_CREDIBLE_DISCHARGE_RATE,
+    private val maxCredibleDischargeRate: Float = MAX_CREDIBLE_DISCHARGE_RATE,
+    private val emaAlpha: Float = EMA_ALPHA
 ) {
-    private val samples = ArrayDeque<Sample>()
+    private data class VirtualDischargeSample(
+        val virtualDistanceMeters: Double,
+        val cumulativeDropPct: Int,
+        val elevationMeters: Double? = null
+    )
+
+    private val samples = ArrayDeque<VirtualDischargeSample>()
+    private var prevDistanceMeters: Double? = null
+    private var prevElevationMeters: Double? = null
+    private var prevChargeState: ChargeState? = null
+    private var streakMinLevel: Int? = null
+
+    private var cumulativeDischargeMeters: Double = 0.0
+    private var cumulativeDischargeDropPct: Int = 0
+    private var lastDischargeRate: Float? = null
+    private var lastDropVirtualDistanceMeters: Double = 0.0
+
+    private var lastBatteryLevelPct: Int? = null
+    private var lastChargeState: ChargeState? = null
+
     private var routeRemainingKm: Float? = null
     private var upcomingElevationMeters: Double? = null
     private var headwindSpeedMs: Float? = null
-    private var lastDischargeRate: Float? = null
-
-    private data class Sample(
-        val distanceMeters: Double,
-        val batteryLevelPct: Int,
-        val chargeState: ChargeState
-    )
 
     fun onMetrics(metrics: ForumsladerMetrics) {
-        val level = metrics.power.batteryLevelPercentage ?: return
-        val dist = metrics.distance.tripMeters
-        val state = metrics.power.chargeState
+        val currentLevel = metrics.power.batteryLevelPercentage ?: return
+        val currentDistance = metrics.distance.tripMeters
+        val currentState = metrics.power.chargeState
+        val elevation = metrics.environment.altitudeMeters.toDouble()
 
-        if (samples.isNotEmpty() && dist < samples.last().distanceMeters) {
-            samples.clear()
-            lastDischargeRate = null
+        prevDistanceMeters?.let {
+            if (currentDistance < it) reset()
         }
 
-        samples.addLast(Sample(dist, level, state))
+        lastBatteryLevelPct = currentLevel
+        lastChargeState = currentState
 
-        // Maintain sliding window
-        while (samples.isNotEmpty() && (dist - samples.first().distanceMeters > windowMeters)) {
+        if (currentState == ChargeState.DISCHARGING) {
+            handleDischargingMetric(currentLevel, currentDistance, elevation)
+        } else {
+            streakMinLevel = null
+        }
+
+        prevDistanceMeters = currentDistance
+        prevElevationMeters = elevation
+        prevChargeState = currentState
+    }
+
+    private fun handleDischargingMetric(
+        currentLevel: Int,
+        currentDistance: Double,
+        elevation: Double
+    ) {
+        if (prevChargeState != ChargeState.DISCHARGING || streakMinLevel == null) {
+            initDischargeStreak(currentLevel, elevation)
+        }
+
+        advanceVirtualDischargeDistance(currentDistance)
+        val droppedThisStep = recordStreakDrop(currentLevel)
+        appendDischargeSample(elevation)
+        pruneSlidingWindow()
+        updateDischargeRate(currentLevel, droppedThisStep)
+    }
+
+    private fun initDischargeStreak(currentLevel: Int, elevation: Double) {
+        streakMinLevel = currentLevel
+        lastDropVirtualDistanceMeters = cumulativeDischargeMeters
+        if (samples.isEmpty()) {
+            samples.addLast(
+                VirtualDischargeSample(
+                    cumulativeDischargeMeters,
+                    cumulativeDischargeDropPct,
+                    elevation
+                )
+            )
+        }
+    }
+
+    private fun advanceVirtualDischargeDistance(currentDistance: Double) {
+        val deltaMeters = prevDistanceMeters?.takeIf { prevChargeState == ChargeState.DISCHARGING }
+            ?.let { currentDistance - it } ?: 0.0
+
+        if (deltaMeters in 0.0001..maxStepMeters) {
+            cumulativeDischargeMeters += deltaMeters
+        }
+    }
+
+    private fun recordStreakDrop(currentLevel: Int): Boolean {
+        val minLvl = streakMinLevel ?: currentLevel
+        val dropped = currentLevel < minLvl
+        if (dropped) {
+            cumulativeDischargeDropPct += (minLvl - currentLevel)
+            streakMinLevel = currentLevel
+            lastDropVirtualDistanceMeters = cumulativeDischargeMeters
+        }
+        return dropped
+    }
+
+    private fun appendDischargeSample(elevation: Double) {
+        val shouldAppend = samples.isEmpty() || samples.last().let { last ->
+            last.virtualDistanceMeters != cumulativeDischargeMeters || last.cumulativeDropPct != cumulativeDischargeDropPct
+        }
+        if (shouldAppend) {
+            samples.addLast(
+                VirtualDischargeSample(
+                    cumulativeDischargeMeters,
+                    cumulativeDischargeDropPct,
+                    elevation
+                )
+            )
+        }
+    }
+
+    private fun pruneSlidingWindow() {
+        while (samples.size > 2 && (cumulativeDischargeMeters - samples.first().virtualDistanceMeters) > windowMeters) {
             samples.removeFirst()
         }
+    }
 
-        if (state == ChargeState.DISCHARGING) {
-            updateDischargeRate()
-        }
+    private fun isVoltageRecoveryBounce(currentLevel: Int): Boolean =
+        streakMinLevel?.let { currentLevel > it } ?: false
+
+    private fun updateDischargeRate(currentLevel: Int, droppedThisStep: Boolean) {
+        if (samples.size < 2 || isVoltageRecoveryBounce(currentLevel)) return
+
+        val oldest = samples.first()
+        val newest = samples.last()
+        val distanceDiffMeters = newest.virtualDistanceMeters - oldest.virtualDistanceMeters
+        val levelDiff = newest.cumulativeDropPct - oldest.cumulativeDropPct
+
+        lastDischargeRate = resolveUpdatedRate(levelDiff, distanceDiffMeters, droppedThisStep)
+    }
+
+    private fun resolveUpdatedRate(
+        levelDiff: Int,
+        distanceDiffMeters: Double,
+        droppedOnCurrentStep: Boolean
+    ): Float? =
+        takeIf { distanceDiffMeters >= minMetersForEstimate && levelDiff > 0 }
+            ?.let { calculateAdjustedDischargeRate(levelDiff.toFloat(), distanceDiffMeters) }
+            ?.coerceIn(minCredibleDischargeRate, maxCredibleDischargeRate)
+            ?.let { candidateRate -> blendWithPriorRate(candidateRate, droppedOnCurrentStep) }
+            ?: lastDischargeRate
+
+    private fun blendWithPriorRate(candidateRate: Float, droppedOnCurrentStep: Boolean): Float =
+        lastDischargeRate?.let { priorRate ->
+            when {
+                droppedOnCurrentStep -> (emaAlpha * candidateRate) + ((1f - emaAlpha) * priorRate)
+                shouldDecayRate(candidateRate, priorRate) -> candidateRate
+                else -> priorRate
+            }
+        } ?: candidateRate
+
+    private fun shouldDecayRate(candidateRate: Float, priorRate: Float): Boolean {
+        val impliedStepMeters = maxOf(minMetersForEstimate, (1.0f / priorRate) * 1000.0)
+        val distanceSinceLastDrop = cumulativeDischargeMeters - lastDropVirtualDistanceMeters
+        return distanceSinceLastDrop > impliedStepMeters && candidateRate < priorRate
+    }
+
+    private fun reset() {
+        samples.clear()
+        lastDischargeRate = null
+        cumulativeDischargeMeters = 0.0
+        cumulativeDischargeDropPct = 0
+        streakMinLevel = null
+        lastDropVirtualDistanceMeters = 0.0
+        prevDistanceMeters = null
+        prevElevationMeters = null
+        prevChargeState = null
     }
 
     fun onRouteRemaining(distanceMeters: Double?, upcomingElevation: Double?) {
@@ -56,65 +197,9 @@ class BatteryEstimator(
     }
 
     fun getEstimate(): BatteryEstimate? {
-        val lastSample = samples.lastOrNull() ?: return null
-        val currentState = lastSample.chargeState
-        val currentLevel = lastSample.batteryLevelPct
-
-        val initialFirst = samples.first()
-        val initialLevelDiff = (initialFirst.batteryLevelPct - currentLevel).toFloat()
-
-        if (currentState == ChargeState.DISCHARGING && initialLevelDiff <= 0) {
-            pruneNonDischargingSamples()
-        }
-
-        val firstSample =
-            samples.firstOrNull() ?: return buildEstimate(rate = lastDischargeRate, currentLevel, currentState)
-        val distanceDiffMeters = lastSample.distanceMeters - firstSample.distanceMeters
-        val levelDiff = (firstSample.batteryLevelPct - currentLevel).toFloat()
-
-        return when {
-            currentState == ChargeState.CHARGING || currentState == ChargeState.FULL -> {
-                val estimate = buildEstimate(rate = lastDischargeRate, currentLevel, currentState)
-                if (estimate.isSufficientForRoute == null && routeRemainingKm != null) {
-                    estimate.copy(isSufficientForRoute = true)
-                } else {
-                    estimate
-                }
-            }
-
-            currentState == ChargeState.STANDBY || distanceDiffMeters < minMetersForEstimate || levelDiff <= 0 ->
-                buildEstimate(rate = lastDischargeRate, currentLevel, currentState)
-
-            else -> {
-                val rate = calculateAdjustedDischargeRate(levelDiff, distanceDiffMeters)
-                val effectiveRate = rate.takeIf { it >= MIN_CREDIBLE_DISCHARGE_RATE }?.also {
-                    lastDischargeRate = it
-                } ?: lastDischargeRate
-                buildEstimate(effectiveRate, currentLevel, currentState)
-            }
-        }
-    }
-
-    private fun updateDischargeRate() {
-        val lastSample = samples.lastOrNull() ?: return
-        val currentLevel = lastSample.batteryLevelPct
-        val initialFirst = samples.firstOrNull() ?: return
-        val initialLevelDiff = (initialFirst.batteryLevelPct - currentLevel).toFloat()
-
-        if (initialLevelDiff <= 0) {
-            pruneNonDischargingSamples()
-        }
-
-        val firstSample = samples.firstOrNull() ?: return
-        val distanceDiffMeters = lastSample.distanceMeters - firstSample.distanceMeters
-        val levelDiff = (firstSample.batteryLevelPct - currentLevel).toFloat()
-
-        if (distanceDiffMeters >= minMetersForEstimate && levelDiff > 0) {
-            val rate = calculateAdjustedDischargeRate(levelDiff, distanceDiffMeters)
-            if (rate >= MIN_CREDIBLE_DISCHARGE_RATE) {
-                lastDischargeRate = rate
-            }
-        }
+        val currentLevel = lastBatteryLevelPct ?: return null
+        val currentState = lastChargeState ?: return null
+        return buildEstimate(rate = lastDischargeRate, currentLevel, currentState)
     }
 
     private fun buildEstimate(
@@ -122,38 +207,45 @@ class BatteryEstimator(
         currentLevel: Int,
         currentState: ChargeState
     ): BatteryEstimate {
-        val estimatedRangeKm = rate?.takeIf { it > 0f }?.let { dischargeRate ->
+        val effectiveRate = calculateEffectiveRate(rate)
+        val estimatedRangeKm = effectiveRate?.takeIf { it > 0f }?.let { dischargeRate ->
             val adjustedCapacity = calculateElevationAdjustedCapacity(currentLevel.toFloat())
             (adjustedCapacity / dischargeRate).takeIf { range -> range.isFinite() }
         }
+        val avgDischargeRatePctPerKm = when (currentState) {
+            ChargeState.CHARGING, ChargeState.FULL -> 0f
+            else -> effectiveRate ?: 0f
+        }
+        val isSufficientForRoute = routeRemainingKm?.let { remaining ->
+            estimatedRangeKm?.let { it >= remaining }
+                ?: when (currentState) {
+                    ChargeState.CHARGING, ChargeState.FULL -> true
+                    else -> null
+                }
+        }
         return BatteryEstimate(
             remainingCapacityPct = currentLevel,
-            avgDischargeRatePctPerKm = rate ?: 0f,
-            estimatedRangeKm = estimatedRangeKm,
-            routeRemainingKm = routeRemainingKm,
-            isSufficientForRoute = routeRemainingKm?.let { remaining ->
-                estimatedRangeKm?.let { range -> range >= remaining }
-            },
+            avgDischargeRatePctPerKm,
+            estimatedRangeKm,
+            routeRemainingKm,
+            isSufficientForRoute,
             chargeState = currentState
         )
     }
 
-    private fun pruneNonDischargingSamples() =
-        samples.indexOfLast { it.chargeState != ChargeState.DISCHARGING }
-            .takeIf { it >= 0 }
-            ?.let { lastNonDischargingIndex ->
-                repeat(lastNonDischargingIndex + 1) { samples.removeFirst() }
-            }
+    private fun calculateEffectiveRate(rate: Float?): Float? =
+        rate?.let { baseRate ->
+            val headwind = headwindSpeedMs?.coerceAtLeast(0f) ?: 0f
+            (baseRate + (headwind * headwindPenaltyPctPerKmPerMs))
+                .coerceIn(minCredibleDischargeRate, maxCredibleDischargeRate)
+        }
 
     private fun calculateAdjustedDischargeRate(
         levelDiff: Float,
         distanceDiffMeters: Double
     ): Float {
         val distanceDiffKm = (distanceDiffMeters / 1000.0).toFloat()
-        val baseRate = levelDiff / distanceDiffKm
-        val headwind = headwindSpeedMs?.coerceAtLeast(0f) ?: 0f
-
-        return baseRate + (headwind * headwindPenaltyPctPerKmPerMs)
+        return levelDiff / distanceDiffKm
     }
 
     private fun calculateElevationAdjustedCapacity(currentLevel: Float): Float {
@@ -164,6 +256,9 @@ class BatteryEstimator(
     }
 
     companion object {
-        private const val MIN_CREDIBLE_DISCHARGE_RATE = 0.1f
+        const val MIN_CREDIBLE_DISCHARGE_RATE = 0.15f
+        const val MAX_CREDIBLE_DISCHARGE_RATE = 5.0f
+        private const val EMA_ALPHA = 0.35f
+        const val MAX_STEP_METERS = 1_000.0
     }
 }

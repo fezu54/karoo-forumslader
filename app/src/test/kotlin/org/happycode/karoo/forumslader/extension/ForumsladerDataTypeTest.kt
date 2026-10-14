@@ -2,15 +2,18 @@ package org.happycode.karoo.forumslader.extension
 
 import android.content.Context
 import io.hammerhead.karooext.KarooSystemService
+import io.hammerhead.karooext.internal.Emitter
 import io.hammerhead.karooext.internal.ViewEmitter
 import io.hammerhead.karooext.models.DataPoint
 import io.hammerhead.karooext.models.DataType
+import io.hammerhead.karooext.models.HideCustomStreamState
 import io.hammerhead.karooext.models.OnStreamState
 import io.hammerhead.karooext.models.ShowCustomStreamState
 import io.hammerhead.karooext.models.StreamState
 import io.hammerhead.karooext.models.UpdateNumericConfig
 import io.hammerhead.karooext.models.ViewConfig
 import io.kotest.core.spec.style.ShouldSpec
+import io.kotest.matchers.nulls.shouldBeNull
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkConstructor
@@ -66,9 +69,12 @@ class ForumsladerDataTypeTest : ShouldSpec({
             EXTENSION_ID, "fl_battery_voltage",
             formatDataTypeId = null
         )
+        val cancelSlot = slot<() -> Unit>()
+        every { emitter.setCancellable(capture(cancelSlot)) } returns Unit
 
         // when
         dataType.startView(context, config, emitter)
+        cancelSlot.captured()
 
         // then
         verify { emitter.onNext(UpdateNumericConfig(dataType.dataTypeId)) }
@@ -359,5 +365,123 @@ class ForumsladerDataTypeTest : ShouldSpec({
         // then
         verify { anyConstructed<KarooSystemService>().removeConsumer("range-listener-id") }
         verify { anyConstructed<KarooSystemService>().disconnect() }
+    }
+
+    should("suppress numeric sentinel data point and show custom state when range is calculating or charging") {
+        // given
+        val dataType =
+            ForumsladerDataType(EXTENSION_ID, DataFieldId.BATTERY_RANGE, DataType.Type.DISTANCE)
+        val streamEmitter = mockk<Emitter<StreamState>>(relaxed = true)
+        dataType.startStream(streamEmitter)
+        val calcPoint =
+            singleValueDataPoint(dataType.dataTypeId, DataFieldId.BATTERY_RANGE_CALCULATING)
+        val chargingPoint =
+            singleValueDataPoint(dataType.dataTypeId, DataFieldId.BATTERY_RANGE_CHARGING)
+
+        // when
+        dataType.handleBatteryRangeStreamState(
+            OnStreamState(StreamState.Streaming(calcPoint)),
+            emitter,
+            context
+        )
+        dataType.handleBatteryRangeStreamState(
+            OnStreamState(StreamState.Streaming(chargingPoint)),
+            emitter,
+            context
+        )
+
+        // then
+        verify(exactly = 2) { streamEmitter.onNext(StreamState.Searching) }
+        verify(exactly = 0) { streamEmitter.onNext(match { it is StreamState.Streaming }) }
+        verify { emitter.onNext(ShowCustomStreamState("Calculating…", color = null)) }
+        verify { emitter.onNext(ShowCustomStreamState("Charging", color = null)) }
+    }
+
+    should("emit streaming with numeric datapoint when BATTERY_RANGE streams normal range value") {
+        // given
+        val dataType =
+            ForumsladerDataType(EXTENSION_ID, DataFieldId.BATTERY_RANGE, DataType.Type.DISTANCE)
+        val streamEmitter = mockk<Emitter<StreamState>>(relaxed = true)
+        dataType.startStream(streamEmitter)
+        val validPoint = singleValueDataPoint(dataType.dataTypeId, 15000.0)
+
+        // when
+        dataType.handleBatteryRangeStreamState(
+            OnStreamState(StreamState.Streaming(validPoint)),
+            emitter,
+            context
+        )
+
+        // then
+        verify {
+            streamEmitter.onNext(
+                StreamState.Streaming(
+                    DataPoint(
+                        dataTypeId = dataType.dataTypeId,
+                        values = mapOf(DataType.Field.SINGLE to 15000.0)
+                    )
+                )
+            )
+        }
+    }
+
+    should("emit HideCustomStreamState when transitioning from sentinel to valid range") {
+        // given
+        val dataType =
+            ForumsladerDataType(EXTENSION_ID, DataFieldId.BATTERY_RANGE, DataType.Type.DISTANCE)
+        val calcPoint =
+            singleValueDataPoint(dataType.dataTypeId, DataFieldId.BATTERY_RANGE_CALCULATING)
+        val validPoint = singleValueDataPoint(dataType.dataTypeId, 15000.0)
+
+        // when
+        dataType.handleBatteryRangeStreamState(
+            OnStreamState(StreamState.Streaming(calcPoint)),
+            emitter,
+            context
+        )
+        dataType.handleBatteryRangeStreamState(
+            OnStreamState(StreamState.Streaming(validPoint)),
+            emitter,
+            context
+        )
+
+        // then
+        verify { emitter.onNext(ShowCustomStreamState("Calculating…", color = null)) }
+        verify { emitter.onNext(HideCustomStreamState) }
+    }
+
+    should("immediately emit cached custom state on startView when custom state exists") {
+        // given
+        val dataType =
+            ForumsladerDataType(EXTENSION_ID, DataFieldId.BATTERY_RANGE, DataType.Type.DISTANCE)
+        val calcPoint =
+            singleValueDataPoint(dataType.dataTypeId, DataFieldId.BATTERY_RANGE_CALCULATING)
+        dataType.handleBatteryRangeStreamState(
+            OnStreamState(StreamState.Streaming(calcPoint)),
+            emitter = null,
+            context = context
+        )
+
+        // when
+        dataType.startView(context, config, emitter)
+
+        // then
+        verify { emitter.onNext(ShowCustomStreamState("Calculating…", color = null)) }
+    }
+
+    should("clear stream emitter when stream cancellation is invoked") {
+        // given
+        val dataType =
+            ForumsladerDataType(EXTENSION_ID, DataFieldId.BATTERY_RANGE, DataType.Type.DISTANCE)
+        val streamEmitter = mockk<Emitter<StreamState>>(relaxed = true)
+        val cancelSlot = slot<() -> Unit>()
+        every { streamEmitter.setCancellable(capture(cancelSlot)) } returns Unit
+
+        // when
+        dataType.startStream(streamEmitter)
+        cancelSlot.captured()
+
+        // then
+        dataType.streamEmitter.shouldBeNull()
     }
 })
