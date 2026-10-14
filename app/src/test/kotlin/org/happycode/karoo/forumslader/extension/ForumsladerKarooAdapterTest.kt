@@ -45,6 +45,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
 import org.happycode.karoo.forumslader.application.BatteryEstimateStore
+import org.happycode.karoo.forumslader.domain.BatteryEstimator
 import org.happycode.karoo.forumslader.domain.ForumsladerCommand
 import org.happycode.karoo.forumslader.application.CsvLogger
 import org.happycode.karoo.forumslader.application.ForumsladerStateStore
@@ -75,16 +76,18 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
         address: String = "00:11:22:33:44:55",
         displayName: String? = null,
         scope: CoroutineScope = testScope,
-        lightLoadDetector: LightLoadDetector = LightLoadDetector()
+        lightLoadDetector: LightLoadDetector = LightLoadDetector(),
+        batteryEstimator: BatteryEstimator? = null
     ) = ForumsladerKarooAdapter(
-        context = context,
-        address = address,
-        displayName = displayName,
+        context,
+        address,
+        displayName,
         adapterScope = scope,
-        bleManager = bleManager,
-        karooSystem = karooSystem,
-        csvLogger = csvLogger,
-        lightLoadDetector = lightLoadDetector
+        bleManager,
+        karooSystem,
+        csvLogger,
+        lightLoadDetector,
+        batteryEstimator
     )
 
     beforeEach {
@@ -151,6 +154,29 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
         forumslader.device.displayName shouldBe "My Forumslader"
     }
 
+    should("use default parameters when displayName and batteryEstimator are omitted") {
+        // given
+        val deviceAddress = "AA:BB:CC:DD:EE:FF"
+        val mockContext = context
+        val mockBle = bleManager
+        val mockKaroo = karooSystem
+        val mockLogger = csvLogger
+
+        // when
+        val forumslader = ForumsladerKarooAdapter(
+            context = mockContext,
+            address = deviceAddress,
+            adapterScope = testScope,
+            bleManager = mockBle,
+            karooSystem = mockKaroo,
+            csvLogger = mockLogger,
+            lightLoadDetector = LightLoadDetector()
+        )
+
+        // then
+        forumslader.device.displayName shouldBe "Forumslader"
+    }
+
     should("start ble manager when connect is called") {
         // given
         val forumslader = createAdapter()
@@ -179,7 +205,10 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
     should("emit all registry metrics with correct values and conversions when incoming data arrives") {
         runTest(UnconfinedTestDispatcher()) {
             // given
-            val forumslader = createAdapter(scope = backgroundScope)
+            val forumslader = createAdapter(
+                scope = backgroundScope,
+                batteryEstimator = BatteryEstimator(initialDischargeRate = null)
+            )
             forumslader.connect(emitter)
 
             val eventSlot = mutableListOf<DeviceEvent>()
@@ -265,10 +294,12 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
             val capturedEvents = mutableListOf<DeviceEvent>()
             every { emitter.onNext(capture(capturedEvents)) } returns Unit
 
-            val forumslader = createAdapter(scope = backgroundScope)
+            val forumslader = createAdapter(
+                scope = backgroundScope,
+                batteryEstimator = BatteryEstimator(initialDischargeRate = null)
+            )
             forumslader.connect(emitter)
 
-            // FL6 with charge state 2 (DISCHARGING), battery 80% but only 1 sample (no distance diff yet)
             val flc = $$"$FLC,5,0,80\n"
             val fl6 = $$"$FL6,2,0,0,0,0,0,0,0,0,0,0,0\n"
 
@@ -281,6 +312,30 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
 
             rangePoint.shouldNotBeNull()
             rangePoint.dataPoint.values[DataType.Field.SINGLE] shouldBe DataFieldId.BATTERY_RANGE_CALCULATING
+        }
+    }
+
+    should("emit immediate estimated range in meters on cold start when using default initial discharge rate") {
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            val capturedEvents = mutableListOf<DeviceEvent>()
+            every { emitter.onNext(capture(capturedEvents)) } returns Unit
+
+            val forumslader = createAdapter(scope = backgroundScope)
+            forumslader.connect(emitter)
+
+            val flc = $$"$FLC,5,0,80\n"
+            val fl6 = $$"$FL6,2,0,0,0,0,0,0,0,0,0,0,0\n"
+
+            // when
+            incomingDataFlow.emit((flc + fl6).toByteArray(Charsets.US_ASCII))
+
+            // then
+            val rangePoint = capturedEvents.filterIsInstance<OnDataPoint>()
+                .firstOrNull { it.dataPoint.dataTypeId == DataType.dataTypeId("karoo-forumslader", DataFieldId.BATTERY_RANGE) }
+
+            rangePoint.shouldNotBeNull()
+            rangePoint.dataPoint.values[DataType.Field.SINGLE] shouldBe 80000.0
         }
     }
 
@@ -466,6 +521,23 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
 
             yield()
             ForumsladerStateStore.isConfigLoadedFlow.value shouldBe false
+        }
+    }
+
+    should("send proper reset command and request config when executeCommand is called with ResetDayDistance") {
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            val forumslader = createAdapter(scope = backgroundScope)
+            forumslader.connect(emitter)
+
+            // when
+            forumslader.executeCommand(ForumsladerCommand.ResetDayDistance)
+
+            // then
+            verifyOrder {
+                bleManager.writeCommand(match { it.decodeToString().startsWith($$"$FLT,7") })
+                bleManager.writeCommand(match { it.decodeToString().startsWith($$"$FLT,5") })
+            }
         }
     }
 

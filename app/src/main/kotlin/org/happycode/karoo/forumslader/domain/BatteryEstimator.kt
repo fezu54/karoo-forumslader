@@ -2,10 +2,6 @@ package org.happycode.karoo.forumslader.domain
 
 import kotlin.collections.ArrayDeque
 
-/**
- * Estimates battery range based on a virtual discharging coordinate system
- * and exponential moving average (EMA) smoothing of discharge rates.
- */
 class BatteryEstimator(
     private val windowMeters: Double = 20000.0,
     private val minMetersForEstimate: Double = 1000.0,
@@ -14,7 +10,9 @@ class BatteryEstimator(
     private val maxStepMeters: Double = MAX_STEP_METERS,
     private val minCredibleDischargeRate: Float = MIN_CREDIBLE_DISCHARGE_RATE,
     private val maxCredibleDischargeRate: Float = MAX_CREDIBLE_DISCHARGE_RATE,
-    private val emaAlpha: Float = EMA_ALPHA
+    private val emaAlpha: Float = EMA_ALPHA,
+    private val initialDischargeRate: Float? = DEFAULT_DISCHARGE_RATE,
+    private val dischargeRateStore: DischargeRateStore = DischargeRateStore {}
 ) {
     private data class VirtualDischargeSample(
         val virtualDistanceMeters: Double,
@@ -30,7 +28,8 @@ class BatteryEstimator(
 
     private var cumulativeDischargeMeters: Double = 0.0
     private var cumulativeDischargeDropPct: Int = 0
-    private var lastDischargeRate: Float? = null
+    private var lastDischargeRate: Float? = initialDischargeRate
+    private var hasCalculatedRate: Boolean = false
     private var lastDropVirtualDistanceMeters: Double = 0.0
 
     private var lastBatteryLevelPct: Int? = null
@@ -146,7 +145,13 @@ class BatteryEstimator(
         val distanceDiffMeters = newest.virtualDistanceMeters - oldest.virtualDistanceMeters
         val levelDiff = newest.cumulativeDropPct - oldest.cumulativeDropPct
 
-        lastDischargeRate = resolveUpdatedRate(levelDiff, distanceDiffMeters, droppedThisStep)
+        resolveUpdatedRate(levelDiff, distanceDiffMeters, droppedThisStep)?.let { rate ->
+            if (!hasCalculatedRate || rate != lastDischargeRate) {
+                lastDischargeRate = rate
+                hasCalculatedRate = true
+                dischargeRateStore.save(rate)
+            }
+        }
     }
 
     private fun resolveUpdatedRate(
@@ -158,16 +163,18 @@ class BatteryEstimator(
             ?.let { calculateAdjustedDischargeRate(levelDiff.toFloat(), distanceDiffMeters) }
             ?.coerceIn(minCredibleDischargeRate, maxCredibleDischargeRate)
             ?.let { candidateRate -> blendWithPriorRate(candidateRate, droppedOnCurrentStep) }
-            ?: lastDischargeRate
 
     private fun blendWithPriorRate(candidateRate: Float, droppedOnCurrentStep: Boolean): Float =
-        lastDischargeRate?.let { priorRate ->
-            when {
-                droppedOnCurrentStep -> (emaAlpha * candidateRate) + ((1f - emaAlpha) * priorRate)
-                shouldDecayRate(candidateRate, priorRate) -> candidateRate
-                else -> priorRate
-            }
-        } ?: candidateRate
+        when {
+            !hasCalculatedRate -> candidateRate
+            else -> lastDischargeRate?.let { priorRate ->
+                when {
+                    droppedOnCurrentStep -> (emaAlpha * candidateRate) + ((1f - emaAlpha) * priorRate)
+                    shouldDecayRate(candidateRate, priorRate) -> candidateRate
+                    else -> priorRate
+                }
+            } ?: candidateRate
+        }
 
     private fun shouldDecayRate(candidateRate: Float, priorRate: Float): Boolean {
         val impliedStepMeters = maxOf(minMetersForEstimate, (1.0f / priorRate) * 1000.0)
@@ -177,7 +184,8 @@ class BatteryEstimator(
 
     private fun reset() {
         samples.clear()
-        lastDischargeRate = null
+        lastDischargeRate = initialDischargeRate
+        hasCalculatedRate = false
         cumulativeDischargeMeters = 0.0
         cumulativeDischargeDropPct = 0
         streakMinLevel = null
@@ -224,7 +232,7 @@ class BatteryEstimator(
                 }
         }
         return BatteryEstimate(
-            remainingCapacityPct = currentLevel,
+            currentLevel,
             avgDischargeRatePctPerKm,
             estimatedRangeKm,
             routeRemainingKm,
@@ -234,7 +242,7 @@ class BatteryEstimator(
     }
 
     private fun calculateEffectiveRate(rate: Float?): Float? =
-        rate?.let { baseRate ->
+        rate?.takeIf { it > 0f }?.let { baseRate ->
             val headwind = headwindSpeedMs?.coerceAtLeast(0f) ?: 0f
             (baseRate + (headwind * headwindPenaltyPctPerKmPerMs))
                 .coerceIn(minCredibleDischargeRate, maxCredibleDischargeRate)
@@ -256,6 +264,7 @@ class BatteryEstimator(
     }
 
     companion object {
+        const val DEFAULT_DISCHARGE_RATE = 1.0f
         const val MIN_CREDIBLE_DISCHARGE_RATE = 0.15f
         const val MAX_CREDIBLE_DISCHARGE_RATE = 5.0f
         private const val EMA_ALPHA = 0.35f
