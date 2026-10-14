@@ -575,7 +575,7 @@ class MainScreenTest {
         swipeToConfigPage()
 
         // then
-        composeTestRule.onNodeWithText("Low Battery Threshold", substring = true).assertIsDisplayed()
+        composeTestRule.onNodeWithText("Low Battery Threshold", substring = true).performScrollTo().assertIsDisplayed()
     }
 
     @Test

@@ -49,6 +49,8 @@ import io.hammerhead.karooext.models.StreamState
 import io.hammerhead.karooext.models.UserProfile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import org.happycode.karoo.forumslader.PreferencesConstants.DEFAULT_AUTO_DISABLE_USB_ON_LIGHT
+import org.happycode.karoo.forumslader.PreferencesConstants.KEY_AUTO_DISABLE_USB_ON_LIGHT
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_BATTERY_LOW_THRESHOLD
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_HIGH_TEMP_THRESHOLD
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_LOCKED_MAC_ADDRESS
@@ -123,6 +125,9 @@ fun MainScreen(sharedUri: Uri? = null) {
     var lockedMacAddress by remember { mutableStateOf(prefs.getString(KEY_LOCKED_MAC_ADDRESS, null)) }
     var batteryLowThreshold by remember { mutableIntStateOf(prefs.getInt(KEY_BATTERY_LOW_THRESHOLD, 20)) }
     var highTempThreshold by remember { mutableFloatStateOf(prefs.getFloat(KEY_HIGH_TEMP_THRESHOLD, 50f)) }
+    var autoDisableUsbOnLight by remember {
+        mutableStateOf(prefs.getBoolean(KEY_AUTO_DISABLE_USB_ON_LIGHT, DEFAULT_AUTO_DISABLE_USB_ON_LIGHT))
+    }
 
     DisposableEffect(prefs) {
         val listener =
@@ -138,6 +143,8 @@ fun MainScreen(sharedUri: Uri? = null) {
                         sharedPreferences.getInt(KEY_BATTERY_LOW_THRESHOLD, 20)
                     KEY_HIGH_TEMP_THRESHOLD -> highTempThreshold =
                         sharedPreferences.getFloat(KEY_HIGH_TEMP_THRESHOLD, 50f)
+                    KEY_AUTO_DISABLE_USB_ON_LIGHT -> autoDisableUsbOnLight =
+                        sharedPreferences.getBoolean(KEY_AUTO_DISABLE_USB_ON_LIGHT, DEFAULT_AUTO_DISABLE_USB_ON_LIGHT)
                 }
             }
         prefs.registerOnSharedPreferenceChangeListener(listener)
@@ -243,6 +250,7 @@ fun MainScreen(sharedUri: Uri? = null) {
         lockedMacAddress = lockedMacAddress,
         batteryLowThreshold = batteryLowThreshold,
         highTempThreshold = highTempThreshold,
+        autoDisableUsbOnLight = autoDisableUsbOnLight,
         csvRowCount = csvRowCount,
         csvFileSize = csvFileSize,
         isServerRunning = isServerRunning,
@@ -272,6 +280,9 @@ fun MainScreen(sharedUri: Uri? = null) {
         },
         onHighTempThresholdChange = {
             prefs.edit { putFloat(KEY_HIGH_TEMP_THRESHOLD, it) }
+        },
+        onAutoDisableUsbOnLightChange = {
+            prefs.edit { putBoolean(KEY_AUTO_DISABLE_USB_ON_LIGHT, it) }
         },
         onResetDayDistance = {
             CommandBus.sendCommand(ForumsladerCommand.ResetDayDistance)
@@ -333,6 +344,7 @@ fun MainScreenContent(
     lockedMacAddress: String?,
     batteryLowThreshold: Int,
     highTempThreshold: Float,
+    autoDisableUsbOnLight: Boolean = DEFAULT_AUTO_DISABLE_USB_ON_LIGHT,
     csvRowCount: Int = 0,
     csvFileSize: Long = 0L,
     isServerRunning: Boolean = false,
@@ -347,6 +359,7 @@ fun MainScreenContent(
     onForgetDevice: () -> Unit,
     onBatteryLowThresholdChange: (Int) -> Unit,
     onHighTempThresholdChange: (Float) -> Unit,
+    onAutoDisableUsbOnLightChange: (Boolean) -> Unit = {},
     onResetDayDistance: () -> Unit,
     onResetTourDistance: () -> Unit,
     onSaveToUsb: () -> Unit = {},
@@ -388,6 +401,8 @@ fun MainScreenContent(
                             poles = poles,
                             versionKey = versionKey,
                             lockedMacAddress = lockedMacAddress,
+                            autoDisableUsbOnLight = autoDisableUsbOnLight,
+                            onAutoDisableUsbOnLightChange = onAutoDisableUsbOnLightChange,
                             onConfigUpdate = onConfigUpdate,
                             onForgetDevice = onForgetDevice
                         )
@@ -467,6 +482,7 @@ fun MainScreenPreview() {
             lockedMacAddress = "00:11:22:33:44:55",
             batteryLowThreshold = 20,
             highTempThreshold = 50f,
+            autoDisableUsbOnLight = false,
             csvRowCount = 120,
             csvFileSize = 4096L,
             isServerRunning = false,
@@ -476,6 +492,7 @@ fun MainScreenPreview() {
             onForgetDevice = {},
             onBatteryLowThresholdChange = {},
             onHighTempThresholdChange = {},
+            onAutoDisableUsbOnLightChange = {},
             onResetDayDistance = {},
             onResetTourDistance = {},
             onSaveToUsb = {},

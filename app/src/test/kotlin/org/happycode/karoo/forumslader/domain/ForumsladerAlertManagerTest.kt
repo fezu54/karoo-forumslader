@@ -199,6 +199,8 @@ class ForumsladerAlertManagerTest : ShouldSpec({
             ForumsladerAlert.BatteryLow(15).detail shouldBe "Battery Low (15%)"
             ForumsladerAlert.HighTemperature(55.5f).detail shouldBe "High Temperature (55°C)"
             ForumsladerAlert.SystemInterrupt.detail shouldBe "System Interrupt!"
+            ForumsladerAlert.UsbDisabledByLight.title shouldBe "USB Output Disabled"
+            ForumsladerAlert.UsbDisabledByLight.detail shouldBe "12V headlight active. Preserving battery."
         }
     }
 

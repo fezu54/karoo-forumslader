@@ -95,11 +95,29 @@ class ConfigCardTest {
         updatedPoles shouldBe 13
     }
 
+    @Test
+    fun `should update auto-disable USB setting when toggle clicked`() {
+        // given
+        var toggleValue = false
+        renderCard(
+            autoDisableUsbOnLight = false,
+            onAutoDisableUsbOnLightChange = { toggleValue = it }
+        )
+
+        // when
+        composeTestRule.onNodeWithText("Auto-disable USB when lights turn on").performClick()
+
+        // then
+        toggleValue shouldBe true
+    }
+
     private fun renderCard(
         wheelsize: Int = 2100,
         poles: Int = 28,
         versionKey: String = "v6",
         lockedMacAddress: String? = null,
+        autoDisableUsbOnLight: Boolean = false,
+        onAutoDisableUsbOnLightChange: (Boolean) -> Unit = {},
         onConfigUpdate: (Int, Int) -> Unit = { _, _ -> },
         onForgetDevice: () -> Unit = {},
     ) {
@@ -110,6 +128,8 @@ class ConfigCardTest {
                     poles = poles,
                     versionKey = versionKey,
                     lockedMacAddress = lockedMacAddress,
+                    autoDisableUsbOnLight = autoDisableUsbOnLight,
+                    onAutoDisableUsbOnLightChange = onAutoDisableUsbOnLightChange,
                     onConfigUpdate = onConfigUpdate,
                     onForgetDevice = onForgetDevice,
                 )

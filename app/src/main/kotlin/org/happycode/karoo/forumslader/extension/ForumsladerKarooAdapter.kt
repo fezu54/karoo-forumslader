@@ -19,6 +19,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import org.happycode.karoo.forumslader.PreferencesConstants.DEFAULT_AUTO_DISABLE_USB_ON_LIGHT
+import org.happycode.karoo.forumslader.PreferencesConstants.KEY_AUTO_DISABLE_USB_ON_LIGHT
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_BATTERY_LOW_THRESHOLD
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_HIGH_TEMP_THRESHOLD
 import org.happycode.karoo.forumslader.application.BatteryEstimateStore
@@ -27,11 +29,14 @@ import org.happycode.karoo.forumslader.domain.BatteryEstimator
 import org.happycode.karoo.forumslader.domain.ChargeState
 import org.happycode.karoo.forumslader.R
 import org.happycode.karoo.forumslader.domain.BatteryLowRule
+import org.happycode.karoo.forumslader.domain.CommandBus
 import org.happycode.karoo.forumslader.domain.ForumsladerAlert
 import org.happycode.karoo.forumslader.domain.ForumsladerCommand
 import org.happycode.karoo.forumslader.domain.ForumsladerAlertManager
 import org.happycode.karoo.forumslader.domain.ForumsladerMetrics
 import org.happycode.karoo.forumslader.domain.HighTemperatureRule
+import org.happycode.karoo.forumslader.domain.LightLoadDetector
+import org.happycode.karoo.forumslader.domain.LightLoadState
 import org.happycode.karoo.forumslader.domain.StatusBitmaskRule
 import org.happycode.karoo.forumslader.model.ForumsladerConfig
 import org.happycode.karoo.forumslader.model.ForumsladerParser
@@ -52,6 +57,7 @@ class ForumsladerKarooAdapter(
     private val bleManager: ForumsladerBleManager = ForumsladerBleManager(address, adapterScope),
     private val karooSystem: KarooSystemService = KarooSystemService(context.applicationContext),
     private val csvLogger: CsvLogger = CsvLoggerProvider.getInstance(context.filesDir.toPath().resolve("telemetry")),
+    private val lightLoadDetector: LightLoadDetector = LightLoadDetector(),
 ) {
     companion object {
         private const val EXTENSION_ID = "karoo-forumslader"
@@ -109,6 +115,7 @@ class ForumsladerKarooAdapter(
 
     private val fitRecorder = ForumsladerFitRecorder()
     private val batteryEstimator = BatteryEstimator()
+    private var previousLightState: LightLoadState = LightLoadState.IDLE
     
     private var flowCollectionJob: Job? = null
     private val consumers = mutableListOf<String>()
@@ -157,6 +164,8 @@ class ForumsladerKarooAdapter(
             routeRemainingAscentMeters = null
             protocol.stopParameterRequestLoop()
             parser.resetConfigLoaded()
+            lightLoadDetector.reset()
+            previousLightState = LightLoadState.IDLE
             bleManager.stop()
             karooSystem.disconnect()
             BatteryEstimateStore.clear()
@@ -176,6 +185,8 @@ class ForumsladerKarooAdapter(
                         protocol.stopParameterRequestLoop()
                         parser.resetConfigLoaded()
                         BatteryEstimateStore.clear()
+                        lightLoadDetector.reset()
+                        previousLightState = LightLoadState.IDLE
                     }
                 }
             }
@@ -207,6 +218,7 @@ class ForumsladerKarooAdapter(
                         BatteryEstimateStore.updateEstimate(batteryEstimator.getEstimate())
                         emitMetrics(em, metrics)
                         evaluateAlerts(metrics)
+                        evaluateLightLoad(metrics)
                         fitRecorder.onMetricsReceived(metrics)
                         csvLogger.logTelemetry(metrics)
                     }
@@ -273,11 +285,34 @@ class ForumsladerKarooAdapter(
         }
     }
 
+    private fun evaluateLightLoad(metrics: ForumsladerMetrics) {
+        val currentState = lightLoadDetector.onMetrics(metrics)
+        val isNewDetection = currentState == LightLoadState.DETECTED && previousLightState != LightLoadState.DETECTED
+        val isAutoDisableEnabled = sharedPrefs.getBoolean(KEY_AUTO_DISABLE_USB_ON_LIGHT, DEFAULT_AUTO_DISABLE_USB_ON_LIGHT)
+
+        if (isNewDetection && isAutoDisableEnabled) {
+            karooSystem.dispatch(
+                InRideAlert(
+                    id = ForumsladerAlert.UsbDisabledByLight.id,
+                    icon = R.drawable.ic_alert,
+                    title = context.getString(R.string.alert_usb_disabled_by_light_title),
+                    detail = context.getString(R.string.alert_usb_disabled_by_light_detail),
+                    autoDismissMs = 5000L,
+                    backgroundColor = android.R.color.holo_red_dark,
+                    textColor = android.R.color.white
+                )
+            )
+            CommandBus.sendCommand(ForumsladerCommand.SetConsumerState(enabled = false))
+        }
+        previousLightState = currentState
+    }
+
     private fun resolveAlertDetail(alert: ForumsladerAlert): String = when (alert) {
         is ForumsladerAlert.BatteryLow -> context.getString(R.string.alert_battery_low_detail, alert.percentage)
         is ForumsladerAlert.ShortCircuit -> context.getString(R.string.alert_short_circuit_detail)
         is ForumsladerAlert.SystemInterrupt -> context.getString(R.string.alert_system_interrupt_detail)
         is ForumsladerAlert.HighTemperature -> context.getString(R.string.alert_high_temperature_detail, alert.temperature.toInt())
+        is ForumsladerAlert.UsbDisabledByLight -> context.getString(R.string.alert_usb_disabled_by_light_detail)
     }
 
     private fun emitMetrics(emitter: Emitter<DeviceEvent>, metrics: ForumsladerMetrics) {
@@ -312,6 +347,10 @@ class ForumsladerKarooAdapter(
             ForumsladerCommand.ResetDayDistance -> "FLT,7"
             ForumsladerCommand.ResetTourDistance -> "FLT,6"
             is ForumsladerCommand.UpdateConfig -> "FLT,9,${command.wheelsize},${command.poles}"
+            is ForumsladerCommand.SetConsumerState -> {
+                // TODO: Add exact NMEA opcode for setting consumer state once protocol reverse-engineering is complete
+                return
+            }
         }
         val checksum = payload.fold(0) { acc, char -> acc xor char.code }.toString(16).uppercase().padStart(2, '0')
         val cmdBytes = $$"$$$payload*$$checksum\r\n".toByteArray(Charsets.US_ASCII)

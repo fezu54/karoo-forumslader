@@ -21,11 +21,13 @@ class CommandBusTest : ShouldSpec({
             // when
             CommandBus.sendCommand(ForumsladerCommand.ResetDayDistance)
             CommandBus.sendCommand(ForumsladerCommand.UpdateConfig(2100, 20))
+            CommandBus.sendCommand(ForumsladerCommand.SetConsumerState(enabled = false))
 
             // then
             commands shouldBe listOf(
                 ForumsladerCommand.ResetDayDistance,
-                ForumsladerCommand.UpdateConfig(2100, 20)
+                ForumsladerCommand.UpdateConfig(2100, 20),
+                ForumsladerCommand.SetConsumerState(enabled = false)
             )
         }
     }

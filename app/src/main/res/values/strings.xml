@@ -83,6 +83,10 @@
     <string name="alert_short_circuit_detail">Short Circuit!</string>
     <string name="alert_system_interrupt_detail">System Interrupt!</string>
     <string name="alert_high_temperature_detail">High Temperature (%1$d°C)</string>
+    <string name="alert_usb_disabled_by_light_title">USB Output Disabled</string>
+    <string name="alert_usb_disabled_by_light_detail">12V headlight active. Preserving battery.</string>
+    <string name="label_auto_disable_usb_on_light">Auto-disable USB when lights turn on</string>
+    <string name="desc_auto_disable_usb_on_light">Switches off 5V USB output when 12V headlight draw is detected to prevent battery drain.</string>
 
     <!-- Diagnostics & Logs -->
     <string name="diagnostics_title">Diagnostics &amp; Logs</string>
