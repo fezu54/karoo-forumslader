@@ -23,6 +23,7 @@ import org.happycode.karoo.forumslader.PreferencesConstants.DEFAULT_AUTO_DISABLE
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_AUTO_DISABLE_USB_ON_LIGHT
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_BATTERY_LOW_THRESHOLD
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_HIGH_TEMP_THRESHOLD
+import org.happycode.karoo.forumslader.PreferencesConstants.PREFS_NAME
 import org.happycode.karoo.forumslader.application.BatteryEstimateStore
 import org.happycode.karoo.forumslader.domain.BatteryEstimate
 import org.happycode.karoo.forumslader.domain.BatteryEstimator
@@ -101,7 +102,7 @@ class ForumsladerKarooAdapter(
     private val protocol = ForumsladerProtocol(bleManager, adapterScope)
 
     private val sharedPrefs = context.getSharedPreferences(
-        org.happycode.karoo.forumslader.PreferencesConstants.PREFS_NAME,
+        PREFS_NAME,
         Context.MODE_PRIVATE
     )
     private val alertManager = ForumsladerAlertManager(
