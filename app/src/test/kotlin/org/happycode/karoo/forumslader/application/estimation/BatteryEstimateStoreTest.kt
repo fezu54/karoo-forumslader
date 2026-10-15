@@ -1,9 +1,9 @@
-package org.happycode.karoo.forumslader.application
+package org.happycode.karoo.forumslader.application.estimation
 
 import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
-import org.happycode.karoo.forumslader.domain.BatteryEstimate
+import org.happycode.karoo.forumslader.domain.estimation.BatteryEstimate
 
 class BatteryEstimateStoreTest : ShouldSpec({
 

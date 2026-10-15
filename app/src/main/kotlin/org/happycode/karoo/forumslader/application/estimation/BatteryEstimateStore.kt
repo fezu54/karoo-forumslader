@@ -1,9 +1,9 @@
-package org.happycode.karoo.forumslader.application
+package org.happycode.karoo.forumslader.application.estimation
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import org.happycode.karoo.forumslader.domain.BatteryEstimate
+import org.happycode.karoo.forumslader.domain.estimation.BatteryEstimate
 
 object BatteryEstimateStore {
     private val _estimateFlow = MutableStateFlow<BatteryEstimate?>(null)

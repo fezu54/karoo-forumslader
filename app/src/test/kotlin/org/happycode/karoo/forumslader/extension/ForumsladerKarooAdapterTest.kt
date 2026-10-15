@@ -19,8 +19,8 @@ import io.hammerhead.karooext.models.StreamState
 import io.hammerhead.karooext.models.WriteToRecordMesg
 import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.collections.shouldNotBeEmpty
-import io.kotest.matchers.maps.shouldNotBeEmpty
 import io.kotest.matchers.doubles.plusOrMinus
+import io.kotest.matchers.maps.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -31,9 +31,6 @@ import io.mockk.slot
 import io.mockk.unmockkAll
 import io.mockk.verify
 import io.mockk.verifyOrder
-import java.io.File
-import java.nio.file.Files
-import kotlin.math.abs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -43,17 +40,21 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
+import org.happycode.karoo.forumslader.PreferencesConstants.KEY_AUTO_DISABLE_USB_ON_LIGHT
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
-import org.happycode.karoo.forumslader.application.BatteryEstimateStore
-import org.happycode.karoo.forumslader.domain.BatteryEstimator
-import org.happycode.karoo.forumslader.domain.ForumsladerCommand
 import org.happycode.karoo.forumslader.application.CsvLogger
 import org.happycode.karoo.forumslader.application.ForumsladerStateStore
-import org.happycode.karoo.forumslader.model.ForumsladerVersion
-import org.happycode.karoo.forumslader.PreferencesConstants.KEY_AUTO_DISABLE_USB_ON_LIGHT
-import org.happycode.karoo.forumslader.R
+import org.happycode.karoo.forumslader.application.estimation.BatteryEstimateStore
 import org.happycode.karoo.forumslader.domain.CommandBus
+import org.happycode.karoo.forumslader.domain.ForumsladerCommand
 import org.happycode.karoo.forumslader.domain.LightLoadDetector
+import org.happycode.karoo.forumslader.domain.estimation.BatteryEstimator
+import org.happycode.karoo.forumslader.domain.estimation.ClimbSegment
+import org.happycode.karoo.forumslader.domain.estimation.RiderProfileRepository
+import org.happycode.karoo.forumslader.model.ForumsladerVersion
+import java.io.File
+import java.nio.file.Files
+import kotlin.math.abs
 import kotlin.time.Duration
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -77,7 +78,8 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
         displayName: String? = null,
         scope: CoroutineScope = testScope,
         lightLoadDetector: LightLoadDetector = LightLoadDetector(),
-        batteryEstimator: BatteryEstimator? = null
+        batteryEstimator: BatteryEstimator? = null,
+        riderProfileRepository: RiderProfileRepository? = mockk(relaxed = true)
     ) = ForumsladerKarooAdapter(
         context,
         address,
@@ -87,7 +89,8 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
         karooSystem,
         csvLogger,
         lightLoadDetector,
-        batteryEstimator
+        batteryEstimator,
+        riderProfileRepository
     )
 
     beforeEach {
@@ -875,6 +878,73 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
 
         // then
         verify(exactly = 0) { bleManager.writeCommand(any()) }
+    }
+
+    should("slice remaining climbs from OnNavigationState based on remaining route distance") {
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            val mockEstimator = mockk<BatteryEstimator>(relaxed = true)
+            val forumslader = createAdapter(scope = backgroundScope, batteryEstimator = mockEstimator)
+            forumslader.connect(emitter)
+
+            val climb1 = mockk<OnNavigationState.NavigationState.Climb> {
+                every { startDistance } returns 2000.0
+                every { length } returns 1000.0
+                every { grade } returns 6.0
+            }
+            val climb2 = mockk<OnNavigationState.NavigationState.Climb> {
+                every { startDistance } returns 6000.0
+                every { length } returns 2000.0
+                every { grade } returns 8.0
+            }
+            val navRoute = mockk<OnNavigationState.NavigationState.NavigatingRoute> {
+                every { routeDistance } returns 10000.0
+                every { climbs } returns listOf(climb1, climb2)
+            }
+
+            // when
+            val distPoint = DataPoint(
+                DataType.Type.DISTANCE_TO_DESTINATION,
+                mapOf(DataType.Field.DISTANCE_TO_DESTINATION to 7500.0)
+            )
+            forumslader.handleDistanceRemaining(OnStreamState(StreamState.Streaming(distPoint)))
+            forumslader.handleNavigationState(OnNavigationState(navRoute))
+
+            // then
+            val captured = mutableListOf<List<ClimbSegment>>()
+            verify { mockEstimator.onUpcomingClimbs(capture(captured)) }
+            val capturedClimbs = captured.last()
+            capturedClimbs.size shouldBe 2
+            capturedClimbs[0].startDistanceMeters shouldBe 2500.0
+            capturedClimbs[0].lengthMeters shouldBe 500.0
+            capturedClimbs[0].gradientPct shouldBe 6.0f
+            capturedClimbs[1].startDistanceMeters shouldBe 6000.0
+            capturedClimbs[1].lengthMeters shouldBe 2000.0
+            capturedClimbs[1].gradientPct shouldBe 8.0f
+        }
+    }
+
+    should("update gradient when ELEVATION_GRADE stream emits") {
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            val forumslader = createAdapter(scope = backgroundScope)
+            forumslader.connect(emitter)
+
+            // when
+            val gradePoint = DataPoint(
+                DataType.Type.ELEVATION_GRADE,
+                mapOf(DataType.Field.ELEVATION_GRADE to 5.5)
+            )
+            forumslader.handleElevationGrade(OnStreamState(StreamState.Streaming(gradePoint)))
+
+            val flb = $$"$FLB,255,0,1005\n"
+            val flc = $$"$FLC,5,0,85\n"
+            val fl5 = $$"$FL5,200,3,100,500,500,500,2500,3500,0,0,0,0,1000\n"
+            incomingDataFlow.emit((flb + flc + fl5).toByteArray(Charsets.US_ASCII))
+
+            // and when not streaming
+            forumslader.handleElevationGrade(OnStreamState(StreamState.NotAvailable))
+        }
     }
 })
 

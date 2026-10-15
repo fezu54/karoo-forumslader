@@ -1,4 +1,4 @@
-package org.happycode.karoo.forumslader.domain
+package org.happycode.karoo.forumslader.domain.estimation
 
 import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.floats.plusOrMinus
@@ -7,6 +7,8 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.mockk.mockk
 import io.mockk.verify
+import org.happycode.karoo.forumslader.domain.ChargeState
+import org.happycode.karoo.forumslader.domain.ForumsladerMetrics
 
 class BatteryEstimatorTest : ShouldSpec({
 
@@ -14,12 +16,14 @@ class BatteryEstimatorTest : ShouldSpec({
         distance: Double = 0.0,
         batteryPct: Int? = 100,
         batteryCurrent: Float = -0.5f,
-        chargeState: ChargeState = ChargeState.DISCHARGING
+        chargeState: ChargeState = ChargeState.DISCHARGING,
+        consumerCurrent: Float = 0.5f,
+        speedMetersPerSecond: Float = 0f
     ) = ForumsladerMetrics(
         power = ForumsladerMetrics.Power(
             batteryVoltage = 12.0f,
             batteryCurrent = batteryCurrent,
-            consumerCurrent = 0.5f,
+            consumerCurrent = consumerCurrent,
             batteryLevelPercentage = batteryPct,
             chargeState = chargeState,
             dynamoPowerWatts = 0f,
@@ -27,7 +31,7 @@ class BatteryEstimatorTest : ShouldSpec({
         ),
         dynamics = ForumsladerMetrics.Dynamics(
             frequency = 0f,
-            speedMetersPerSecond = 0f,
+            speedMetersPerSecond = speedMetersPerSecond,
             generatorGear = 0
         ),
         environment = ForumsladerMetrics.Environment(
@@ -970,5 +974,126 @@ class BatteryEstimatorTest : ShouldSpec({
         // then
         estimate.shouldNotBeNull()
         estimate.estimatedRangeKm.shouldBeNull()
+    }
+
+    should("react immediately to consumerCurrent spike without waiting for sliding distance window") {
+        // given
+        val estimator = BatteryEstimator(initialDischargeRate = 1.0f)
+        val initialMetrics = createMetrics(
+            distance = 0.0,
+            batteryPct = 100,
+            consumerCurrent = 0.0f,
+            speedMetersPerSecond = 5.0f
+        )
+        estimator.onMetrics(initialMetrics)
+        val initialEstimate = estimator.getEstimate()
+        initialEstimate.shouldNotBeNull()
+        initialEstimate.avgDischargeRatePctPerKm shouldBe 1.0f
+        val initialRange = initialEstimate.estimatedRangeKm
+        initialRange.shouldNotBeNull()
+
+        // when
+        val spikedMetrics = createMetrics(
+            distance = 0.0,
+            batteryPct = 100,
+            consumerCurrent = 1.0f,
+            speedMetersPerSecond = 5.0f
+        )
+        estimator.onMetrics(spikedMetrics)
+        val updatedEstimate = estimator.getEstimate()
+
+        // then
+        updatedEstimate.shouldNotBeNull()
+        (updatedEstimate.avgDischargeRatePctPerKm > 1.0f) shouldBe true
+        (updatedEstimate.estimatedRangeKm!! < initialRange) shouldBe true
+    }
+
+    should("predict higher climb drain for slower touring profile than fast fitness profile on same climb") {
+        // given
+        val climb = ClimbSegment(startDistanceMeters = 0.0, lengthMeters = 3000.0, gradientPct = 8.0f)
+        val touringProfile = GradientProfile(
+            gradientPct = 8,
+            speedMetersPerSecond = 1.5f,
+            frequencyHz = 10.8f,
+            dynamoPowerWatts = 0.0f
+        )
+        val fastProfile = GradientProfile(
+            gradientPct = 8,
+            speedMetersPerSecond = 4.0f,
+            frequencyHz = 28.8f,
+            dynamoPowerWatts = 5.0f
+        )
+
+        val touringEstimator = BatteryEstimator(initialDischargeRate = 1.0f)
+        touringEstimator.onRiderProfilesLoaded(mapOf(8 to touringProfile))
+        touringEstimator.onUpcomingClimbs(listOf(climb))
+        touringEstimator.onMetrics(createMetrics(distance = 0.0, batteryPct = 80, consumerCurrent = 0.5f, speedMetersPerSecond = 1.5f))
+
+        val fastEstimator = BatteryEstimator(initialDischargeRate = 1.0f)
+        fastEstimator.onRiderProfilesLoaded(mapOf(8 to fastProfile))
+        fastEstimator.onUpcomingClimbs(listOf(climb))
+        fastEstimator.onMetrics(createMetrics(distance = 0.0, batteryPct = 80, consumerCurrent = 0.5f, speedMetersPerSecond = 4.0f))
+
+        // when
+        val touringEstimate = touringEstimator.getEstimate()
+        val fastEstimate = fastEstimator.getEstimate()
+
+        // then
+        touringEstimate.shouldNotBeNull()
+        fastEstimate.shouldNotBeNull()
+        (touringEstimate.estimatedRangeKm!! < fastEstimate.estimatedRangeKm!!) shouldBe true
+    }
+
+    should("increase predicted climb drain when headwindSpeedMs is applied to upcoming climbs") {
+        // given
+        val climb = ClimbSegment(startDistanceMeters = 0.0, lengthMeters = 3000.0, gradientPct = 6.0f)
+        val profile = GradientProfile(
+            gradientPct = 6,
+            speedMetersPerSecond = 3.5f,
+            frequencyHz = 25.0f,
+            dynamoPowerWatts = 3.0f
+        )
+        val calmEstimator = BatteryEstimator(initialDischargeRate = 1.0f)
+        calmEstimator.onRiderProfilesLoaded(mapOf(6 to profile))
+        calmEstimator.onUpcomingClimbs(listOf(climb))
+        calmEstimator.onMetrics(createMetrics(distance = 0.0, batteryPct = 80, consumerCurrent = 0.8f, speedMetersPerSecond = 3.5f))
+
+        val headwindEstimator = BatteryEstimator(initialDischargeRate = 1.0f)
+        headwindEstimator.onRiderProfilesLoaded(mapOf(6 to profile))
+        headwindEstimator.onUpcomingClimbs(listOf(climb))
+        headwindEstimator.onHeadwindSpeed(5.0f)
+        headwindEstimator.onMetrics(createMetrics(distance = 0.0, batteryPct = 80, consumerCurrent = 0.8f, speedMetersPerSecond = 3.5f))
+
+        // when
+        val calmEstimate = calmEstimator.getEstimate()
+        val headwindEstimate = headwindEstimator.getEstimate()
+
+        // then
+        calmEstimate.shouldNotBeNull()
+        headwindEstimate.shouldNotBeNull()
+        (headwindEstimate.estimatedRangeKm!! < calmEstimate.estimatedRangeKm!!) shouldBe true
+    }
+
+    should("mark route as insufficient when predicted climb net drain exceeds remaining battery capacity") {
+        // given
+        val estimator = BatteryEstimator(initialDischargeRate = 1.0f)
+        val severeClimb = ClimbSegment(startDistanceMeters = 0.0, lengthMeters = 10000.0, gradientPct = 12.0f)
+        val steepProfile = GradientProfile(
+            gradientPct = 12,
+            speedMetersPerSecond = 1.2f,
+            frequencyHz = 8.6f,
+            dynamoPowerWatts = 0.0f
+        )
+        estimator.onRiderProfilesLoaded(mapOf(12 to steepProfile))
+        estimator.onUpcomingClimbs(listOf(severeClimb))
+        estimator.onRouteRemaining(distanceMeters = 10000.0, upcomingElevation = null)
+        estimator.onMetrics(createMetrics(distance = 0.0, batteryPct = 15, consumerCurrent = 1.0f, speedMetersPerSecond = 1.2f))
+
+        // when
+        val estimate = estimator.getEstimate()
+
+        // then
+        estimate.shouldNotBeNull()
+        estimate.isSufficientForRoute shouldBe false
     }
 })

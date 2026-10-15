@@ -14,7 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import org.happycode.karoo.forumslader.R
-import org.happycode.karoo.forumslader.domain.BatteryEstimate
+import org.happycode.karoo.forumslader.domain.estimation.BatteryEstimate
 import org.happycode.karoo.forumslader.domain.ChargeState
 import kotlin.math.roundToInt
 

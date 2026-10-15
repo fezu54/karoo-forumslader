@@ -1,9 +1,9 @@
-package org.happycode.karoo.forumslader.extension
+package org.happycode.karoo.forumslader.extension.estimation
 
 import android.content.SharedPreferences
 import androidx.core.content.edit
-import org.happycode.karoo.forumslader.domain.BatteryEstimator
-import org.happycode.karoo.forumslader.domain.DischargeRateStore
+import org.happycode.karoo.forumslader.domain.estimation.BatteryEstimator
+import org.happycode.karoo.forumslader.domain.estimation.DischargeRateStore
 
 class SharedPrefsDischargeRateStore(
     private val preferences: SharedPreferences
