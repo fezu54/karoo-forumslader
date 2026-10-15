@@ -62,13 +62,13 @@ import org.happycode.karoo.forumslader.R
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
 import org.happycode.karoo.forumslader.adapters.network.CoroutineLogServer
 import org.happycode.karoo.forumslader.adapters.storage.PublicStorageAdapter
-import org.happycode.karoo.forumslader.application.BatteryEstimateStore
+import org.happycode.karoo.forumslader.application.estimation.BatteryEstimateStore
 import org.happycode.karoo.forumslader.application.CsvLoggerProvider
 import org.happycode.karoo.forumslader.application.ForumsladerStateStore
 import org.happycode.karoo.forumslader.application.LogServerGateway
 import org.happycode.karoo.forumslader.application.LogcatDumper
 import org.happycode.karoo.forumslader.application.PublicStorageGateway
-import org.happycode.karoo.forumslader.domain.BatteryEstimate
+import org.happycode.karoo.forumslader.domain.estimation.BatteryEstimate
 import org.happycode.karoo.forumslader.domain.CommandBus
 import org.happycode.karoo.forumslader.domain.DfuState
 import org.happycode.karoo.forumslader.domain.ForumsladerCommand

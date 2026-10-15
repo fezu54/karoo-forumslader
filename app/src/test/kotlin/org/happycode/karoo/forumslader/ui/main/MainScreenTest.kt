@@ -25,7 +25,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
-import org.happycode.karoo.forumslader.domain.BatteryEstimate
+import org.happycode.karoo.forumslader.domain.estimation.BatteryEstimate
 import org.happycode.karoo.forumslader.domain.ChargeState
 import org.happycode.karoo.forumslader.domain.CommandBus
 import org.happycode.karoo.forumslader.domain.ForumsladerCommand

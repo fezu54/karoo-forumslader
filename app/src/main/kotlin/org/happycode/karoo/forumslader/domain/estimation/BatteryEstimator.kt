@@ -1,6 +1,9 @@
-package org.happycode.karoo.forumslader.domain
+package org.happycode.karoo.forumslader.domain.estimation
 
 import kotlin.collections.ArrayDeque
+import org.happycode.karoo.forumslader.domain.ChargeState
+import org.happycode.karoo.forumslader.domain.ForumsladerMetrics
+import org.happycode.karoo.forumslader.domain.LightLoadDetector
 
 class BatteryEstimator(
     private val windowMeters: Double = 20000.0,
@@ -12,7 +15,9 @@ class BatteryEstimator(
     private val maxCredibleDischargeRate: Float = MAX_CREDIBLE_DISCHARGE_RATE,
     private val emaAlpha: Float = EMA_ALPHA,
     private val initialDischargeRate: Float? = DEFAULT_DISCHARGE_RATE,
-    private val dischargeRateStore: DischargeRateStore = DischargeRateStore {}
+    private val dischargeRateStore: DischargeRateStore = DischargeRateStore {},
+    private val batteryCapacityWh: Float = DEFAULT_BATTERY_CAPACITY_WH,
+    private val dynamoPowerCurve: DynamoPowerCurve = DynamoPowerCurve()
 ) {
     private data class VirtualDischargeSample(
         val virtualDistanceMeters: Double,
@@ -39,6 +44,25 @@ class BatteryEstimator(
     private var upcomingElevationMeters: Double? = null
     private var headwindSpeedMs: Float? = null
 
+    private val riderProfiles = mutableMapOf<Int, GradientProfile>()
+    private var upcomingClimbs: List<ClimbSegment> = emptyList()
+    private var currentConsumerPowerWatts: Float = 0f
+    private var baselineConsumerPowerWatts: Float? = null
+    private var lastSpeedMetersPerSecond: Float? = null
+
+    fun onUpcomingClimbs(climbs: List<ClimbSegment>) {
+        upcomingClimbs = climbs
+    }
+
+    fun onRiderProfilesLoaded(profiles: Map<Int, GradientProfile>) {
+        riderProfiles.clear()
+        riderProfiles.putAll(profiles)
+    }
+
+    fun onRiderProfileUpdated(profile: GradientProfile) {
+        riderProfiles[profile.gradientPct] = profile
+    }
+
     fun onMetrics(metrics: ForumsladerMetrics) {
         val currentLevel = metrics.power.batteryLevelPercentage ?: return
         val currentDistance = metrics.distance.tripMeters
@@ -47,6 +71,12 @@ class BatteryEstimator(
 
         prevDistanceMeters?.let {
             if (currentDistance < it) reset()
+        }
+
+        lastSpeedMetersPerSecond = metrics.dynamics.speedMetersPerSecond
+        currentConsumerPowerWatts = calculateConsumerPowerWatts(metrics.power.consumerCurrent)
+        if (baselineConsumerPowerWatts == null) {
+            baselineConsumerPowerWatts = currentConsumerPowerWatts
         }
 
         lastBatteryLevelPct = currentLevel
@@ -149,6 +179,7 @@ class BatteryEstimator(
             if (!hasCalculatedRate || rate != lastDischargeRate) {
                 lastDischargeRate = rate
                 hasCalculatedRate = true
+                baselineConsumerPowerWatts = currentConsumerPowerWatts
                 dischargeRateStore.save(rate)
             }
         }
@@ -193,6 +224,8 @@ class BatteryEstimator(
         prevDistanceMeters = null
         prevElevationMeters = null
         prevChargeState = null
+        baselineConsumerPowerWatts = null
+        lastSpeedMetersPerSecond = null
     }
 
     fun onRouteRemaining(distanceMeters: Double?, upcomingElevation: Double?) {
@@ -241,10 +274,28 @@ class BatteryEstimator(
         )
     }
 
+    private fun calculateConsumerPowerWatts(consumerCurrentAmps: Float): Float =
+        (LightLoadDetector.USB_VOLTAGE * consumerCurrentAmps.coerceAtLeast(0f)) /
+            LightLoadDetector.BUCK_EFFICIENCY
+
+    private fun calculateConsumerDeltaRatePctPerKm(): Float {
+        val baselineWatts = baselineConsumerPowerWatts ?: return 0f
+        val powerDeltaWatts = currentConsumerPowerWatts - baselineWatts
+        if (powerDeltaWatts == 0f) return 0f
+        val speedMs = lastSpeedMetersPerSecond?.takeIf { it >= MIN_MOVING_SPEED_MS } ?: DEFAULT_SPEED_MS
+        val speedKmh = speedMs * MS_TO_KMH
+        val whPerKmDelta = powerDeltaWatts / speedKmh
+        return (whPerKmDelta / batteryCapacityWh) * 100f
+    }
+
     private fun calculateEffectiveRate(rate: Float?): Float? =
         rate?.takeIf { it > 0f }?.let { baseRate ->
-            val headwind = headwindSpeedMs?.coerceAtLeast(0f) ?: 0f
-            (baseRate + (headwind * headwindPenaltyPctPerKmPerMs))
+            val headwindPenalty = when {
+                upcomingClimbs.isNotEmpty() -> 0f
+                else -> (headwindSpeedMs?.coerceAtLeast(0f) ?: 0f) * headwindPenaltyPctPerKmPerMs
+            }
+            val consumerDelta = calculateConsumerDeltaRatePctPerKm()
+            (baseRate + headwindPenalty + consumerDelta)
                 .coerceIn(minCredibleDischargeRate, maxCredibleDischargeRate)
         }
 
@@ -256,18 +307,43 @@ class BatteryEstimator(
         return levelDiff / distanceDiffKm
     }
 
-    private fun calculateElevationAdjustedCapacity(currentLevel: Float): Float {
-        val elevation = upcomingElevationMeters?.coerceAtLeast(0.0) ?: 0.0
-        val elevationPenalty = (elevation / 100.0).toFloat() * elevationPenaltyPctPer100m
+    private fun calculatePredictedClimbsDrainPct(): Float =
+        upcomingClimbs.fold(0f) { accDrainPct, climb ->
+            val bucket = GradientProfile.bucketFor(climb.gradientPct)
+            val baseProfile = riderProfiles[bucket]
+            val profileForClimb = (baseProfile ?: GradientProfile.defaultFor(bucket)).let { profile ->
+                headwindSpeedMs?.let { profile.adjustedForHeadwind(it) } ?: profile
+            }
+            val netBalanceWh = climb.predictNetEnergyBalanceWh(
+                profile = profileForClimb,
+                baseProfile,
+                dynamoPowerCurve,
+                consumerPowerWatts = currentConsumerPowerWatts
+            )
+            val climbDrainPct = if (netBalanceWh < 0f) (-netBalanceWh / batteryCapacityWh) * 100f else 0f
+            accDrainPct + climbDrainPct
+        }
 
-        return (currentLevel - elevationPenalty).coerceAtLeast(0f)
-    }
+    private fun calculateElevationAdjustedCapacity(currentLevel: Float): Float =
+        when {
+            upcomingClimbs.isNotEmpty() ->
+                (currentLevel - calculatePredictedClimbsDrainPct()).coerceAtLeast(0f)
+            else -> {
+                val elevation = upcomingElevationMeters?.coerceAtLeast(0.0) ?: 0.0
+                val penalty = (elevation / 100.0).toFloat() * elevationPenaltyPctPer100m
+                (currentLevel - penalty).coerceAtLeast(0f)
+            }
+        }
 
     companion object {
         const val DEFAULT_DISCHARGE_RATE = 1.0f
         const val MIN_CREDIBLE_DISCHARGE_RATE = 0.15f
         const val MAX_CREDIBLE_DISCHARGE_RATE = 5.0f
+        const val DEFAULT_BATTERY_CAPACITY_WH = 10.0f
         private const val EMA_ALPHA = 0.35f
         const val MAX_STEP_METERS = 1_000.0
+        private const val MIN_MOVING_SPEED_MS = 1.2f
+        private const val DEFAULT_SPEED_MS = 5.0f
+        private const val MS_TO_KMH = 3.6f
     }
 }

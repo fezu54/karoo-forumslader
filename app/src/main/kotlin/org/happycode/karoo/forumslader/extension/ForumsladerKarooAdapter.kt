@@ -24,9 +24,15 @@ import org.happycode.karoo.forumslader.PreferencesConstants.KEY_AUTO_DISABLE_USB
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_BATTERY_LOW_THRESHOLD
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_HIGH_TEMP_THRESHOLD
 import org.happycode.karoo.forumslader.PreferencesConstants.PREFS_NAME
-import org.happycode.karoo.forumslader.application.BatteryEstimateStore
-import org.happycode.karoo.forumslader.domain.BatteryEstimate
-import org.happycode.karoo.forumslader.domain.BatteryEstimator
+import org.happycode.karoo.forumslader.application.estimation.BatteryEstimateStore
+import org.happycode.karoo.forumslader.application.estimation.RecordRiderProfileUseCase
+import org.happycode.karoo.forumslader.domain.estimation.BatteryEstimate
+import org.happycode.karoo.forumslader.domain.estimation.BatteryEstimator
+import org.happycode.karoo.forumslader.domain.estimation.ClimbSegment
+import org.happycode.karoo.forumslader.domain.estimation.RiderProfileRepository
+import org.happycode.karoo.forumslader.extension.estimation.RoomRiderProfileRepository
+import org.happycode.karoo.forumslader.extension.estimation.SharedPrefsDischargeRateStore
+import org.happycode.karoo.forumslader.framework.persistence.ForumsladerDatabase
 import org.happycode.karoo.forumslader.domain.ChargeState
 import org.happycode.karoo.forumslader.R
 import org.happycode.karoo.forumslader.domain.BatteryLowRule
@@ -59,7 +65,8 @@ class ForumsladerKarooAdapter(
     private val karooSystem: KarooSystemService = KarooSystemService(context.applicationContext),
     private val csvLogger: CsvLogger = CsvLoggerProvider.getInstance(context.filesDir.toPath().resolve("telemetry")),
     private val lightLoadDetector: LightLoadDetector = LightLoadDetector(),
-    batteryEstimator: BatteryEstimator? = null
+    batteryEstimator: BatteryEstimator? = null,
+    riderProfileRepository: RiderProfileRepository? = null
 ) {
     companion object {
         private const val EXTENSION_ID = "karoo-forumslader"
@@ -121,6 +128,9 @@ class ForumsladerKarooAdapter(
         initialDischargeRate = prefsStore.loadInitialRate(),
         dischargeRateStore = prefsStore
     )
+    private val profileRepository: RiderProfileRepository = riderProfileRepository
+        ?: RoomRiderProfileRepository(ForumsladerDatabase.getInstance(context).riderProfileDao())
+    private val recordRiderProfileUseCase = RecordRiderProfileUseCase(profileRepository)
     private var previousLightState: LightLoadState = LightLoadState.IDLE
     
     private var flowCollectionJob: Job? = null
@@ -128,6 +138,9 @@ class ForumsladerKarooAdapter(
 
     private var routeRemainingDistanceMeters: Double? = null
     private var routeRemainingAscentMeters: Double? = null
+    private var currentGradientPct: Float? = null
+    private var totalRouteDistanceMeters: Double? = null
+    private var routeClimbs: List<ClimbSegment> = emptyList()
 
     val device: Device = Device(
         extension = EXTENSION_ID,
@@ -144,12 +157,20 @@ class ForumsladerKarooAdapter(
         currentEmitter = emitter
         karooSystem.connect {}
 
+        adapterScope.launch {
+            batteryEstimator.onRiderProfilesLoaded(profileRepository.findAll())
+        }
+
         consumers += karooSystem.addConsumer(OnStreamState.StartStreaming(DataType.Type.DISTANCE_TO_DESTINATION)) { event: OnStreamState ->
             handleDistanceRemaining(event)
         }
 
         consumers += karooSystem.addConsumer(OnStreamState.StartStreaming(DataType.Type.ELEVATION_REMAINING)) { event: OnStreamState ->
             handleElevationRemaining(event)
+        }
+
+        consumers += karooSystem.addConsumer(OnStreamState.StartStreaming(DataType.Type.ELEVATION_GRADE)) { event: OnStreamState ->
+            handleElevationGrade(event)
         }
 
         consumers += karooSystem.addConsumer { event: OnNavigationState ->
@@ -168,6 +189,10 @@ class ForumsladerKarooAdapter(
             consumers.clear()
             routeRemainingDistanceMeters = null
             routeRemainingAscentMeters = null
+            currentGradientPct = null
+            totalRouteDistanceMeters = null
+            routeClimbs = emptyList()
+            batteryEstimator.onUpcomingClimbs(emptyList())
             protocol.stopParameterRequestLoop()
             parser.resetConfigLoaded()
             lightLoadDetector.reset()
@@ -193,6 +218,10 @@ class ForumsladerKarooAdapter(
                         BatteryEstimateStore.clear()
                         lightLoadDetector.reset()
                         previousLightState = LightLoadState.IDLE
+                        currentGradientPct = null
+                        totalRouteDistanceMeters = null
+                        routeClimbs = emptyList()
+                        batteryEstimator.onUpcomingClimbs(emptyList())
                     }
                 }
             }
@@ -221,6 +250,9 @@ class ForumsladerKarooAdapter(
                             config.lockedMacAddress = address
                         }
                         batteryEstimator.onMetrics(metrics)
+                        recordRiderProfileUseCase.onMetricsAndGradient(metrics, currentGradientPct)?.let { updatedProfile ->
+                            batteryEstimator.onRiderProfileUpdated(updatedProfile)
+                        }
                         BatteryEstimateStore.updateEstimate(batteryEstimator.getEstimate())
                         emitMetrics(em, metrics)
                         evaluateAlerts(metrics)
@@ -240,6 +272,7 @@ class ForumsladerKarooAdapter(
             is StreamState.Streaming -> state.dataPoint.values[DataType.Field.DISTANCE_TO_DESTINATION] ?: state.dataPoint.singleValue
             else -> null
         }
+        updateRemainingClimbs()
         updateRouteEstimate()
     }
 
@@ -251,12 +284,51 @@ class ForumsladerKarooAdapter(
         updateRouteEstimate()
     }
 
-    internal fun handleNavigationState(event: OnNavigationState) {
-        if (event.state is OnNavigationState.NavigationState.Idle) {
-            routeRemainingDistanceMeters = null
-            routeRemainingAscentMeters = null
-            updateRouteEstimate()
+    internal fun handleElevationGrade(event: OnStreamState) {
+        currentGradientPct = when (val state = event.state) {
+            is StreamState.Streaming -> (state.dataPoint.values[DataType.Field.ELEVATION_GRADE]
+                ?: state.dataPoint.values[DataType.Field.SINGLE]
+                ?: state.dataPoint.singleValue)?.toFloat()
+            else -> null
         }
+    }
+
+    internal fun handleNavigationState(event: OnNavigationState) {
+        when (val state = event.state) {
+            is OnNavigationState.NavigationState.NavigatingRoute -> {
+                totalRouteDistanceMeters = state.routeDistance
+                routeClimbs = state.climbs.map { climb ->
+                    ClimbSegment(
+                        startDistanceMeters = climb.startDistance,
+                        lengthMeters = climb.length,
+                        gradientPct = climb.grade.toFloat()
+                    )
+                }
+                updateRemainingClimbs()
+                updateRouteEstimate()
+            }
+            else -> {
+                totalRouteDistanceMeters = null
+                routeClimbs = emptyList()
+                batteryEstimator.onUpcomingClimbs(emptyList())
+                if (state is OnNavigationState.NavigationState.Idle) {
+                    routeRemainingDistanceMeters = null
+                    routeRemainingAscentMeters = null
+                }
+                updateRouteEstimate()
+            }
+        }
+    }
+
+    private fun updateRemainingClimbs() {
+        val remainingClimbs = routeRemainingDistanceMeters?.let { remainingMeters ->
+            totalRouteDistanceMeters?.let { totalMeters ->
+                val distanceAlongRoute = (totalMeters - remainingMeters).coerceAtLeast(0.0)
+                routeClimbs.mapNotNull { it.remainingFrom(distanceAlongRoute) }
+            }
+        } ?: routeClimbs
+
+        batteryEstimator.onUpcomingClimbs(remainingClimbs)
     }
 
     internal fun handleHeadwindStreamState(event: OnStreamState) {

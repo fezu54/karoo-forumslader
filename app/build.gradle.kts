@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.kover)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -56,7 +57,7 @@ kover {
     reports {
         filters {
             excludes {
-                classes("*.BuildConfig", "*.R", "*.R$*")
+                classes("*.BuildConfig", "*.R", "*.R$*", "*_Impl", "*_Impl$*")
             }
         }
     }
@@ -72,6 +73,9 @@ dependencies {
     implementation(libs.bundles.compose.ui)
     implementation(libs.androidx.compose.icons.extended)
     implementation(libs.qrcode.kotlin)
+    implementation(libs.room.runtime)
+    implementation(libs.room.ktx)
+    ksp(libs.room.compiler)
 
     testImplementation(libs.junit4)
     testImplementation(libs.kotest.runner.junit5)

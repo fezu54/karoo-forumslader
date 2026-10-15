@@ -1,8 +1,7 @@
-package org.happycode.karoo.forumslader.domain
+package org.happycode.karoo.forumslader.domain.estimation
 
-/**
- * Represents a prediction of battery range based on current power draw and route context.
- */
+import org.happycode.karoo.forumslader.domain.ChargeState
+
 data class BatteryEstimate(
     val remainingCapacityPct: Int,
     val avgDischargeRatePctPerKm: Float,

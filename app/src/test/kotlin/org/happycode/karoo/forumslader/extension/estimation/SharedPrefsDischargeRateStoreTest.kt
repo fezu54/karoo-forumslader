@@ -1,4 +1,4 @@
-package org.happycode.karoo.forumslader.extension
+package org.happycode.karoo.forumslader.extension.estimation
 
 import android.content.SharedPreferences
 import io.kotest.core.spec.style.ShouldSpec
@@ -6,7 +6,7 @@ import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
-import org.happycode.karoo.forumslader.domain.BatteryEstimator
+import org.happycode.karoo.forumslader.domain.estimation.BatteryEstimator
 
 class SharedPrefsDischargeRateStoreTest : ShouldSpec({
 
