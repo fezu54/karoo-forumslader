@@ -59,6 +59,7 @@ class ForumsladerKarooAdapter(
     private val karooSystem: KarooSystemService = KarooSystemService(context.applicationContext),
     private val csvLogger: CsvLogger = CsvLoggerProvider.getInstance(context.filesDir.toPath().resolve("telemetry")),
     private val lightLoadDetector: LightLoadDetector = LightLoadDetector(),
+    batteryEstimator: BatteryEstimator? = null
 ) {
     companion object {
         private const val EXTENSION_ID = "karoo-forumslader"
@@ -115,7 +116,11 @@ class ForumsladerKarooAdapter(
     )
 
     private val fitRecorder = ForumsladerFitRecorder()
-    private val batteryEstimator = BatteryEstimator()
+    private val prefsStore = SharedPrefsDischargeRateStore(sharedPrefs)
+    private val batteryEstimator = batteryEstimator ?: BatteryEstimator(
+        initialDischargeRate = prefsStore.loadInitialRate(),
+        dischargeRateStore = prefsStore
+    )
     private var previousLightState: LightLoadState = LightLoadState.IDLE
     
     private var flowCollectionJob: Job? = null
