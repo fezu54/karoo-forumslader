@@ -367,38 +367,6 @@ class MainScreenTest {
     }
 
     @Test
-    fun `should display battery range in km when system unit is Metric`() {
-        // given
-        val metrics = mapOf(DataFieldId.BATTERY_RANGE to 50000.0) // 50 km
-
-        // when
-        showMainScreen(
-            sensorState = streamingState,
-            metrics = metrics,
-            userProfile = metricProfile
-        )
-
-        // then
-        composeTestRule.onNodeWithText("50.00 km", substring = true).performScrollTo().assertIsDisplayed()
-    }
-
-    @Test
-    fun `should display battery range in miles when system unit is Imperial`() {
-        // given
-        val metrics = mapOf(DataFieldId.BATTERY_RANGE to 80467.2) // 50 miles
-
-        // when
-        showMainScreen(
-            sensorState = streamingState,
-            metrics = metrics,
-            userProfile = imperialProfile
-        )
-
-        // then
-        composeTestRule.onNodeWithText("50.00 mi", substring = true).performScrollTo().assertIsDisplayed()
-    }
-
-    @Test
     fun `should display consumer current when metric provided`() {
         // given
         val metrics = mapOf(DataFieldId.CONSUMER_CURRENT to 1250.0)

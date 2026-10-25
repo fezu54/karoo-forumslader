@@ -23,10 +23,12 @@ class ForumsladerDataFieldsAdapter(private val context: Context) {
         const val ODOMETER = "fl_odometer"
         const val DAY_DISTANCE = "fl_day_distance"
         const val TOUR_DISTANCE = "fl_tour_distance"
-        const val BATTERY_RANGE = "fl_battery_range"
-        /** High positive sentinel values used for custom status overlays in Karoo data field streams (prevents Karoo displaying negative numbers as 0). */
-        const val BATTERY_RANGE_CHARGING = 200_000_000.0
-        const val BATTERY_RANGE_CALCULATING = 100_000_000.0
+
+        // Subfield keys for multi-field DataPoint (e.g. BATTERY_LEVEL)
+        const val FIELD_BATTERY_LEVEL = "battery_level"
+        const val FIELD_RANGE_KM = "range_km"
+        const val FIELD_CHARGE_STATE = "charge_state"
+        const val FIELD_ROUTE_SUFFICIENT = "route_sufficient"
     }
 
     fun getDataFieldNames(): Map<String, String> = mapOf(
@@ -46,7 +48,6 @@ class ForumsladerDataFieldsAdapter(private val context: Context) {
         DataFieldId.ODOMETER to context.getString(R.string.datafield_odometer),
         DataFieldId.DAY_DISTANCE to context.getString(R.string.datafield_day_distance),
         DataFieldId.TOUR_DISTANCE to context.getString(R.string.datafield_tour_distance),
-        DataFieldId.BATTERY_RANGE to context.getString(R.string.datafield_battery_range),
     )
 
     companion object {

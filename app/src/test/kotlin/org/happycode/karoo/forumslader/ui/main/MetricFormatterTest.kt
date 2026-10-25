@@ -285,63 +285,6 @@ class MetricFormatterTest : ShouldSpec({
         formatted shouldBe "15.50 km"
     }
 
-    should("format battery range in metric") {
-        // given
-        val formatter = createFormatter(isImperialDistance = false)
-
-        // when
-        val formatted = formatter.format(DataFieldId.BATTERY_RANGE, 45000.0)
-
-        // then
-        formatted shouldBe "45.00 km"
-    }
-
-    should("format battery range in imperial") {
-        // given
-        val formatter = createFormatter(isImperialDistance = true)
-
-        // when
-        val formatted = formatter.format(DataFieldId.BATTERY_RANGE, 45000.0)
-
-        // then
-        formatted shouldBe "27.96 mi"
-    }
-
-    should("format battery range as charging when charging sentinel is received") {
-        // given
-        val formatter = createFormatter()
-
-        // when
-        val chargingSentinel = formatter.format(DataFieldId.BATTERY_RANGE, DataFieldId.BATTERY_RANGE_CHARGING)
-        val positiveInfinity = formatter.format(DataFieldId.BATTERY_RANGE, Double.POSITIVE_INFINITY)
-
-        // then
-        chargingSentinel shouldBe "Charging"
-        positiveInfinity shouldBe "Charging"
-    }
-
-    should("format battery range as calculating when calculating sentinel is received") {
-        // given
-        val formatter = createFormatter()
-
-        // when
-        val formatted = formatter.format(DataFieldId.BATTERY_RANGE, DataFieldId.BATTERY_RANGE_CALCULATING)
-
-        // then
-        formatted shouldBe "Calculating…"
-    }
-
-    should("format battery range as not available when invalid negative value is received") {
-        // given
-        val formatter = createFormatter()
-
-        // when
-        val formatted = formatter.format(DataFieldId.BATTERY_RANGE, -99.0)
-
-        // then
-        formatted shouldBe "N/A"
-    }
-
     should("format frequency") {
         // given
         val formatter = createFormatter()

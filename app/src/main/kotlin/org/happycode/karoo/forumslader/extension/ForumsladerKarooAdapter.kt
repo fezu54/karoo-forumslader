@@ -11,9 +11,15 @@ import io.hammerhead.karooext.models.DataPoint
 import io.hammerhead.karooext.models.DataType
 import io.hammerhead.karooext.models.Device
 import io.hammerhead.karooext.models.DeviceEvent
+import io.hammerhead.karooext.models.FitEffect
 import io.hammerhead.karooext.models.InRideAlert
 import io.hammerhead.karooext.models.OnConnectionStatus
 import io.hammerhead.karooext.models.OnDataPoint
+import io.hammerhead.karooext.models.OnNavigationState
+import io.hammerhead.karooext.models.OnStreamState
+import io.hammerhead.karooext.models.RideState
+import io.hammerhead.karooext.models.StreamState
+import io.hammerhead.karooext.models.SystemNotification
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -24,22 +30,18 @@ import org.happycode.karoo.forumslader.PreferencesConstants.KEY_AUTO_DISABLE_USB
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_BATTERY_LOW_THRESHOLD
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_HIGH_TEMP_THRESHOLD
 import org.happycode.karoo.forumslader.PreferencesConstants.PREFS_NAME
+import org.happycode.karoo.forumslader.R
+import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
+import org.happycode.karoo.forumslader.application.CsvLogger
+import org.happycode.karoo.forumslader.application.CsvLoggerProvider
+import org.happycode.karoo.forumslader.application.ForumsladerStateStore
 import org.happycode.karoo.forumslader.application.estimation.BatteryEstimateStore
 import org.happycode.karoo.forumslader.application.estimation.RecordRiderProfileUseCase
-import org.happycode.karoo.forumslader.domain.estimation.BatteryEstimate
-import org.happycode.karoo.forumslader.domain.estimation.BatteryEstimator
-import org.happycode.karoo.forumslader.domain.estimation.ClimbSegment
-import org.happycode.karoo.forumslader.domain.estimation.RiderProfileRepository
-import org.happycode.karoo.forumslader.extension.estimation.RoomRiderProfileRepository
-import org.happycode.karoo.forumslader.extension.estimation.SharedPrefsDischargeRateStore
-import org.happycode.karoo.forumslader.framework.persistence.ForumsladerDatabase
-import org.happycode.karoo.forumslader.domain.ChargeState
-import org.happycode.karoo.forumslader.R
 import org.happycode.karoo.forumslader.domain.BatteryLowRule
 import org.happycode.karoo.forumslader.domain.CommandBus
 import org.happycode.karoo.forumslader.domain.ForumsladerAlert
-import org.happycode.karoo.forumslader.domain.ForumsladerCommand
 import org.happycode.karoo.forumslader.domain.ForumsladerAlertManager
+import org.happycode.karoo.forumslader.domain.ForumsladerCommand
 import org.happycode.karoo.forumslader.domain.ForumsladerMetrics
 import org.happycode.karoo.forumslader.domain.HighTemperatureRule
 import org.happycode.karoo.forumslader.domain.LightLoadDetector
@@ -47,18 +49,15 @@ import org.happycode.karoo.forumslader.domain.LightLoadState
 import org.happycode.karoo.forumslader.domain.RideEnergyAccumulator
 import org.happycode.karoo.forumslader.domain.RideEnergySummary
 import org.happycode.karoo.forumslader.domain.StatusBitmaskRule
+import org.happycode.karoo.forumslader.domain.estimation.BatteryEstimate
+import org.happycode.karoo.forumslader.domain.estimation.BatteryEstimator
+import org.happycode.karoo.forumslader.domain.estimation.ClimbSegment
+import org.happycode.karoo.forumslader.domain.estimation.RiderProfileRepository
+import org.happycode.karoo.forumslader.extension.estimation.RoomRiderProfileRepository
+import org.happycode.karoo.forumslader.extension.estimation.SharedPrefsDischargeRateStore
+import org.happycode.karoo.forumslader.framework.persistence.ForumsladerDatabase
 import org.happycode.karoo.forumslader.model.ForumsladerConfig
 import org.happycode.karoo.forumslader.model.ForumsladerParser
-import io.hammerhead.karooext.models.FitEffect
-import io.hammerhead.karooext.models.OnNavigationState
-import io.hammerhead.karooext.models.OnStreamState
-import io.hammerhead.karooext.models.RideState
-import io.hammerhead.karooext.models.StreamState
-import io.hammerhead.karooext.models.SystemNotification
-import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
-import org.happycode.karoo.forumslader.application.CsvLogger
-import org.happycode.karoo.forumslader.application.CsvLoggerProvider
-import org.happycode.karoo.forumslader.application.ForumsladerStateStore
 
 class ForumsladerKarooAdapter(
     private val context: Context,
@@ -95,13 +94,7 @@ class ForumsladerKarooAdapter(
             "fl_odometer" to { metrics.distance.odometerMeters },
             "fl_day_distance" to { metrics.distance.dayMeters },
             "fl_tour_distance" to { metrics.distance.tourMeters },
-            "fl_battery_level" to { metrics.power.batteryLevelPercentage },
-            DataFieldId.BATTERY_RANGE to {
-                estimate?.estimatedRangeKm?.let { it * 1000.0 } ?: when (metrics.power.chargeState) {
-                    ChargeState.CHARGING, ChargeState.FULL -> DataFieldId.BATTERY_RANGE_CHARGING
-                    else -> DataFieldId.BATTERY_RANGE_CALCULATING
-                }
-            }
+            DataFieldId.BATTERY_LEVEL to { metrics.power.batteryLevelPercentage },
         )
     }
 
@@ -459,25 +452,39 @@ class ForumsladerKarooAdapter(
     }
 
     private fun emitMetrics(emitter: Emitter<DeviceEvent>, metrics: ForumsladerMetrics) {
-        val context = MetricContext(metrics, batteryEstimator.getEstimate())
+        val metricContext = MetricContext(metrics, batteryEstimator.getEstimate())
         METRICS_REGISTRY.asSequence()
             .mapNotNull { (typeId, extract) ->
-                context.extract()?.let { typeId to it }
+                metricContext.extract()?.let { typeId to it }
             }
             .map { (typeId, value) ->
+                val values = if (typeId == DataFieldId.BATTERY_LEVEL) {
+                    buildBatteryDataPointValues(metricContext, value.toDouble())
+                } else {
+                    mapOf(DataType.Field.SINGLE to value.toDouble())
+                }
                 OnDataPoint(
                     dataPoint = DataPoint(
                         dataTypeId = DataType.dataTypeId(
                             extension = EXTENSION_ID,
                             typeId = typeId
                         ),
-                        values = mapOf(DataType.Field.SINGLE to value.toDouble()),
+                        values = values,
                         sourceId = device.uid
                     )
                 )
             }
             .forEach(emitter::onNext)
     }
+
+    private fun buildBatteryDataPointValues(context: MetricContext, batteryLevel: Double): Map<String, Double> =
+        buildMap {
+            put(DataType.Field.SINGLE, batteryLevel)
+            put(DataFieldId.FIELD_BATTERY_LEVEL, batteryLevel)
+            put(DataFieldId.FIELD_CHARGE_STATE, context.metrics.power.chargeState.ordinal.toDouble())
+            context.estimate?.estimatedRangeKm?.let { put(DataFieldId.FIELD_RANGE_KM, it.toDouble()) }
+            context.estimate?.isSufficientForRoute?.let { put(DataFieldId.FIELD_ROUTE_SUFFICIENT, if (it) 1.0 else 0.0) }
+        }
 
     fun setFitEmitter(emitter: Emitter<FitEffect>?) {
         Log.i(TAG, "setFitEmitter() for $address: hasEmitter=${emitter != null}")

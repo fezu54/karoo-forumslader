@@ -73,11 +73,11 @@ class ForumsladerExtensionTest : ShouldSpec({
         bluetoothStateFlow: Flow<Boolean> = flowOf(true),
         scope: CoroutineScope = CoroutineScope(UnconfinedTestDispatcher())
     ): ForumsladerExtension = ForumsladerExtension(
-        adapterFactory = { _, addr, name ->
+        adapterFactory = { _, address, name ->
             adapter.apply {
                 every { device } returns Device(
                     extension = "karoo-forumslader",
-                    uid = "fl-$addr",
+                    uid = "fl-$address",
                     dataTypes = emptyList(),
                     displayName = name ?: "Forumslader"
                 )
@@ -143,7 +143,7 @@ class ForumsladerExtensionTest : ShouldSpec({
         verify { mockAdapter.setFitEmitter(fitEmitter) }
         verify { fitEmitter.setCancellable(any()) }
 
-        // when cancelled
+        // when canceled
         cancelSlot.captured.invoke()
 
         // then
@@ -173,11 +173,11 @@ class ForumsladerExtensionTest : ShouldSpec({
         val types = extension.types
 
         // then
-        types.size shouldBe 17
+        types.size shouldBe 16
         val typeIds = types.map { it.typeId }
         typeIds shouldContain DataFieldId.BATTERY_LEVEL
-        typeIds shouldContain DataFieldId.BATTERY_RANGE
         typeIds shouldContain DataFieldId.SPEED
+        (types.first { it.typeId == DataFieldId.BATTERY_LEVEL } is ForumsladerGraphicalDataType) shouldBe true
     }
 
     should("handle missing permission when start scan is called") {
