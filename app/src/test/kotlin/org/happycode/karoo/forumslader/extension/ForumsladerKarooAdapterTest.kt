@@ -15,8 +15,11 @@ import io.hammerhead.karooext.models.OnConnectionStatus
 import io.hammerhead.karooext.models.OnDataPoint
 import io.hammerhead.karooext.models.OnNavigationState
 import io.hammerhead.karooext.models.OnStreamState
+import io.hammerhead.karooext.models.RideState
 import io.hammerhead.karooext.models.StreamState
+import io.hammerhead.karooext.models.SystemNotification
 import io.hammerhead.karooext.models.WriteToRecordMesg
+import io.hammerhead.karooext.models.WriteToSessionMesg
 import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.doubles.plusOrMinus
@@ -48,6 +51,7 @@ import org.happycode.karoo.forumslader.application.estimation.BatteryEstimateSto
 import org.happycode.karoo.forumslader.domain.CommandBus
 import org.happycode.karoo.forumslader.domain.ForumsladerCommand
 import org.happycode.karoo.forumslader.domain.LightLoadDetector
+import org.happycode.karoo.forumslader.domain.RideEnergyAccumulator
 import org.happycode.karoo.forumslader.domain.estimation.BatteryEstimator
 import org.happycode.karoo.forumslader.domain.estimation.ClimbSegment
 import org.happycode.karoo.forumslader.domain.estimation.RiderProfileRepository
@@ -79,7 +83,8 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
         scope: CoroutineScope = testScope,
         lightLoadDetector: LightLoadDetector = LightLoadDetector(),
         batteryEstimator: BatteryEstimator? = null,
-        riderProfileRepository: RiderProfileRepository? = mockk(relaxed = true)
+        riderProfileRepository: RiderProfileRepository? = mockk(relaxed = true),
+        rideEnergyAccumulator: RideEnergyAccumulator = RideEnergyAccumulator()
     ) = ForumsladerKarooAdapter(
         context,
         address,
@@ -90,7 +95,8 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
         csvLogger,
         lightLoadDetector,
         batteryEstimator,
-        riderProfileRepository
+        riderProfileRepository,
+        rideEnergyAccumulator
     )
 
     beforeEach {
@@ -944,6 +950,65 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
 
             // and when not streaming
             forumslader.handleElevationGrade(OnStreamState(StreamState.NotAvailable))
+        }
+    }
+
+    should("emit session summary to FIT and dispatch system notification when ride completes") {
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            var currentTimeMs = 1000L
+            val accumulator = RideEnergyAccumulator(timeProvider = { currentTimeMs })
+            val fitEmitter = mockk<Emitter<FitEffect>>(relaxed = true)
+            val forumslader = createAdapter(
+                scope = backgroundScope,
+                rideEnergyAccumulator = accumulator
+            )
+            forumslader.setFitEmitter(fitEmitter)
+            forumslader.connect(emitter)
+
+            // when - ride starts recording
+            forumslader.handleRideState(RideState.Recording)
+
+            val flb = $$"$FLB,255,0,1005\n"
+            val flc1 = $$"$FLC,5,0,75\n"
+            val fl5 = $$"$FL5,200,3,100,500,500,500,2500,3500,0,0,0,0,1000\n"
+            incomingDataFlow.emit((flb + flc1 + fl5).toByteArray(Charsets.US_ASCII))
+
+            currentTimeMs = 61_000L
+            val flc2 = $$"$FLC,5,0,85\n"
+            incomingDataFlow.emit((flb + flc2 + fl5).toByteArray(Charsets.US_ASCII))
+
+            // when - ride pauses and then finishes (Idle)
+            forumslader.handleRideState(RideState.Paused(auto = false))
+            forumslader.handleRideState(RideState.Idle)
+
+            // then
+            verify(atLeast = 1) { fitEmitter.onNext(any<WriteToSessionMesg>()) }
+            verify(exactly = 1) {
+                karooSystem.dispatch(match {
+                    it is SystemNotification && it.id == "fl_ride_summary"
+                })
+            }
+            accumulator.toSummary().hasData shouldBe false
+        }
+    }
+
+    should("not dispatch ride summary notification when ride ends without telemetry data") {
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            val forumslader = createAdapter(scope = backgroundScope)
+            forumslader.connect(emitter)
+
+            // when
+            forumslader.handleRideState(RideState.Recording)
+            forumslader.handleRideState(RideState.Idle)
+
+            // then
+            verify(exactly = 0) {
+                karooSystem.dispatch(match {
+                    it is SystemNotification && it.id == "fl_ride_summary"
+                })
+            }
         }
     }
 })
