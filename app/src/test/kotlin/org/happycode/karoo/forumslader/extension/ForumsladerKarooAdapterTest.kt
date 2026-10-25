@@ -259,8 +259,7 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
                 expectedType("fl_odometer") to expectedDist,
                 expectedType("fl_day_distance") to expectedDist,
                 expectedType("fl_tour_distance") to expectedDist,
-                expectedType("fl_battery_level") to 85.0,
-                expectedType(DataFieldId.BATTERY_RANGE) to DataFieldId.BATTERY_RANGE_CHARGING
+                expectedType("fl_battery_level") to 85.0
             )
 
             expected.forEach { (fullId, expectedValue) ->
@@ -316,11 +315,11 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
             incomingDataFlow.emit((flc + fl6).toByteArray(Charsets.US_ASCII))
 
             // then
-            val rangePoint = capturedEvents.filterIsInstance<OnDataPoint>()
-                .firstOrNull { it.dataPoint.dataTypeId == DataType.dataTypeId("karoo-forumslader", DataFieldId.BATTERY_RANGE) }
+            val batteryPoint = capturedEvents.filterIsInstance<OnDataPoint>()
+                .firstOrNull { it.dataPoint.dataTypeId == DataType.dataTypeId("karoo-forumslader", DataFieldId.BATTERY_LEVEL) }
 
-            rangePoint.shouldNotBeNull()
-            rangePoint.dataPoint.values[DataType.Field.SINGLE] shouldBe DataFieldId.BATTERY_RANGE_CALCULATING
+            batteryPoint.shouldNotBeNull()
+            batteryPoint.dataPoint.values[DataFieldId.FIELD_RANGE_KM] shouldBe null
         }
     }
 
@@ -340,11 +339,11 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
             incomingDataFlow.emit((flc + fl6).toByteArray(Charsets.US_ASCII))
 
             // then
-            val rangePoint = capturedEvents.filterIsInstance<OnDataPoint>()
-                .firstOrNull { it.dataPoint.dataTypeId == DataType.dataTypeId("karoo-forumslader", DataFieldId.BATTERY_RANGE) }
+            val batteryPoint = capturedEvents.filterIsInstance<OnDataPoint>()
+                .firstOrNull { it.dataPoint.dataTypeId == DataType.dataTypeId("karoo-forumslader", DataFieldId.BATTERY_LEVEL) }
 
-            rangePoint.shouldNotBeNull()
-            rangePoint.dataPoint.values[DataType.Field.SINGLE] shouldBe 80000.0
+            batteryPoint.shouldNotBeNull()
+            batteryPoint.dataPoint.values[DataFieldId.FIELD_RANGE_KM] shouldBe 80.0
         }
     }
 
@@ -378,12 +377,12 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
             val fld4 = $$"$FLD,19,,0,50,12.0,-0.5,0.5,-,7,0,0,0,0,2.1\n"
             incomingDataFlow.emit((flc4 + fld4).toByteArray(Charsets.US_ASCII))
 
-            // then battery range emits range based on lastDischargeRate in meters (98 / 5.0 * 1000 = 19600m)
-            val rangePoint = capturedEvents.filterIsInstance<OnDataPoint>()
-                .firstOrNull { it.dataPoint.dataTypeId == DataType.dataTypeId("karoo-forumslader", DataFieldId.BATTERY_RANGE) }
+            // then battery range emits range based on lastDischargeRate in km (98 / 5.0 = 19.6km)
+            val batteryPoint = capturedEvents.filterIsInstance<OnDataPoint>()
+                .firstOrNull { it.dataPoint.dataTypeId == DataType.dataTypeId("karoo-forumslader", DataFieldId.BATTERY_LEVEL) }
 
-            rangePoint.shouldNotBeNull()
-            rangePoint.dataPoint.values[DataType.Field.SINGLE] shouldBe (19600.0 plusOrMinus 1.0)
+            batteryPoint.shouldNotBeNull()
+            batteryPoint.dataPoint.values[DataFieldId.FIELD_RANGE_KM].shouldNotBeNull() shouldBe (19.6 plusOrMinus 0.1)
         }
     }
 
@@ -743,12 +742,12 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
             val fld3 = $$"$FLD,19,,0,50,12.0,1.5,0.5,+,7,0,0,0,0,2.0\n"
             incomingDataFlow.emit((flc3 + fld3).toByteArray(Charsets.US_ASCII))
 
-            // then: battery range emits estimated range in meters (96 / 5.0 * 1000 = 19200m) instead of sentinel
-            val rangePoint = capturedEvents.filterIsInstance<OnDataPoint>()
-                .firstOrNull { it.dataPoint.dataTypeId == DataType.dataTypeId("karoo-forumslader", DataFieldId.BATTERY_RANGE) }
+            // then: battery range emits estimated range in km (96 / 5.0 = 19.2km)
+            val batteryPoint = capturedEvents.filterIsInstance<OnDataPoint>()
+                .firstOrNull { it.dataPoint.dataTypeId == DataType.dataTypeId("karoo-forumslader", DataFieldId.BATTERY_LEVEL) }
 
-            rangePoint.shouldNotBeNull()
-            rangePoint.dataPoint.values[DataType.Field.SINGLE] shouldBe (19200.0 plusOrMinus 1.0)
+            batteryPoint.shouldNotBeNull()
+            batteryPoint.dataPoint.values[DataFieldId.FIELD_RANGE_KM].shouldNotBeNull() shouldBe (19.2 plusOrMinus 0.1)
         }
     }
 
@@ -781,12 +780,12 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
             val fld4 = $$"$FLD,19,,0,50,12.0,-0.5,0.5,-,7,0,0,0,0,2.05\n"
             incomingDataFlow.emit((flc4 + fld4).toByteArray(Charsets.US_ASCII))
 
-            // then: emits estimated range using lastDischargeRate (55 / 5.0 * 1000 = 11000m)
-            val rangePoint = capturedEvents.filterIsInstance<OnDataPoint>()
-                .firstOrNull { it.dataPoint.dataTypeId == DataType.dataTypeId("karoo-forumslader", DataFieldId.BATTERY_RANGE) }
+            // then: emits estimated range using lastDischargeRate (55 / 5.0 = 11.0km)
+            val batteryPoint = capturedEvents.filterIsInstance<OnDataPoint>()
+                .firstOrNull { it.dataPoint.dataTypeId == DataType.dataTypeId("karoo-forumslader", DataFieldId.BATTERY_LEVEL) }
 
-            rangePoint.shouldNotBeNull()
-            rangePoint.dataPoint.values[DataType.Field.SINGLE] shouldBe (11000.0 plusOrMinus 1.0)
+            batteryPoint.shouldNotBeNull()
+            batteryPoint.dataPoint.values[DataFieldId.FIELD_RANGE_KM].shouldNotBeNull() shouldBe (11.0 plusOrMinus 0.1)
         }
     }
 

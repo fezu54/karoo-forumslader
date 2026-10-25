@@ -4,8 +4,8 @@
     <string name="extension_name">Karoo Forumslader</string>
     
     <!-- Datafield names -->
-    <string name="datafield_battery_level">Battery Level</string>
-    <string name="datafield_battery_level_desc">Forumslader battery level in percentage</string>
+    <string name="datafield_battery_level">Battery &amp; Range</string>
+    <string name="datafield_battery_level_desc">Forumslader battery level and estimated range</string>
     <string name="datafield_battery_voltage">Battery Voltage</string>
     <string name="datafield_battery_voltage_desc">Forumslader total battery voltage in Volts</string>
     <string name="datafield_battery_current">Battery Current (mA)</string>
@@ -36,8 +36,10 @@
     <string name="datafield_day_distance_desc">Distance traveled today in km</string>
     <string name="datafield_tour_distance">Tour Distance</string>
     <string name="datafield_tour_distance_desc">Distance traveled during tour in km</string>
-    <string name="datafield_battery_range">Battery Range</string>
-    <string name="datafield_battery_range_desc">Estimated remaining battery range based on current discharge rate</string>
+    <string name="unit_km">km</string>
+    <string name="unit_mi">mi</string>
+    <string name="battery_range_calc_short">Calc…</string>
+     <string name="percentage_character">%</string>
 
     <string name="battery_range_estimate_title">Battery Range Estimate</string>
     <string name="battery_range_calculating">Calculating…</string>

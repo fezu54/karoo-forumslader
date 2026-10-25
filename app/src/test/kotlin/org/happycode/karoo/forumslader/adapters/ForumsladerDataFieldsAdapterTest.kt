@@ -154,8 +154,7 @@ class ForumsladerDataFieldsAdapterTest : ShouldSpec({
             DataFieldId.DYNAMO_POWER to R.string.datafield_dynamo_power,
             DataFieldId.ODOMETER to R.string.datafield_odometer,
             DataFieldId.DAY_DISTANCE to R.string.datafield_day_distance,
-            DataFieldId.TOUR_DISTANCE to R.string.datafield_tour_distance,
-            DataFieldId.BATTERY_RANGE to R.string.datafield_battery_range
+            DataFieldId.TOUR_DISTANCE to R.string.datafield_tour_distance
         )
 
         idToRes.forEach { (id, resId) ->

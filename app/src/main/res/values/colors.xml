@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="karoo_text_primary">#FF000000</color>
+    <color name="karoo_text_secondary">#FF555555</color>
+    <color name="karoo_divider">#FFCCCCCC</color>
+    <color name="karoo_battery_good">#FF1B5E20</color>
+    <color name="karoo_battery_medium">#FFE65100</color>
+    <color name="karoo_battery_low">#FFC62828</color>
+    <color name="karoo_status_ok">#FF1B5E20</color>
+    <color name="karoo_status_warn">#FFC62828</color>
+</resources>

@@ -173,8 +173,7 @@ fun MainScreen(sharedUri: Uri? = null) {
             DataFieldId.DYNAMO_POWER,
             DataFieldId.ODOMETER,
             DataFieldId.DAY_DISTANCE,
-            DataFieldId.TOUR_DISTANCE,
-            DataFieldId.BATTERY_RANGE
+            DataFieldId.TOUR_DISTANCE
         )
 
         val listeners = mutableListOf<String>()

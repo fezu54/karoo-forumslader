@@ -40,8 +40,8 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentMap
 
 class ForumsladerExtension(
-    private val adapterFactory: (Context, String, String?) -> ForumsladerKarooAdapter = { ctx, addr, name ->
-        ForumsladerKarooAdapter(context = ctx, address = addr, displayName = name)
+    private val adapterFactory: (Context, String, String?) -> ForumsladerKarooAdapter = { ctx, address, name ->
+        ForumsladerKarooAdapter(context = ctx, address = address, displayName = name)
     },
     private val defaultScope: CoroutineScope = CoroutineScope(Dispatchers.Main),
     private val scanSettingsFactory: () -> ScanSettings = {
@@ -76,11 +76,7 @@ class ForumsladerExtension(
 
     override val types: List<DataTypeImpl> by lazy {
         listOf(
-            ForumsladerDataType(
-                extension,
-                DataFieldId.BATTERY_LEVEL,
-                DataType.Type.BATTERY_PERCENT
-            ),
+            ForumsladerGraphicalDataType(extension, DataFieldId.BATTERY_LEVEL),
             ForumsladerDataType(extension, DataFieldId.BATTERY_VOLTAGE),
             ForumsladerDataType(extension, DataFieldId.BATTERY_CURRENT),
             ForumsladerDataType(extension, DataFieldId.CONSUMER_CURRENT),
@@ -96,7 +92,6 @@ class ForumsladerExtension(
             ForumsladerDataType(extension, DataFieldId.ODOMETER, DataType.Type.DISTANCE),
             ForumsladerDataType(extension, DataFieldId.DAY_DISTANCE, DataType.Type.DISTANCE),
             ForumsladerDataType(extension, DataFieldId.TOUR_DISTANCE, DataType.Type.DISTANCE),
-            ForumsladerDataType(extension, DataFieldId.BATTERY_RANGE, DataType.Type.DISTANCE),
         )
     }
 

@@ -4,8 +4,8 @@
     <string name="extension_name">Karoo Forumslader</string>
     
     <!-- Datafield names -->
-    <string name="datafield_battery_level">Batterieladestand</string>
-    <string name="datafield_battery_level_desc">Forumslader Batterieladestand in Prozent</string>
+    <string name="datafield_battery_level">Akku &amp; Reichweite</string>
+    <string name="datafield_battery_level_desc">Forumslader Batterieladestand und geschätzte Reichweite</string>
     <string name="datafield_battery_voltage">Batteriespannung</string>
     <string name="datafield_battery_voltage_desc">Forumslader Gesamtbatteriespannung in Volt</string>
     <string name="datafield_battery_current">Batteriestrom (mA)</string>
@@ -36,8 +36,11 @@
     <string name="datafield_day_distance_desc">Heute zurückgelegte Strecke in km</string>
     <string name="datafield_tour_distance">Tourenstrecke</string>
     <string name="datafield_tour_distance_desc">Während der Tour zurückgelegte Strecke in km</string>
-    <string name="datafield_battery_range">Akkureichweite</string>
-    <string name="datafield_battery_range_desc">Geschätzte verbleibende Akkureichweite basierend auf aktueller Entladung</string>
+    <string name="unit_km">km</string>
+    <string name="unit_mi">mi</string>
+    <string name="battery_range_calc_short">Berechne…</string>
+    <string name="percentage_character">%</string>
+
 
     <string name="battery_range_estimate_title">Geschätzte Akkureichweite</string>
     <string name="battery_range_calculating">Berechne…</string>

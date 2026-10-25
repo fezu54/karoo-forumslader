@@ -12,16 +12,11 @@ import io.hammerhead.karooext.models.ViewConfig
 import org.happycode.karoo.forumslader.R
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
 
-internal val HideCustomStreamState = ShowCustomStreamState(message = null, color = null)
-
 class ForumsladerDataType(
     extension: String,
     typeId: String,
     private val formatDataTypeId: String? = null
 ) : DataTypeImpl(extension, typeId) {
-
-    internal var activeCustomState: String? = null
-        private set
 
     internal var viewEmitter: ViewEmitter? = null
         private set
@@ -38,17 +33,9 @@ class ForumsladerDataType(
             emitter.onNext(UpdateNumericConfig(formatId))
         }
 
-        if (typeId == DataFieldId.BATTERY_RANGE) {
-            val initialState = activeCustomState?.let { ShowCustomStreamState(it, null) } ?: HideCustomStreamState
-            emitter.onNext(initialState)
-        }
-
         when (typeId) {
             DataFieldId.CHARGE_STATE -> setupStreamConsumer(context, emitter) { event ->
                 handleStreamState(event, emitter, context)
-            }
-            DataFieldId.BATTERY_RANGE -> setupStreamConsumer(context, emitter) { event ->
-                handleBatteryRangeStreamState(event, emitter, context)
             }
             else -> emitter.setCancellable {
                 if (viewEmitter == emitter) {
@@ -69,57 +56,9 @@ class ForumsladerDataType(
                     3 -> context.getString(R.string.charge_state_full)
                     else -> "---"
                 }
-                emitter.onNext(ShowCustomStreamState(stateStr, null))
+                emitter.onNext(ShowCustomStreamState(stateStr, color = null))
             }
         }
-    }
-
-    internal fun handleBatteryRangeStreamState(
-        event: OnStreamState,
-        emitter: ViewEmitter? = viewEmitter,
-        context: Context? = viewContext
-    ) {
-        val targetEmitter = emitter ?: viewEmitter
-        val ctx = context ?: viewContext
-        when (val state = event.state) {
-            is StreamState.Streaming -> handleBatteryRangeValue(state.dataPoint.singleValue, targetEmitter, ctx)
-            is StreamState.NotAvailable -> handleStatusState(
-                ctx?.getString(R.string.status_not_available) ?: "N/A",
-                targetEmitter
-            )
-            is StreamState.Searching -> handleStatusState(
-                ctx?.getString(R.string.status_searching) ?: "Searching",
-                targetEmitter
-            )
-            is StreamState.Idle -> Unit
-        }
-    }
-
-    private fun handleStatusState(
-        stateStr: String,
-        emitter: ViewEmitter?
-    ) {
-        activeCustomState = stateStr
-        emitter?.onNext(ShowCustomStreamState(stateStr, null))
-    }
-
-    private fun handleBatteryRangeValue(
-        value: Double?,
-        emitter: ViewEmitter?,
-        context: Context?
-    ) {
-        val stateStr = resolveRangeStateString(value, context)
-        activeCustomState = stateStr
-        emitter?.onNext(stateStr?.let { ShowCustomStreamState(it, null) } ?: HideCustomStreamState)
-    }
-
-    private fun resolveRangeStateString(value: Double?, context: Context?): String? = when {
-        value == null || value == DataFieldId.BATTERY_RANGE_CALCULATING ->
-            context?.getString(R.string.battery_range_calculating) ?: "Calculating…"
-        value == DataFieldId.BATTERY_RANGE_CHARGING || value.isInfinite() ->
-            context?.getString(R.string.charge_state_charging) ?: "Charging"
-        value in 0.0..<DataFieldId.BATTERY_RANGE_CALCULATING -> null
-        else -> context?.getString(R.string.status_not_available) ?: "N/A"
     }
 
     private fun setupStreamConsumer(
@@ -152,8 +91,8 @@ class ForumsladerDataType(
     ) {
         when (val state = event.state) {
             is StreamState.Streaming -> onStreaming(state)
-            is StreamState.NotAvailable -> onNext(ShowCustomStreamState(context.getString(R.string.status_not_available), null))
-            is StreamState.Searching -> onNext(ShowCustomStreamState(context.getString(R.string.status_searching), null))
+            is StreamState.NotAvailable -> onNext(ShowCustomStreamState(context.getString(R.string.status_not_available), color = null))
+            is StreamState.Searching -> onNext(ShowCustomStreamState(context.getString(R.string.status_searching), color = null))
             is StreamState.Idle -> Unit
         }
     }
