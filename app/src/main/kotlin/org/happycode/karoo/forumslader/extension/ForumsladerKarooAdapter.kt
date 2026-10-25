@@ -44,13 +44,17 @@ import org.happycode.karoo.forumslader.domain.ForumsladerMetrics
 import org.happycode.karoo.forumslader.domain.HighTemperatureRule
 import org.happycode.karoo.forumslader.domain.LightLoadDetector
 import org.happycode.karoo.forumslader.domain.LightLoadState
+import org.happycode.karoo.forumslader.domain.RideEnergyAccumulator
+import org.happycode.karoo.forumslader.domain.RideEnergySummary
 import org.happycode.karoo.forumslader.domain.StatusBitmaskRule
 import org.happycode.karoo.forumslader.model.ForumsladerConfig
 import org.happycode.karoo.forumslader.model.ForumsladerParser
 import io.hammerhead.karooext.models.FitEffect
 import io.hammerhead.karooext.models.OnNavigationState
 import io.hammerhead.karooext.models.OnStreamState
+import io.hammerhead.karooext.models.RideState
 import io.hammerhead.karooext.models.StreamState
+import io.hammerhead.karooext.models.SystemNotification
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
 import org.happycode.karoo.forumslader.application.CsvLogger
 import org.happycode.karoo.forumslader.application.CsvLoggerProvider
@@ -66,11 +70,14 @@ class ForumsladerKarooAdapter(
     private val csvLogger: CsvLogger = CsvLoggerProvider.getInstance(context.filesDir.toPath().resolve("telemetry")),
     private val lightLoadDetector: LightLoadDetector = LightLoadDetector(),
     batteryEstimator: BatteryEstimator? = null,
-    riderProfileRepository: RiderProfileRepository? = null
+    riderProfileRepository: RiderProfileRepository? = null,
+    private val rideEnergyAccumulator: RideEnergyAccumulator = RideEnergyAccumulator()
 ) {
     companion object {
         private const val EXTENSION_ID = "karoo-forumslader"
         private const val TAG = "FL_ADAPTER"
+        private const val RIDE_SUMMARY_NOTIFICATION_ID = "fl_ride_summary"
+        private const val SECONDS_PER_MINUTE = 60L
 
         private val METRICS_REGISTRY = listOf<Pair<String, MetricContext.() -> Number?>>(
             "fl_battery_voltage" to { metrics.power.batteryVoltage },
@@ -132,6 +139,7 @@ class ForumsladerKarooAdapter(
         ?: RoomRiderProfileRepository(ForumsladerDatabase.getInstance(context).riderProfileDao())
     private val recordRiderProfileUseCase = RecordRiderProfileUseCase(profileRepository)
     private var previousLightState: LightLoadState = LightLoadState.IDLE
+    private var previousRideState: RideState = RideState.Idle
     
     private var flowCollectionJob: Job? = null
     private val consumers = mutableListOf<String>()
@@ -181,6 +189,10 @@ class ForumsladerKarooAdapter(
             handleHeadwindStreamState(event)
         }
 
+        consumers += karooSystem.addConsumer { rideState: RideState ->
+            handleRideState(rideState)
+        }
+
         emitter.setCancellable {
             Log.i(TAG, "Cancelling connection / tearing down adapter for $address")
             currentEmitter = null
@@ -196,7 +208,9 @@ class ForumsladerKarooAdapter(
             protocol.stopParameterRequestLoop()
             parser.resetConfigLoaded()
             lightLoadDetector.reset()
+            rideEnergyAccumulator.reset()
             previousLightState = LightLoadState.IDLE
+            previousRideState = RideState.Idle
             bleManager.stop()
             karooSystem.disconnect()
             BatteryEstimateStore.clear()
@@ -257,6 +271,7 @@ class ForumsladerKarooAdapter(
                         emitMetrics(em, metrics)
                         evaluateAlerts(metrics)
                         evaluateLightLoad(metrics)
+                        rideEnergyAccumulator.onMetrics(metrics)
                         fitRecorder.onMetricsReceived(metrics)
                         csvLogger.logTelemetry(metrics)
                     }
@@ -345,6 +360,56 @@ class ForumsladerKarooAdapter(
     private fun updateRouteEstimate() {
         batteryEstimator.onRouteRemaining(routeRemainingDistanceMeters, routeRemainingAscentMeters)
         BatteryEstimateStore.updateEstimate(batteryEstimator.getEstimate())
+    }
+
+    internal fun handleRideState(rideState: RideState) {
+        when (rideState) {
+            is RideState.Recording -> when (previousRideState) {
+                is RideState.Idle -> {
+                    rideEnergyAccumulator.reset()
+                    rideEnergyAccumulator.onRideStart()
+                }
+                is RideState.Paused -> rideEnergyAccumulator.onRideResume()
+                is RideState.Recording -> Unit
+            }
+            is RideState.Paused -> {
+                rideEnergyAccumulator.onRidePause()
+                fitRecorder.writeSessionSummary(rideEnergyAccumulator.toSummary())
+            }
+            is RideState.Idle -> when (previousRideState) {
+                is RideState.Recording, is RideState.Paused -> {
+                    rideEnergyAccumulator.toSummary().takeIf { it.hasData }?.let { summary ->
+                        fitRecorder.writeSessionSummary(summary)
+                        dispatchRideSummaryNotification(summary)
+                    }
+                    rideEnergyAccumulator.reset()
+                }
+                is RideState.Idle -> Unit
+            }
+        }
+        previousRideState = rideState
+    }
+
+    private fun dispatchRideSummaryNotification(summary: RideEnergySummary) {
+        val chargingMinutes = (summary.chargingTimeSec + (SECONDS_PER_MINUTE / 2L)) / SECONDS_PER_MINUTE
+        val subText = summary.netBatteryChangePct?.let { delta ->
+            context.getString(R.string.ride_summary_notification_subtext_with_battery, chargingMinutes, delta)
+        } ?: context.getString(R.string.ride_summary_notification_subtext_no_battery, chargingMinutes)
+
+        karooSystem.dispatch(
+            SystemNotification(
+                id = RIDE_SUMMARY_NOTIFICATION_ID,
+                header = context.getString(R.string.ride_summary_notification_header),
+                message = context.getString(
+                    R.string.ride_summary_notification_message,
+                    summary.totalEnergyWh,
+                    summary.avgPowerW,
+                    summary.peakPowerW
+                ),
+                subText = subText,
+                style = SystemNotification.Style.EVENT
+            )
+        )
     }
 
     private fun evaluateAlerts(metrics: ForumsladerMetrics) {

@@ -124,4 +124,10 @@
 
     <string name="action_reset_metric">Reset %1$s</string>
     <string name="telemetry_rows_format">%1$d rows (%2$s)</string>
+
+    <!-- Ride Energy Summary Notification -->
+    <string name="ride_summary_notification_header">Forumslader Ride Summary</string>
+    <string name="ride_summary_notification_message">%1$.1f Wh • Avg %2$.1f W (Peak %3$.1f W)</string>
+    <string name="ride_summary_notification_subtext_with_battery">Charging %1$dm • Battery %2$+d%%</string>
+    <string name="ride_summary_notification_subtext_no_battery">Charging %1$dm</string>
 </resources>
