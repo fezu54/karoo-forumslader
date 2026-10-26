@@ -1,38 +1,205 @@
 # Karoo Forumslader Extension
 
-This project is a [Hammerhead Karoo](https://www.hammerhead.io/) extension that integrates the **Forumslader** (a versatile bike dynamo charger and battery system) into your Karoo cycling computer.
+An advanced [Hammerhead Karoo](https://shop.sram.com/pages/hammerhead) extension that seamlessly connects your [Forumslader](https://www.forumslader.de) to your Karoo 2 or Karoo 3 cycling computer.
 
-## Purpose
+Designed for bike-packers, tourers, and endurance cyclists, this extension goes far beyond basic battery monitoring. It provides real-time telemetry across 16 data fields, predictive climb-aware battery range estimation, automated power controls, native safety alerts, FIT activity recording, and wireless diagnostics.
 
-The extension allows Karoo users to monitor real-time data from their Forumslader device directly on their head unit. It handles device discovery, establishes a secure Bluetooth Low Energy (BLE) connection, and streams live sensor data.
+---
 
-## Key Features
+## Table of Contents
 
-- **Device Discovery**: Seamlessly scan and connect to your Forumslader device within the Karoo sensors menu.
-- **Real-time Data Streaming**:
-    - **Battery Level (%)**: Monitor the current charge state of your Forumslader battery.
-    - **Speed (km/h)**: View accurate speed data derived directly from the dynamo.
-    - **Voltage (V)**: Keep an eye on the system voltage for health monitoring.
-- **Background Operation**: The extension runs as a background service, ensuring data is available even when the main companion app is not in the foreground.
+- [Features](#features)
+  - [Graphical Battery & Range Display](#graphical-battery--range-display)
+  - [Supported Data Fields](#supported-data-fields)
+  - [Intelligent Climb-Aware Range Estimation](#intelligent-climb-aware-range-estimation)
+  - [Automated Light & Power Management](#automated-light--power-management)
+  - [In-Ride Safety Alerts](#in-ride-safety-alerts)
+  - [FIT Activity Recording & Ride Summaries](#fit-activity-recording--ride-summaries)
+  - [Diagnostics & Wireless Log Export](#diagnostics--wireless-log-export)
+- [Configuration Guide](#configuration-guide)
+  - [Wheel Size & Dynamo Pole Overrides](#wheel-size--dynamo-pole-overrides)
+  - [Safety Alert Thresholds](#safety-alert-thresholds)
+  - [Auto-Disable USB on 12V Headlight Draw](#auto-disable-usb-on-12v-headlight-draw)
+  - [BLE Device Lock (Fast Reconnection)](#ble-device-lock-fast-reconnection)
+- [Getting Started](#getting-started)
+  - [Requirements](#requirements)
+  - [Installation & Setup](#installation--setup)
+- [Architecture & Tech Stack](#architecture--tech-stack)
+- [Acknowledgments & Credits](#acknowledgments--credits)
 
-## Architecture
+---
 
-Following the project's [Agents Guidelines](AGENTS.md), the codebase is organized using a clean architecture approach:
-- **Domain**: Pure Kotlin logic for parsing the Forumslader data protocol.
-- **Adapters/Framework**: BLE connection management and integration with the Hammerhead Karoo SDK.
+## Features
 
-## Requirements
+### Graphical Battery & Range Display
 
-- Hammerhead Karoo (Karoo 2 or Karoo 3)
-- Forumslader with Bluetooth (BLE) support
-- Android 8.0 (API 26) or higher (as per Karoo SDK)
+The extension features a custom graphical RemoteViews data field (`Battery & Range`) optimized for both full-size and compact Karoo grid layouts:
 
-## Acknowledgments
+- **Battery State with Color Thresholds**: Dynamic color coding (green for healthy, orange for medium, red when below your configured low-battery threshold).
+- **Charging Indicator**: Displays `⚡%` when the dynamo actively charges the internal battery.
+- **Estimated Remaining Range**: Real-time remaining distance in kilometers (`km`) or miles (`mi`) based on dynamic discharge rates.
+- **Route Sufficiency Indicator**: Shows `✓` when remaining battery capacity is sufficient for your active navigation route, or `!` when the battery is projected to run out before reaching your destination.
 
-This project is heavily influenced by and takes inspiration from [cyberman54/Forumslader-Companion](https://github.com/cyberman54/Forumslader-Companion). I'm grateful for the excellent work on the Forumslader communication protocol implementation, which served as a blueprint for my Bluetooth Low Energy communication approach in this extension. Special thanks for paving the way!
+### Supported Data Fields
 
-## Links
+Add any of these 16 dedicated Forumslader data fields directly to your Karoo ride profiles:
 
-- [Hammerhead Karoo SDK Documentation](https://hammerheadnav.github.io/karoo-ext/index.html)
-- [Forumslader Official Website](http://www.forumslader.de/)
-- [Forumslader-Companion (Inspiration)](https://github.com/cyberman54/Forumslader-Companion)
+| Data Field | Unit | Identifier | Description |
+| :--- | :--- | :--- | :--- |
+| **Battery & Range** | `%` / `km` (`mi`) | `fl_battery_level` | Dual graphical field: battery level + estimated remaining range & route sufficiency |
+| **Charge State** | Text | `fl_charge_state` | Human-readable charging state: *Standby*, *Charging*, *Discharging*, *Full* |
+| **Dynamo Power** | `W` | `fl_dynamo_power` | Real-time electrical power generated by the dynamo hub |
+| **Battery Voltage** | `V` | `fl_battery_voltage` | Total internal battery pack voltage |
+| **Battery Current** | `mA` | `fl_battery_current` | Net current flowing into (charge) or out of (discharge) the battery |
+| **Consumer Current** | `mA` | `fl_consumer_current` | Current drawn by USB consumers (phone, GPS, external devices) |
+| **Speed** | `km/h` / `mph` | `fl_speed` | High-precision speed derived directly from dynamo frequency and wheel circumference |
+| **Trip Distance** | `km` / `mi` | `fl_trip_distance` | Distance traveled during the current trip |
+| **Day Distance** | `km` / `mi` | `fl_day_distance` | Daily distance counter (resettable from companion app) |
+| **Tour Distance** | `km` / `mi` | `fl_tour_distance` | Multi-day tour distance counter (resettable from companion app) |
+| **Odometer** | `km` / `mi` | `fl_odometer` | Total lifetime distance recorded by the Forumslader |
+| **Trip Energy** | `Wh` | `fl_trip_energy` | Total energy delivered during the trip in Watt-hours |
+| **Tour Energy** | `Wh` | `fl_tour_energy` | Total energy delivered during the multi-day tour in Watt-hours |
+| **Internal Temperature** | `°C` / `°F` | `fl_temperature` | Internal electronics temperature of the Forumslader |
+| **Dynamo Frequency** | `Hz` | `fl_frequency` | Raw electrical AC generator frequency |
+| **Generator Gear** | `0–10` | `fl_generator_gear` | Current automatic electronic transmission switching stage |
+
+### Intelligent Climb-Aware Range Estimation
+
+The battery estimator tracks virtual discharge coordinates and adapts to real-world riding conditions:
+
+- **Adaptive Moving Window**: Computes consumption rates (`%/km`) using an exponential moving average (EMA) that automatically rejects voltage recovery bounces and handles standby transitions.
+- **Dynamic Consumer Draw Compensation**: When extra loads (e.g. smartphone charging) are turned on or off, the range estimator instantaneously recalculates projected range based on the delta power draw.
+- **Climb & Route Analysis**: When navigating a route on the Karoo, the estimator monitors upcoming climbs, remaining ascent, and slope gradients.
+- **Rider Profile Learning**: A local [Room](https://developer.android.com/training/data-storage/room) database learns the rider's typical climbing speeds across gradient bands (-8% to +14%). It calculates whether the dynamo will generate surplus power or deplete the battery on upcoming hills.
+- **Headwind Integration**: If the [karoo-headwind](https://github.com/timklge/karoo-headwind) extension is installed, the estimator consumes live headwind speed and adjusts projected aerodynamic consumption accordingly.
+
+### Automated Light & Power Management
+
+- **Automatic 12V Headlight Detection**: The extension continuously compares battery, consumer, and dynamo currents to detect unaccounted loads, identifying when an external dynamo headlight connected to the 12V output is switched on.
+- **Auto-Disable USB Output**: When enabled in settings, detecting active 12V lights triggers a command to automatically cut 5V USB output, preserving battery power for nighttime riding and raising an in-ride notification banner.
+
+### In-Ride Safety Alerts
+
+Native Karoo overlay banners notify you of critical system events without needing to leave the ride screen:
+
+- **Low Battery Warning**: Fires when charge drops below your chosen threshold (default: 20%).
+- **High Temperature Warning**: Fires when Forumslader internal temperature exceeds your set limit (default: 50°C).
+- **Hardware Fault Protection**: Immediate alerts for **Short Circuit** or **System Interrupt** hardware events.
+- **USB Shutdown Notice**: Confirms when USB power has been shut off to prioritize dynamo lighting.
+
+### FIT Activity Recording & Ride Summaries
+
+- **Per-Second FIT Developer Fields**: Writes Forumslader telemetry (Battery Voltage, Battery Current, Dynamo Power, Speed, Temperature, and Trip Energy) into the ride's `.FIT` activity file every second. These fields can be visualized in Strava, Intervals.icu, GoldenCheetah, and Garmin Connect.
+- **Session Totals**: At ride completion, summary statistics are stored in the FIT session message:
+  - Total generated energy (`Wh`)
+  - Average & peak dynamo power (`W`)
+  - Charging, discharging, and standby durations (`s`)
+  - Net battery change (`%`)
+- **Karoo Post-Ride Notification**: Automatically dispatches a system notification when stopping a ride summarizing energy generated, average power, peak power, and net battery charge change.
+
+### Diagnostics & Wireless Log Export
+
+The companion app includes a comprehensive diagnostic suite:
+
+- **Internal CSV Logging**: High-frequency recording of all incoming Forumslader NMEA sentences and parsed metrics.
+- **Direct USB Export**: One-tap export of `telemetry.csv` and application `logcat` dumps to the public `Download/forumslader/` folder on Karoo storage.
+- **Wi-Fi Web Server with QR Code**: Starts a local HTTP server on port 8080. Displays a QR code on the Karoo display—scan it with your smartphone connected to the same Wi-Fi network (or Karoo hotspot) to instantly download diagnostic CSVs and logs in your mobile browser.
+
+---
+
+## Configuration Guide
+
+Open the **Karoo Forumslader** companion app from your Karoo app drawer to access settings. The interface is organized across two swipeable pages:
+
+1. **Dashboard Page**: Live sensor status, battery range estimate summary, live metrics list, and quick-reset buttons for Day Distance and Tour Distance.
+2. **Configuration & Diagnostics Page**: Hardware parameters, alert thresholds, power toggles, firmware utilities, and log export tools.
+
+### Wheel Size & Dynamo Pole Overrides
+
+Accurate speed and distance calculations rely on the wheel circumference and the number of pole pairs in your dynamo hub. While Forumslader transmits stored values, you can override them directly from the Karoo companion app. Overrides are synchronized back to the Forumslader hardware over BLE (`$FLT,9` command).
+
+#### Wheel Size Presets
+
+Select from common tire sizes or enter a custom circumference in millimeters (range: 1000–2500 mm):
+
+- **20"**: 20x1.75 (1515 mm)
+- **26"**: 26x1.50 (2030 mm), 26x1.75 (2070 mm), 26x2.00 (2089 mm), 26x2.10 (2114 mm), 26x2.25 (2115 mm)
+- **650B / 27.5"**: 650Bx38 (2125 mm), 650Bx42 (2145 mm), 650Bx47 (2168 mm), 27.5x2.10 (2200 mm), 27.5x2.25 (2215 mm)
+- **700C / 28"**: 700x23c (2096 mm), 700x25c (2105 mm), 700x28c (2136 mm), 700x30c (2146 mm), 700x32c (2155 mm), 700x35c (2168 mm), 700x38c (2180 mm), 700x40c (2200 mm), 700x42c (2230 mm), 700x45c (2250 mm), 700x47c (2260 mm), 700x48c (2268 mm), 700x50c (2280 mm)
+- **29"**: 29x2.10 (2288 mm), 29x2.25 (2315 mm), 29x2.35 (2326 mm), 29x2.40 (2350 mm)
+
+#### Dynamo Pole Presets
+
+Select your dynamo hub model or enter a custom pole count (range: 1–60):
+
+- **SON 28 / SON deluxe**: 13 pole pairs
+- **SON 29s**: 20 pole pairs
+- **Shutter Precision (SP)**: 14 pole pairs
+- **Shimano / SRAM / Kasai**: 14 pole pairs
+- **Velological Rim Dynamo**: 12 pole pairs
+
+### Safety Alert Thresholds
+
+- **Low Battery Threshold (%)**: Adjustable slider from 5% to 50% (default: 20%). Triggers an in-ride banner when the battery level drops to or below this percentage.
+- **High Temperature Threshold (°C)**: Adjustable slider from 30°C to 80°C (default: 50°C). Triggers an alert if internal electronics exceed this temperature.
+
+### Auto-Disable USB on 12V Headlight Draw
+
+- **Setting**: *Auto-disable USB when lights turn on* (Toggle, default: `OFF`).
+- **Behavior**: When enabled, the extension monitors power differential. As soon as a 12V headlight draw is identified, it sends a command to switch off 5V USB charging, preventing battery drain while cycling in the dark.
+
+### BLE Device Lock (Fast Reconnection)
+
+- On the first successful connection, the app locks onto your Forumslader's Bluetooth MAC address.
+- Subsequent connections bypass BLE discovery scanning entirely, achieving instant reconnects even after Karoo sleep or reboot.
+- To pair a different Forumslader, tap **Forget** under the *Locked Device* section in the companion settings.
+
+---
+
+## Getting Started
+
+### Requirements
+
+- **Head Unit**: Hammerhead Karoo 2 or Karoo 3.
+- **Firmware**: Android 8.0 (API 26) or higher.
+- **Hardware**: Forumslader V5 or V6 with up-to-date firmware
+- **Optional**: [karoo-headwind](https://github.com/timklge/karoo-headwind) extension for wind-adjusted range modeling.
+
+### Installation & Setup
+
+1. **Download the APK**: Grab the latest release from the [Releases](https://github.com/fezu54/karoo-forumslader/releases) page.
+2. **Sideload onto Karoo**: Install the APK via ADB or the Karoo Companion App (only working for Karoo 3):
+
+   ```bash
+   adb install -r karoo-forumslader-vX.X.X.apk
+   ```
+
+3. **Pair the Sensor**:
+   - Turn on your Forumslader (or spin your dynamo wheel to wake BLE).
+   - On the Karoo, open **Settings** > **Sensors** > **Add Sensor**.
+   - Select the Forumslader sensor (named `Forumslader` or `FL-<MAC>`).
+4. **Add Data Fields**:
+   - Open your preferred Karoo Ride Profile.
+   - Edit the screen layout and add any Forumslader fields (e.g. `Battery & Range`, `Dynamo Power`, `Trip Energy`).
+5. **Configure Parameters**:
+   - Open the **Karoo Forumslader** companion app from the main app launcher.
+   - Verify or override your wheel size and dynamo pole settings.
+
+---
+
+## Architecture & Tech Stack
+
+This extension follows **Onion / Clean Architecture** principles:
+
+- **Domain**: Pure Kotlin core defining domain entities ([`ForumsladerMetrics`](file:///app/src/main/kotlin/org/happycode/karoo/forumslader/domain/ForumsladerMetrics.kt)), power calculations, climb-aware range models ([`BatteryEstimator`](file:///app/src/main/kotlin/org/happycode/karoo/forumslader/domain/estimation/BatteryEstimator.kt)), and safety alert rules ([`ForumsladerAlertManager`](file:///app/src/main/kotlin/org/happycode/karoo/forumslader/domain/ForumsladerAlertManager.kt)). Free of Android framework dependencies.
+- **Application**: Orchestration services, state stores ([`ForumsladerStateStore`](file:///app/src/main/kotlin/org/happycode/karoo/forumslader/application/ForumsladerStateStore.kt)), rider profile use cases, and CSV telemetry loggers.
+- **Adapters**: Hardware & Karoo SDK adapters, FIT developer field recorder ([`ForumsladerFitRecorder`](file:///app/src/main/kotlin/org/happycode/karoo/forumslader/extension/ForumsladerFitRecorder.kt)), BLE manager using [Kable](https://github.com/JuulLabs/kable), and embedded HTTP log server.
+- **Framework & UI**: Jetpack Compose companion screens ([`MainScreen`](file:///app/src/main/kotlin/org/happycode/karoo/forumslader/ui/main/MainScreen.kt)), custom Android RemoteViews for in-ride data fields ([`ForumsladerGraphicalDataType`](file:///app/src/main/kotlin/org/happycode/karoo/forumslader/extension/ForumsladerGraphicalDataType.kt)), and Room persistence ([`ForumsladerDatabase`](file:///app/src/main/kotlin/org/happycode/karoo/forumslader/framework/persistence/ForumsladerDatabase.kt)).
+
+---
+
+## Acknowledgments & Credits
+
+- **Jens During**: Creator of the [Forumslader](http://www.forumslader.de/) hardware.
+- **[cyberman54/Forumslader-Companion](https://github.com/cyberman54/Forumslader-Companion)**: Special thanks to cyberman54. The Garmin Connect IQ implementation served as an invaluable blueprint for the Forumslader Bluetooth Low Energy communication protocol.
+- **[Hammerhead Navigation](https://www.hammerhead.io/)**: For the open [Karoo Extension SDK](https://hammerheadnav.github.io/karoo-ext/index.html).
