@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.util.TypedValue
+import android.view.View
 import android.widget.RemoteViews
 import androidx.core.content.ContextCompat
 import io.hammerhead.karooext.KarooSystemService
@@ -19,14 +20,17 @@ import org.happycode.karoo.forumslader.PreferencesConstants.KEY_BATTERY_LOW_THRE
 import org.happycode.karoo.forumslader.PreferencesConstants.PREFS_NAME
 import org.happycode.karoo.forumslader.R
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
+import org.happycode.karoo.forumslader.application.estimation.BatteryEstimateStore
 import org.happycode.karoo.forumslader.domain.ChargeState
+import org.happycode.karoo.forumslader.domain.estimation.BatteryEstimate
 import kotlin.math.roundToInt
 
 class ForumsladerGraphicalDataType(
     extension: String,
     typeId: String = DataFieldId.BATTERY_LEVEL,
     private val timeProvider: () -> Long = System::currentTimeMillis,
-    private val karooSystemFactory: (Context) -> KarooSystemService = { KarooSystemService(it) }
+    private val karooSystemFactory: (Context) -> KarooSystemService = { KarooSystemService(it) },
+    private val estimateStore: BatteryEstimateStore = BatteryEstimateStore
 ) : DataTypeImpl(extension, typeId) {
 
     companion object {
@@ -105,7 +109,7 @@ class ForumsladerGraphicalDataType(
         emitter: ViewEmitter
     ) {
         lastStreamState = event.state
-        val state = createViewState(context, lastStreamState, isImperial, lowThreshold)
+        val state = createViewState(context, lastStreamState, isImperial, lowThreshold, estimateStore.estimateFlow.value)
         val views = createRemoteViews(context, config, state)
         postUpdateView(emitter, views)
     }
@@ -119,7 +123,7 @@ class ForumsladerGraphicalDataType(
         val imperial = profile.preferredUnit.distance == UserProfile.PreferredUnit.UnitType.IMPERIAL
         if (isImperial != imperial) {
             isImperial = imperial
-            val state = createViewState(context, lastStreamState, isImperial, lowThreshold)
+            val state = createViewState(context, lastStreamState, isImperial, lowThreshold, estimateStore.estimateFlow.value)
             val views = createRemoteViews(context, config, state)
             postUpdateView(emitter, views)
         }
@@ -129,15 +133,19 @@ class ForumsladerGraphicalDataType(
         context: Context,
         streamState: StreamState,
         isImperial: Boolean,
-        lowThreshold: Int
+        lowThreshold: Int,
+        estimate: BatteryEstimate? = estimateStore.estimateFlow.value
     ): BatteryViewState = when (streamState) {
         is StreamState.Streaming -> {
             val dataPoint = streamState.dataPoint
             val batteryLevel = dataPoint.values[DataFieldId.FIELD_BATTERY_LEVEL]
                 ?: dataPoint.values[DataType.Field.SINGLE]
+                ?: estimate?.remainingCapacityPct?.toDouble()
 
             val chargeStateOrdinal = dataPoint.values[DataFieldId.FIELD_CHARGE_STATE]?.toInt()
-            val chargeState = chargeStateOrdinal?.let { ChargeState.entries.getOrNull(it) } ?: ChargeState.DISCHARGING
+            val chargeState = chargeStateOrdinal?.let { ChargeState.entries.getOrNull(it) }
+                ?: estimate?.chargeState
+                ?: ChargeState.DISCHARGING
 
             val levelText = batteryLevel?.toInt()?.toString() ?: "---"
             val levelUnitText = if (chargeState == ChargeState.CHARGING) "⚡%" else "%"
@@ -145,7 +153,9 @@ class ForumsladerGraphicalDataType(
                 ?: R.color.karoo_text_primary
 
             val rangeKm = dataPoint.values[DataFieldId.FIELD_RANGE_KM]
+                ?: estimate?.estimatedRangeKm?.toDouble()
             val routeSufficient = dataPoint.values[DataFieldId.FIELD_ROUTE_SUFFICIENT]
+                ?: estimate?.isSufficientForRoute?.let { if (it) 1.0 else 0.0 }
             val distanceUnit = if (isImperial) context.getString(R.string.unit_mi) else context.getString(R.string.unit_km)
             val suffix = when (routeSufficient) {
                 1.0 -> " ✓"
@@ -209,14 +219,25 @@ class ForumsladerGraphicalDataType(
         config: ViewConfig,
         state: BatteryViewState
     ): RemoteViews = RemoteViews(context.packageName, R.layout.custom_data_field_battery).apply {
-        val isCompact = config.gridSize.first < 50
-        val digitScale = if (isCompact) 0.7f else 0.9f
-        val textScale = if (isCompact) 0.5f else 0.65f
-        val unitScale = if (isCompact) 0.35f else 0.45f
+        val density = context.resources.displayMetrics.density.coerceAtLeast(1.0f)
+        val viewWidthDp = config.viewSize.first / density
+        val viewHeightDp = config.viewSize.second / density
+        val halfWidthDp = (viewWidthDp - 10f).coerceAtLeast(20f) / 2f
 
-        val digitSizeSp = (config.textSize * digitScale).coerceAtLeast(14f)
-        val textSizeSp = (config.textSize * textScale).coerceAtLeast(11f)
-        val unitSizeSp = (config.textSize * unitScale).coerceAtLeast(10f)
+        val isCompact = config.gridSize.first < 50
+        val digitScale = if (isCompact) 0.55f else 0.70f
+        val textScale = if (isCompact) 0.40f else 0.50f
+
+        val maxDigitHeightSp = viewHeightDp * 0.52f
+        val maxTextHeightSp = viewHeightDp * 0.38f
+        val maxDigitWidthSp = halfWidthDp / 2.2f
+
+        val digitSizeSp = minOf(config.textSize * digitScale, maxDigitHeightSp, maxDigitWidthSp).coerceIn(12f, 40f)
+        val unitSizeSp = (digitSizeSp * 0.5f).coerceIn(9f, 20f)
+
+        val rangeTextLen = state.rangeText.length.coerceAtLeast(1)
+        val maxTextWidthSp = halfWidthDp / (rangeTextLen * 0.58f)
+        val textSizeSp = minOf(config.textSize * textScale, maxTextHeightSp, maxTextWidthSp).coerceIn(10f, 22f)
 
         setTextViewText(R.id.battery_level_value, state.levelText)
         setTextViewTextSize(R.id.battery_level_value, TypedValue.COMPLEX_UNIT_SP, digitSizeSp)
@@ -234,6 +255,10 @@ class ForumsladerGraphicalDataType(
 
         setTextViewText(R.id.battery_range_unit, state.rangeUnitText)
         setTextViewTextSize(R.id.battery_range_unit, TypedValue.COMPLEX_UNIT_SP, unitSizeSp)
+        setViewVisibility(
+            R.id.battery_range_unit,
+            if (state.rangeUnitText.isNotEmpty()) View.VISIBLE else View.GONE
+        )
     }
 
     private fun postUpdateView(emitter: ViewEmitter, views: RemoteViews) {

@@ -106,7 +106,11 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
         // Only return metrics if we've received a telemetry sentence in this batch
         // (configuration-only frames like FLP, FLC, FLB) don't trigger emissions
         return if (parsedTelemetry && hasReceivedTelemetry) {
-            val dynamoPowerWatts = batteryVoltage * kotlin.math.abs(batteryCurrent + consumerCurrent)
+            val dynamoPowerWatts = if (currentFrequency > 0f) {
+                (batteryVoltage * (batteryCurrent + consumerCurrent)).coerceAtLeast(0f)
+            } else {
+                0f
+            }
             val metrics = ForumsladerMetrics(
                 power = ForumsladerMetrics.Power(
                     batteryVoltage = batteryVoltage,

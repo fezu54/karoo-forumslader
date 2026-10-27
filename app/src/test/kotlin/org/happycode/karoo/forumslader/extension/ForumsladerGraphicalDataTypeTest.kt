@@ -6,6 +6,7 @@ import androidx.core.content.ContextCompat
 import io.hammerhead.karooext.KarooSystemService
 import io.hammerhead.karooext.internal.ViewEmitter
 import io.hammerhead.karooext.models.DataPoint
+import io.hammerhead.karooext.models.DataType
 import io.hammerhead.karooext.models.OnStreamState
 import io.hammerhead.karooext.models.StreamState
 import io.hammerhead.karooext.models.UserProfile
@@ -25,6 +26,7 @@ import org.happycode.karoo.forumslader.PreferencesConstants.PREFS_NAME
 import org.happycode.karoo.forumslader.R
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
 import org.happycode.karoo.forumslader.domain.ChargeState
+import org.happycode.karoo.forumslader.domain.estimation.BatteryEstimate
 
 private const val EXTENSION_ID = "karoo-forumslader"
 
@@ -288,6 +290,38 @@ class ForumsladerGraphicalDataTypeTest : ShouldSpec({
 
         // then
         state.rangeUnitText shouldBe "km !"
+    }
+
+    should("fall back to BatteryEstimateStore when dataPoint does not contain custom range or charge state fields") {
+        // given
+        val estimate = BatteryEstimate(
+            remainingCapacityPct = 75,
+            avgDischargeRatePctPerKm = 1.0f,
+            estimatedRangeKm = 55.0f,
+            routeRemainingKm = 30.0f,
+            isSufficientForRoute = true,
+            chargeState = ChargeState.DISCHARGING
+        )
+        val dataPoint = DataPoint(
+            dataTypeId = DataType.dataTypeId(EXTENSION_ID, DataFieldId.BATTERY_LEVEL),
+            values = mapOf(DataType.Field.SINGLE to 75.0)
+        )
+        val dataType = ForumsladerGraphicalDataType(EXTENSION_ID)
+
+        // when
+        val state = dataType.createViewState(
+            context = context,
+            streamState = StreamState.Streaming(dataPoint),
+            isImperial = false,
+            lowThreshold = 20,
+            estimate = estimate
+        )
+
+        // then
+        state.levelText shouldBe "75"
+        state.rangeText shouldBe "55"
+        state.rangeUnitText shouldBe "km ✓"
+        state.isRangeNumeric shouldBe true
     }
 
     should("create RemoteViews without crashing and apply view state") {
