@@ -12,6 +12,7 @@ enum class LightLoadState {
 
 class LightLoadDetector(
     private val thresholdAmperes: Float = DEFAULT_THRESHOLD_AMPERES,
+    private val clearThresholdAmperes: Float = DEFAULT_CLEAR_THRESHOLD_AMPERES,
     private val debounceDuration: Duration = DEFAULT_DEBOUNCE_DURATION,
     private val usbGracePeriodDuration: Duration = DEFAULT_USB_GRACE_PERIOD_DURATION
 ) {
@@ -28,7 +29,7 @@ class LightLoadDetector(
 
         val usbBattCurrent = (USB_VOLTAGE * metrics.power.consumerCurrent) / (voltage * BUCK_EFFICIENCY)
         val dynamoCurrent = metrics.power.dynamoPowerWatts / voltage
-        return -metrics.power.batteryCurrent - usbBattCurrent + dynamoCurrent
+        return (-metrics.power.batteryCurrent - usbBattCurrent + dynamoCurrent).coerceAtLeast(0f)
     }
 
     fun onMetrics(
@@ -47,6 +48,7 @@ class LightLoadDetector(
         val isSuppressed = currentTime < suppressedUntil
         val load = calculateUnaccountedLoad(metrics)
         val isOverThreshold = load >= thresholdAmperes
+        val isUnderClearThreshold = load < clearThresholdAmperes
 
         state = when (state) {
             LightLoadState.IDLE -> when {
@@ -57,7 +59,7 @@ class LightLoadDetector(
                 else -> LightLoadState.IDLE
             }
             LightLoadState.SUSPECTED -> when {
-                isSuppressed || !isOverThreshold -> {
+                isSuppressed || isUnderClearThreshold -> {
                     suspectedStartTime = null
                     LightLoadState.IDLE
                 }
@@ -65,7 +67,7 @@ class LightLoadDetector(
                 else -> LightLoadState.SUSPECTED
             }
             LightLoadState.DETECTED -> when {
-                !isOverThreshold -> {
+                isUnderClearThreshold -> {
                     suspectedStartTime = null
                     LightLoadState.IDLE
                 }
@@ -85,6 +87,7 @@ class LightLoadDetector(
 
     companion object {
         const val DEFAULT_THRESHOLD_AMPERES = 0.35f
+        const val DEFAULT_CLEAR_THRESHOLD_AMPERES = 0.20f
         const val USB_STEP_CHANGE_THRESHOLD_AMPERES = 0.15f
         const val USB_VOLTAGE = 5.0f
         const val BUCK_EFFICIENCY = 0.90f

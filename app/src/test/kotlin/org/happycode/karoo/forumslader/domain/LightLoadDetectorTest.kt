@@ -167,6 +167,28 @@ class LightLoadDetectorTest : ShouldSpec({
         state shouldBe LightLoadState.IDLE
     }
 
+    should("maintain detected state under minor load fluctuation due to hysteresis") {
+        // given
+        val detector = LightLoadDetector()
+        val lightOnMetrics = createMetrics(batteryCurrent = -0.5f)
+        detector.onMetrics(lightOnMetrics, currentTime = 1.seconds)
+        detector.onMetrics(lightOnMetrics, currentTime = 4.seconds) shouldBe LightLoadState.DETECTED
+
+        // when: load dips below detection threshold (0.35A) to 0.25A, but remains above clear threshold (0.20A)
+        val dipMetrics = createMetrics(batteryCurrent = -0.25f)
+        val stateDuringDip = detector.onMetrics(dipMetrics, currentTime = 5.seconds)
+
+        // then
+        stateDuringDip shouldBe LightLoadState.DETECTED
+
+        // when: load drops below clear threshold (0.20A) to 0.10A
+        val clearedMetrics = createMetrics(batteryCurrent = -0.10f)
+        val stateAfterClear = detector.onMetrics(clearedMetrics, currentTime = 6.seconds)
+
+        // then
+        stateAfterClear shouldBe LightLoadState.IDLE
+    }
+
     should("reset state when reset is called") {
         // given
         val detector = LightLoadDetector()

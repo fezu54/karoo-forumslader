@@ -276,6 +276,30 @@ class ForumsladerParserTest : ShouldSpec({
         }
     }
 
+    should("emit zero dynamo power when stationary even if battery is discharging") {
+        // given: frequency is 0 (stationary), battery discharges at -500mA
+        val payload = $$"$FL6,0x100,0,0,4000,4000,4000,-500,0,0,0,0,12345"
+        val data = payload.toFrameBytes()
+
+        // when
+        val result = parser.processIncomingBytes(data).shouldNotBeNull()
+
+        // then
+        result.power.dynamoPowerWatts shouldBe 0f
+    }
+
+    should("emit zero dynamo power when moving but battery discharge exceeds consumer draw") {
+        // given: frequency is 100, battery discharges at -600mA with 200mA consumer draw (net <= 0)
+        val payload = $$"$FL6,0x100,3,100,4000,4000,4000,-600,200,0,0,0,12345"
+        val data = payload.toFrameBytes()
+
+        // when
+        val result = parser.processIncomingBytes(data).shouldNotBeNull()
+
+        // then
+        result.power.dynamoPowerWatts shouldBe 0f
+    }
+
     should("parse FLP for day and tour pulse offsets and compute distance when processIncomingBytes is called") {
         // given
         val payload = $$"$FLP,2000,10,0,1000,0,2000,0,0"
