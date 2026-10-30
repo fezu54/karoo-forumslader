@@ -21,8 +21,10 @@
             android:id="@+id/battery_level_value"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:ellipsize="end"
             android:fontFamily="sans-serif-condensed"
             android:includeFontPadding="false"
+            android:maxLines="1"
             android:textColor="@color/karoo_text_primary"
             android:textStyle="bold" />
 
@@ -31,8 +33,10 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="2dp"
+            android:ellipsize="end"
             android:fontFamily="sans-serif-condensed"
             android:includeFontPadding="false"
+            android:maxLines="1"
             android:text="@string/percentage_character"
             android:textColor="@color/karoo_text_secondary" />
     </LinearLayout>
@@ -71,8 +75,10 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="2dp"
+            android:ellipsize="end"
             android:fontFamily="sans-serif-condensed"
             android:includeFontPadding="false"
+            android:maxLines="1"
             android:textColor="@color/karoo_text_secondary" />
     </LinearLayout>
 </LinearLayout>

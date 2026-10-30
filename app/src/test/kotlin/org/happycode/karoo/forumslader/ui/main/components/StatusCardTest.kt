@@ -3,6 +3,7 @@ package org.happycode.karoo.forumslader.ui.main.components
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
 import io.hammerhead.karooext.models.DataPoint
 import io.hammerhead.karooext.models.StreamState
 import org.happycode.karoo.forumslader.theme.AppTheme
@@ -27,6 +28,7 @@ class StatusCardTest {
             }
         }
         composeTestRule.onNodeWithContentDescription("Connected").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Active").assertIsDisplayed()
     }
 
     @Test
@@ -37,6 +39,7 @@ class StatusCardTest {
             }
         }
         composeTestRule.onNodeWithContentDescription("Disconnected").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Inactive").assertIsDisplayed()
     }
 
     @Test
