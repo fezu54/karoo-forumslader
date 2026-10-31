@@ -10,7 +10,6 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
 import androidx.test.core.app.ApplicationProvider
@@ -125,8 +124,28 @@ class MainScreenTest {
         }
     }
 
-    private fun swipeToConfigPage() {
+    private fun swipeToPowerPage() {
         composeTestRule.onRoot().performTouchInput { swipeLeft() }
+    }
+
+    private fun swipeToDistancePage() {
+        repeat(2) { composeTestRule.onRoot().performTouchInput { swipeLeft() } }
+    }
+
+    private fun swipeToConfigPage() {
+        repeat(3) { composeTestRule.onRoot().performTouchInput { swipeLeft() } }
+    }
+
+    private fun swipeToAlertsPage() {
+        repeat(4) { composeTestRule.onRoot().performTouchInput { swipeLeft() } }
+    }
+
+    private fun swipeToFirmwarePage() {
+        repeat(5) { composeTestRule.onRoot().performTouchInput { swipeLeft() } }
+    }
+
+    private fun swipeToDiagnosticsPage() {
+        repeat(6) { composeTestRule.onRoot().performTouchInput { swipeLeft() } }
     }
 
     @Test
@@ -282,7 +301,7 @@ class MainScreenTest {
         )
 
         // then
-        composeTestRule.onNodeWithText("85%", substring = true).performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText("85%", substring = true).assertIsDisplayed()
     }
 
     @Test
@@ -296,9 +315,10 @@ class MainScreenTest {
             metrics = metrics,
             userProfile = imperialProfile
         )
+        swipeToDistancePage()
 
         // then
-        composeTestRule.onNodeWithText("22.4 mph", substring = true).performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText("22.4 mph", substring = true).assertIsDisplayed()
     }
 
     @Test
@@ -312,9 +332,10 @@ class MainScreenTest {
             metrics = metrics,
             userProfile = metricProfile
         )
+        swipeToDistancePage()
 
         // then
-        composeTestRule.onNodeWithText("36.0 km/h", substring = true).performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText("36.0 km/h", substring = true).assertIsDisplayed()
     }
 
     @Test
@@ -345,9 +366,10 @@ class MainScreenTest {
             metrics = metrics,
             userProfile = imperialProfile
         )
+        swipeToDistancePage()
 
         // then
-        composeTestRule.onNodeWithText("1.00 mi", substring = true).performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText("1.00 mi", substring = true).assertIsDisplayed()
     }
 
     @Test
@@ -361,9 +383,10 @@ class MainScreenTest {
             metrics = metrics,
             userProfile = metricProfile
         )
+        swipeToDistancePage()
 
         // then
-        composeTestRule.onNodeWithText("2.50 km", substring = true).performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText("2.50 km", substring = true).assertIsDisplayed()
     }
 
     @Test
@@ -376,9 +399,10 @@ class MainScreenTest {
             sensorState = streamingState,
             metrics = metrics
         )
+        swipeToPowerPage()
 
         // then
-        composeTestRule.onNodeWithText("1250 mA", substring = true).performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText("1250 mA", substring = true).assertIsDisplayed()
     }
 
     @Test
@@ -391,9 +415,10 @@ class MainScreenTest {
             sensorState = streamingState,
             metrics = metrics
         )
+        swipeToPowerPage()
 
         // then
-        composeTestRule.onNodeWithText("48.2 V", substring = true).performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText("48.2 V", substring = true).assertIsDisplayed()
     }
 
     @Test
@@ -406,9 +431,10 @@ class MainScreenTest {
             sensorState = streamingState,
             metrics = metrics
         )
+        swipeToPowerPage()
 
         // then
-        composeTestRule.onNodeWithText("-1500 mA", substring = true).performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText("-1500 mA", substring = true).assertIsDisplayed()
     }
 
     @Test
@@ -422,9 +448,10 @@ class MainScreenTest {
             metrics = metrics,
             userProfile = metricProfile
         )
+        swipeToPowerPage()
 
         // then
-        composeTestRule.onNodeWithText("22.5 °C", substring = true).performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText("22.5 °C", substring = true).assertIsDisplayed()
     }
 
     @Test
@@ -438,10 +465,11 @@ class MainScreenTest {
             metrics = metrics,
             userProfile = imperialProfile
         )
+        swipeToPowerPage()
 
         // then
         // (22.5 * 9/5) + 32 = 72.5
-        composeTestRule.onNodeWithText("72.5 °F", substring = true).performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText("72.5 °F", substring = true).assertIsDisplayed()
     }
 
     @Test
@@ -455,9 +483,9 @@ class MainScreenTest {
         swipeToConfigPage()
 
         // then
-        composeTestRule.onNodeWithText("Configuration").performScrollTo().assertIsDisplayed()
-        composeTestRule.onNodeWithText("2150").performScrollTo().assertIsDisplayed()
-        composeTestRule.onNodeWithText("28").performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText("Configuration").assertIsDisplayed()
+        composeTestRule.onNodeWithText("2150").assertIsDisplayed()
+        composeTestRule.onNodeWithText("28").assertIsDisplayed()
     }
 
     @Test
@@ -484,7 +512,7 @@ class MainScreenTest {
             onForgetDevice = { forgetClicked = true }
         )
         swipeToConfigPage()
-        composeTestRule.onNodeWithText("Forget").performScrollTo().performClick()
+        composeTestRule.onNodeWithText("Forget").performClick()
 
         // then
         forgetClicked shouldBe true
@@ -501,12 +529,13 @@ class MainScreenTest {
             metrics = metrics,
             onResetDayDistance = { CommandBus.sendCommand(ForumsladerCommand.ResetDayDistance) }
         )
+        swipeToDistancePage()
 
         val deferred = async(start = CoroutineStart.UNDISPATCHED) {
             CommandBus.commands.first()
         }
 
-        composeTestRule.onNodeWithContentDescription("Reset Day Distance", substring = true).performScrollTo().performClick()
+        composeTestRule.onNodeWithContentDescription("Reset Day Distance", substring = true).performClick()
         composeTestRule.onNodeWithText("OK").performClick()
 
         // then
@@ -524,12 +553,13 @@ class MainScreenTest {
             metrics = metrics,
             onResetTourDistance = { CommandBus.sendCommand(ForumsladerCommand.ResetTourDistance) }
         )
+        swipeToDistancePage()
 
         val deferred = async(start = CoroutineStart.UNDISPATCHED) {
             CommandBus.commands.first()
         }
 
-        composeTestRule.onNodeWithContentDescription("Reset Tour Distance", substring = true).performScrollTo().performClick()
+        composeTestRule.onNodeWithContentDescription("Reset Tour Distance", substring = true).performClick()
         composeTestRule.onNodeWithText("OK").performClick()
 
         // then
@@ -540,21 +570,21 @@ class MainScreenTest {
     fun `should display battery low threshold slider on configuration page`() {
         // when
         showMainScreen()
-        swipeToConfigPage()
+        swipeToAlertsPage()
 
         // then
-        composeTestRule.onNodeWithText("Low Battery Threshold", substring = true).performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText("Low Battery Threshold", substring = true).assertIsDisplayed()
     }
 
     @Test
     fun `should display diagnostics card on configuration page`() {
         // when
         showMainScreen()
-        swipeToConfigPage()
+        swipeToDiagnosticsPage()
 
         // then
-        composeTestRule.onNodeWithText("Diagnostics & Logs").performScrollTo().assertIsDisplayed()
-        composeTestRule.onNodeWithText("Save to USB Storage").performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText("Diagnostics & Logs").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Save to USB Storage").assertIsDisplayed()
     }
 
     @Test
@@ -565,7 +595,7 @@ class MainScreenTest {
         }
 
         // then
-        composeTestRule.onNodeWithText("85%", substring = true).performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText("85%", substring = true).assertIsDisplayed()
     }
 
     @Test
@@ -593,10 +623,10 @@ class MainScreenTest {
             versionKey = "v6",
             onDownloadLatest = { downloaded = true }
         )
-        swipeToConfigPage()
+        swipeToFirmwarePage()
 
         // when
-        composeTestRule.onNodeWithText("Download Latest (Requires Internet)").performScrollTo().performClick()
+        composeTestRule.onNodeWithText("Download Latest (Requires Internet)").performClick()
 
         // then
         downloaded shouldBe true
@@ -637,10 +667,10 @@ class MainScreenTest {
                 )
             }
         }
-        swipeToConfigPage()
+        swipeToFirmwarePage()
 
         // when
-        composeTestRule.onNodeWithText("Download Latest (Requires Internet)").performScrollTo().performClick()
+        composeTestRule.onNodeWithText("Download Latest (Requires Internet)").performClick()
 
         // then
         composeTestRule.onNodeWithText("Currently not implemented, waiting for further information…").assertIsDisplayed()

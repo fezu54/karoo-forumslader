@@ -8,9 +8,9 @@
     <string name="datafield_battery_level_desc">Forumslader Batterieladestand und geschätzte Reichweite</string>
     <string name="datafield_battery_voltage">Batteriespannung</string>
     <string name="datafield_battery_voltage_desc">Forumslader Gesamtbatteriespannung in Volt</string>
-    <string name="datafield_battery_current">Batteriestrom (mA)</string>
+    <string name="datafield_battery_current">Batteriestrom</string>
     <string name="datafield_battery_current_desc">Forumslader Batteriestrom in Milliampere</string>
-    <string name="datafield_consumer_current">Verbrauchsstrom (mA)</string>
+    <string name="datafield_consumer_current">Verbrauchsstrom</string>
     <string name="datafield_consumer_current_desc">Forumslader Verbrauchsstrom in Milliampere</string>
     <string name="datafield_speed">Geschwindigkeit</string>
     <string name="datafield_speed_desc">Forumslader aktuelle Geschwindigkeit in km/h</string>
@@ -22,13 +22,13 @@
     <string name="datafield_temperature_desc">Forumslader Temperatur in Celsius</string>
     <string name="datafield_generator_gear">Generatorstufe</string>
     <string name="datafield_generator_gear_desc">Aktuelle Stufe des Forumslader–Generators (0–10)</string>
-    <string name="datafield_charge_state">Ladezustand (0=Stby,1=Laden,2=Entladen,3=Voll)</string>
+    <string name="datafield_charge_state">Ladezustand</string>
     <string name="datafield_charge_state_desc">Aktueller Ladezustand (0=Standby, 1=Laden, 2=Entladen, 3=Voll)</string>
-    <string name="datafield_trip_energy">Tagesenergie (Wh)</string>
+    <string name="datafield_trip_energy">Tagesenergie</string>
     <string name="datafield_trip_energy_desc">Verbrauchte Energie während der Fahrt in Wh</string>
-    <string name="datafield_tour_energy">Tourenenergie (Wh)</string>
+    <string name="datafield_tour_energy">Tourenenergie</string>
     <string name="datafield_tour_energy_desc">Verbrauchte Energie während der Tour in Wh</string>
-    <string name="datafield_dynamo_power">Dynamoleistung (W)</string>
+    <string name="datafield_dynamo_power">Dynamoleistung</string>
     <string name="datafield_dynamo_power_desc">Berechnete Dynamoleistung in W</string>
     <string name="datafield_odometer">Kilometerzähler</string>
     <string name="datafield_odometer_desc">Gesamtzurückgelegte Strecke in km</string>
@@ -49,8 +49,14 @@
     <string name="battery_range_not_enough_data">Zu wenig Daten…</string>
     <string name="battery_range_remaining">~%1$d km verbleibend</string>
     <string name="battery_range_rate">%1$.1f%%/km</string>
-    <string name="battery_range_sufficient">✅ Ausreichend für Route</string>
-    <string name="battery_range_insufficient">⚠️ Akku könnte vorzeitig leer sein</string>
+    <string name="battery_range_sufficient">Ausreichend für Route</string>
+    <string name="battery_range_insufficient">Akku könnte vorzeitig leer sein</string>
+
+    <string name="card_title_overview">Übersicht</string>
+    <string name="card_title_power">Leistung &amp; Dynamo</string>
+    <string name="card_title_distance">Strecke &amp; Energie</string>
+    <string name="action_decrease">Verringern</string>
+    <string name="action_increase">Erhöhen</string>
 
     <string name="missing_streams_warning">Einige Datenfelder werden von dem gekoppelten Gerät nicht unterstützt. Bitte löschen und koppeln Sie Ihren Forumslader in den Karoo-Sensoreinstellungen neu, um die Fähigkeiten zu aktualisieren.</string>
 
@@ -89,7 +95,7 @@
     <string name="alert_usb_disabled_by_light_title">USB-Ausgang deaktiviert</string>
     <string name="alert_usb_disabled_by_light_detail">12V-Licht aktiv. Akku wird geschont.</string>
     <string name="label_auto_disable_usb_on_light">USB bei Licht abschalten</string>
-    <string name="desc_auto_disable_usb_on_light">Schaltet den 5V-USB-Ausgang ab, wenn 12V-Scheinwerferstrom erkannt wird, um den Akku zu schonen.</string>
+    <string name="desc_auto_disable_usb_on_light">Schont Akku bei aktivem Scheinwerfer</string>
 
     <!-- Diagnose & Protokolle -->
     <string name="diagnostics_title">Diagnose &amp; Protokolle</string>
@@ -108,7 +114,10 @@
     <string name="label_use_device_values">Gerätewerte verwenden ($FLP)</string>
     <string name="label_override_wheel_size">Radumfang überschreiben (mm)</string>
     <string name="label_override_poles">Pole überschreiben</string>
-    <string name="label_pole_preset_format">%1$s (%2$d Polpaare)</string>
+    <plurals name="label_pole_preset_format">
+        <item quantity="one">%1$s (%2$d Polpaar)</item>
+        <item quantity="other">%1$s (%2$d Polpaare)</item>
+    </plurals>
 
     <!-- Firmware Update -->
     <string name="firmware_update_title">Firmware-Update (V6)</string>
@@ -126,7 +135,10 @@
     <string name="dfu_not_implemented">Derzeit nicht implementiert, warte auf weitere Informationen…</string>
 
     <string name="action_reset_metric">%1$s zurücksetzen</string>
-    <string name="telemetry_rows_format">%1$d Zeilen (%2$s)</string>
+    <plurals name="telemetry_rows_format">
+        <item quantity="one">%1$d Zeile (%2$s)</item>
+        <item quantity="other">%1$d Zeilen (%2$s)</item>
+    </plurals>
 
     <!-- Ride Energy Summary Notification -->
     <string name="ride_summary_notification_header">Forumslader-Fahrtzusammenfassung</string>

@@ -209,6 +209,7 @@ class ForumsladerGraphicalDataTypeTest : ShouldSpec({
         state.rangeUnitText shouldBe ""
         state.isRangeNumeric shouldBe false
         state.levelColorResId shouldBe R.color.karoo_battery_low
+        state.rangeColorResId shouldBe R.color.karoo_battery_good
     }
 
     should("format range as full when charge state is full") {
@@ -270,6 +271,7 @@ class ForumsladerGraphicalDataTypeTest : ShouldSpec({
 
         // then
         state.rangeUnitText shouldBe "km ✓"
+        state.unitColorResId shouldBe R.color.karoo_status_ok
     }
 
     should("include exclamation mark in unit when route is insufficient") {
@@ -290,6 +292,7 @@ class ForumsladerGraphicalDataTypeTest : ShouldSpec({
 
         // then
         state.rangeUnitText shouldBe "km !"
+        state.unitColorResId shouldBe R.color.karoo_status_warn
     }
 
     should("fall back to BatteryEstimateStore when dataPoint does not contain custom range or charge state fields") {

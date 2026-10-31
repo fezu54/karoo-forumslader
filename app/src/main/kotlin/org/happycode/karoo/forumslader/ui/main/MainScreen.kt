@@ -15,9 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -35,6 +33,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -50,6 +49,8 @@ import io.hammerhead.karooext.models.UserProfile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.happycode.karoo.forumslader.PreferencesConstants.DEFAULT_AUTO_DISABLE_USB_ON_LIGHT
+import org.happycode.karoo.forumslader.PreferencesConstants.DEFAULT_BATTERY_LOW_THRESHOLD
+import org.happycode.karoo.forumslader.PreferencesConstants.DEFAULT_HIGH_TEMP_THRESHOLD
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_AUTO_DISABLE_USB_ON_LIGHT
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_BATTERY_LOW_THRESHOLD
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_HIGH_TEMP_THRESHOLD
@@ -77,10 +78,11 @@ import org.happycode.karoo.forumslader.theme.AppTheme
 import org.happycode.karoo.forumslader.ui.main.components.AlertsConfigCard
 import org.happycode.karoo.forumslader.ui.main.components.BatteryEstimateCard
 import org.happycode.karoo.forumslader.ui.main.components.ConfigCard
+import org.happycode.karoo.forumslader.ui.main.components.DistanceMetricsCard
 import org.happycode.karoo.forumslader.ui.main.components.FirmwareUpdateCard
 import org.happycode.karoo.forumslader.ui.main.components.LogExportCard
-import org.happycode.karoo.forumslader.ui.main.components.MetricsList
 import org.happycode.karoo.forumslader.ui.main.components.MissingStreamsWarning
+import org.happycode.karoo.forumslader.ui.main.components.PowerMetricsCard
 import org.happycode.karoo.forumslader.ui.main.components.StatusCard
 
 @Composable
@@ -123,8 +125,8 @@ fun MainScreen(sharedUri: Uri? = null) {
         )
     }
     var lockedMacAddress by remember { mutableStateOf(prefs.getString(KEY_LOCKED_MAC_ADDRESS, null)) }
-    var batteryLowThreshold by remember { mutableIntStateOf(prefs.getInt(KEY_BATTERY_LOW_THRESHOLD, 20)) }
-    var highTempThreshold by remember { mutableFloatStateOf(prefs.getFloat(KEY_HIGH_TEMP_THRESHOLD, 50f)) }
+    var batteryLowThreshold by remember { mutableIntStateOf(prefs.getInt(KEY_BATTERY_LOW_THRESHOLD, DEFAULT_BATTERY_LOW_THRESHOLD)) }
+    var highTempThreshold by remember { mutableFloatStateOf(prefs.getFloat(KEY_HIGH_TEMP_THRESHOLD, DEFAULT_HIGH_TEMP_THRESHOLD)) }
     var autoDisableUsbOnLight by remember {
         mutableStateOf(prefs.getBoolean(KEY_AUTO_DISABLE_USB_ON_LIGHT, DEFAULT_AUTO_DISABLE_USB_ON_LIGHT))
     }
@@ -142,7 +144,7 @@ fun MainScreen(sharedUri: Uri? = null) {
                     KEY_BATTERY_LOW_THRESHOLD -> batteryLowThreshold =
                         sharedPreferences.getInt(KEY_BATTERY_LOW_THRESHOLD, 20)
                     KEY_HIGH_TEMP_THRESHOLD -> highTempThreshold =
-                        sharedPreferences.getFloat(KEY_HIGH_TEMP_THRESHOLD, 50f)
+                        sharedPreferences.getFloat(KEY_HIGH_TEMP_THRESHOLD, DEFAULT_HIGH_TEMP_THRESHOLD)
                     KEY_AUTO_DISABLE_USB_ON_LIGHT -> autoDisableUsbOnLight =
                         sharedPreferences.getBoolean(KEY_AUTO_DISABLE_USB_ON_LIGHT, DEFAULT_AUTO_DISABLE_USB_ON_LIGHT)
                 }
@@ -368,34 +370,47 @@ fun MainScreenContent(
     Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { padding ->
-        val pagerState = rememberPagerState(pageCount = { 2 })
+        val showFirmware = versionKey != ForumsladerVersion.V5.key
+        val pageCount = if (showFirmware) 7 else 6
+        val pagerState = rememberPagerState(pageCount = { pageCount })
+
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier.weight(1f)
             ) { page ->
-                Column(
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    contentAlignment = Alignment.TopCenter
                 ) {
-                    if (page == 0) {
-                        if (hasMissingStreams) {
-                            MissingStreamsWarning()
+                    when (page) {
+                        0 -> Column(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            if (hasMissingStreams) {
+                                MissingStreamsWarning()
+                            }
+                            StatusCard(connected = connected, sensorState = sensorState)
+                            BatteryEstimateCard(
+                                estimate = estimate,
+                                batteryLevel = metrics[DataFieldId.BATTERY_LEVEL]
+                            )
                         }
-                        StatusCard(connected = connected, sensorState = sensorState)
-                        BatteryEstimateCard(estimate = estimate)
-                        MetricsList(
-                            metrics = metrics, 
-                            userProfile = userProfile, 
+                        1 -> PowerMetricsCard(
+                            metrics = metrics,
+                            userProfile = userProfile
+                        )
+                        2 -> DistanceMetricsCard(
+                            metrics = metrics,
+                            userProfile = userProfile,
                             connected = connected && configLoaded,
                             onResetDayDistance = onResetDayDistance,
                             onResetTourDistance = onResetTourDistance
                         )
-                    } else {
-                        ConfigCard(
+                        3 -> ConfigCard(
                             wheelsize = wheelsize,
                             poles = poles,
                             versionKey = versionKey,
@@ -405,21 +420,32 @@ fun MainScreenContent(
                             onConfigUpdate = onConfigUpdate,
                             onForgetDevice = onForgetDevice
                         )
-                        AlertsConfigCard(
+                        4 -> AlertsConfigCard(
                             batteryLowThreshold = batteryLowThreshold,
                             highTempThreshold = highTempThreshold,
                             onBatteryLowThresholdChange = onBatteryLowThresholdChange,
                             onHighTempThresholdChange = onHighTempThresholdChange
                         )
-                        if (versionKey != ForumsladerVersion.V5.key) {
+                        5 -> if (showFirmware) {
                             FirmwareUpdateCard(
                                 dfuState = dfuState,
                                 sharedUri = sharedUri,
                                 onStartUpdate = onStartUpdate,
                                 onDownloadLatest = onDownloadLatest
                             )
+                        } else {
+                            LogExportCard(
+                                csvRowCount = csvRowCount,
+                                csvFileSize = csvFileSize,
+                                isServerRunning = isServerRunning,
+                                serverUrl = serverUrl,
+                                statusMessage = logExportStatus,
+                                onSaveToUsb = onSaveToUsb,
+                                onToggleServer = onToggleServer,
+                                onClearLogs = onClearLogs
+                            )
                         }
-                        LogExportCard(
+                        6 -> LogExportCard(
                             csvRowCount = csvRowCount,
                             csvFileSize = csvFileSize,
                             isServerRunning = isServerRunning,
@@ -433,20 +459,23 @@ fun MainScreenContent(
                 }
             }
 
-            // Page indicator
+            // Page indicator with elongated active pill
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 16.dp),
-                horizontalArrangement = Arrangement.Center
+                    .padding(bottom = 10.dp, top = 4.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                repeat(2) { iteration ->
-                    val color = if (pagerState.currentPage == iteration) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+                repeat(pageCount) { iteration ->
+                    val isSelected = pagerState.currentPage == iteration
+                    val color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+                    val width = if (isSelected) 16.dp else 6.dp
                     Box(
                         modifier = Modifier
-                            .padding(2.dp)
-                            .background(color, CircleShape)
-                            .size(8.dp)
+                            .padding(horizontal = 2.dp)
+                            .size(width = width, height = 6.dp)
+                            .background(color, RoundedCornerShape(3.dp))
                     )
                 }
             }
@@ -479,8 +508,8 @@ fun MainScreenPreview() {
             poles = 14,
             versionKey = "v6",
             lockedMacAddress = "00:11:22:33:44:55",
-            batteryLowThreshold = 20,
-            highTempThreshold = 50f,
+            batteryLowThreshold = DEFAULT_BATTERY_LOW_THRESHOLD,
+            highTempThreshold = DEFAULT_HIGH_TEMP_THRESHOLD,
             autoDisableUsbOnLight = false,
             csvRowCount = 120,
             csvFileSize = 4096L,

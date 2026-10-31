@@ -44,7 +44,9 @@ class ForumsladerGraphicalDataType(
         val levelColorResId: Int,
         val rangeText: String,
         val rangeUnitText: String,
-        val isRangeNumeric: Boolean
+        val isRangeNumeric: Boolean,
+        val rangeColorResId: Int = R.color.karoo_text_primary,
+        val unitColorResId: Int = R.color.karoo_text_secondary
     )
 
     private var lastEmitTimeMs = 0L
@@ -173,13 +175,25 @@ class ForumsladerGraphicalDataType(
                 else -> Triple(context.getString(R.string.battery_range_calc_short), "", false)
             }
 
+            val rangeColorResId = when (chargeState) {
+                ChargeState.CHARGING, ChargeState.FULL -> R.color.karoo_battery_good
+                else -> R.color.karoo_text_primary
+            }
+            val unitColorResId = when (routeSufficient) {
+                1.0 -> R.color.karoo_status_ok
+                0.0 -> R.color.karoo_status_warn
+                else -> R.color.karoo_text_secondary
+            }
+
             BatteryViewState(
                 levelText = levelText,
                 levelUnitText = levelUnitText,
                 levelColorResId = levelColorResId,
                 rangeText = rangeText,
                 rangeUnitText = rangeUnitText,
-                isRangeNumeric = isNumeric
+                isRangeNumeric = isNumeric,
+                rangeColorResId = rangeColorResId,
+                unitColorResId = unitColorResId
             )
         }
         is StreamState.Searching -> BatteryViewState(
@@ -252,9 +266,11 @@ class ForumsladerGraphicalDataType(
             TypedValue.COMPLEX_UNIT_SP,
             if (state.isRangeNumeric) digitSizeSp else textSizeSp
         )
+        setTextColor(R.id.battery_range_value, ContextCompat.getColor(context, state.rangeColorResId))
 
         setTextViewText(R.id.battery_range_unit, state.rangeUnitText)
         setTextViewTextSize(R.id.battery_range_unit, TypedValue.COMPLEX_UNIT_SP, unitSizeSp)
+        setTextColor(R.id.battery_range_unit, ContextCompat.getColor(context, state.unitColorResId))
         setViewVisibility(
             R.id.battery_range_unit,
             if (state.rangeUnitText.isNotEmpty()) View.VISIBLE else View.GONE
