@@ -21,6 +21,16 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        exclusiveContent {
+            forRepository {
+                maven {
+                    url = uri("https://jitpack.io")
+                }
+            }
+            filter {
+                includeGroup("com.github.nikosavola.karoo-ext-testing")
+            }
+        }
         // karoo-ext from Github Packages
         maven {
             url = uri("https://maven.pkg.github.com/hammerheadnav/karoo-ext")

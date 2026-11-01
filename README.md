@@ -40,6 +40,15 @@ The extension features a custom graphical RemoteViews data field (`Battery & Ran
 - **Estimated Remaining Range**: Real-time remaining distance in kilometers (`km`) or miles (`mi`) based on dynamic discharge rates.
 - **Route Sufficiency Indicator**: Shows `✓` when remaining battery capacity is sufficient for your active navigation route, or `!` when the battery is projected to run out before reaching your destination.
 
+#### Visual Data Field Showcase
+
+| Ride & Navigation Scenario | Standard Layout (`60x15`) | Compact Layout (`30x15`) | Status & Visual Indicator |
+| :--- | :---: | :---: | :--- |
+| **Sufficient Route Range**<br>*(80 km range vs. 50 km route)* | ![Standard Sufficient Range](docs/images/data-fields/battery-range-standard-sufficient.png) | ![Compact Sufficient Range](docs/images/data-fields/battery-range-compact-sufficient.png) | **`✓` Green (`karoo_status_ok`)**: Projected range covers remaining distance and ascent (`+30 km` surplus). |
+| **Insufficient Route Range**<br>*(40 km range vs. 70 km route)* | ![Standard Insufficient Range](docs/images/data-fields/battery-range-standard-insufficient.png) | ![Compact Insufficient Range](docs/images/data-fields/battery-range-compact-insufficient.png) | **`!` Red/Amber (`karoo_status_warn`)**: Battery projected to deplete before reaching destination (`-30 km` deficit). |
+| **Active Dynamo Charging**<br>*(75% battery, charging active)* | ![Standard Dynamo Charging](docs/images/data-fields/battery-range-standard-charging.png) | ![Compact Dynamo Charging](docs/images/data-fields/battery-range-compact-charging.png) | **`⚡%` Charging Indicator**: Dynamo power exceeds consumer draw; battery is actively charging. |
+| **Low Battery Warning**<br>*(15% battery, below 20% threshold)* | ![Standard Low Battery](docs/images/data-fields/battery-range-standard-low-battery.png) | ![Compact Low Battery](docs/images/data-fields/battery-range-compact-low-battery.png) | **Red (`karoo_battery_low`)**: Battery percentage is at or below the configured safety alert threshold. |
+
 ### Supported Data Fields
 
 Add any of these 16 dedicated Forumslader data fields directly to your Karoo ride profiles:
@@ -195,6 +204,18 @@ This extension follows **Onion / Clean Architecture** principles:
 - **Application**: Orchestration services, state stores ([`ForumsladerStateStore`](file:///app/src/main/kotlin/org/happycode/karoo/forumslader/application/ForumsladerStateStore.kt)), rider profile use cases, and CSV telemetry loggers.
 - **Adapters**: Hardware & Karoo SDK adapters, FIT developer field recorder ([`ForumsladerFitRecorder`](file:///app/src/main/kotlin/org/happycode/karoo/forumslader/extension/ForumsladerFitRecorder.kt)), BLE manager using [Kable](https://github.com/JuulLabs/kable), and embedded HTTP log server.
 - **Framework & UI**: Jetpack Compose companion screens ([`MainScreen`](file:///app/src/main/kotlin/org/happycode/karoo/forumslader/ui/main/MainScreen.kt)), custom Android RemoteViews for in-ride data fields ([`ForumsladerGraphicalDataType`](file:///app/src/main/kotlin/org/happycode/karoo/forumslader/extension/ForumsladerGraphicalDataType.kt)), and Room persistence ([`ForumsladerDatabase`](file:///app/src/main/kotlin/org/happycode/karoo/forumslader/framework/persistence/ForumsladerDatabase.kt)).
+
+### Automated Data Field Snapshots & Hardware Capture
+
+- **JVM Data Field Snapshots**: Graphical `RemoteViews` snapshots in `docs/images/data-fields/` are deterministically rendered on the JVM using [karoo-ext-testing](https://github.com/nikosavola/karoo-ext-testing) and Robolectric Native Graphics:
+  ```bash
+  ./gradlew generateFieldScreenshots
+  ```
+- **Physical Karoo Cockpit Capture**: To capture full in-ride cockpit screenshots (including the Hammerhead map and turn-by-turn banners) from a physical Karoo 2 or Karoo 3 over ADB:
+  ```bash
+  ./scripts/capture-karoo-screenshots.sh --guide
+  ./scripts/capture-karoo-screenshots.sh -n cockpit-navigation-surplus
+  ```
 
 ---
 
