@@ -874,15 +874,21 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
         }
     }
 
-    should("handle SetConsumerState command in executeCommand without sending invalid bytes") {
-        // given
-        val forumslader = createAdapter()
+    should("send consumer toggle command when executeCommand is called with SetConsumerState") {
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            val forumslader = createAdapter(scope = backgroundScope)
+            forumslader.connect(emitter)
 
-        // when
-        forumslader.executeCommand(ForumsladerCommand.SetConsumerState(enabled = false))
+            // when
+            forumslader.executeCommand(ForumsladerCommand.SetConsumerState(enabled = false))
 
-        // then
-        verify(exactly = 0) { bleManager.writeCommand(any()) }
+            // then
+            verifyOrder {
+                bleManager.writeCommand(match { it.decodeToString() == $$"$FLT,2*40\r\n" })
+                bleManager.writeCommand(match { it.decodeToString().startsWith($$"$FLT,5") })
+            }
+        }
     }
 
     should("slice remaining climbs from OnNavigationState based on remaining route distance") {

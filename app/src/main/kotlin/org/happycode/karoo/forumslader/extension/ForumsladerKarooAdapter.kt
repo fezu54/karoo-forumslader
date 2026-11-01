@@ -497,10 +497,7 @@ class ForumsladerKarooAdapter(
             ForumsladerCommand.ResetDayDistance -> "FLT,7"
             ForumsladerCommand.ResetTourDistance -> "FLT,6"
             is ForumsladerCommand.UpdateConfig -> "FLT,9,${command.wheelsize},${command.poles}"
-            is ForumsladerCommand.SetConsumerState -> {
-                // TODO: Add exact NMEA opcode for setting consumer state once protocol reverse-engineering is complete
-                return
-            }
+            is ForumsladerCommand.SetConsumerState -> "FLT,2"
         }
         val checksum = payload.fold(0) { acc, char -> acc xor char.code }.toString(16).uppercase().padStart(2, '0')
         val cmdBytes = $$"$$$payload*$$checksum\r\n".toByteArray(Charsets.US_ASCII)
