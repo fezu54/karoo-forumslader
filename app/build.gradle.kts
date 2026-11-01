@@ -47,6 +47,13 @@ android {
     testOptions {
         unitTests.all {
             it.useJUnitPlatform()
+            it.systemProperty("project.rootDir", rootProject.projectDir.absolutePath)
+            if (gradle.startParameter.taskNames.any { task -> task.endsWith("generateFieldScreenshots") }) {
+                it.filter {
+                    includeTestsMatching("org.happycode.karoo.forumslader.presentation.DataFieldSnapshotGeneratorTest")
+                }
+                it.outputs.upToDateWhen { false }
+            }
         }
         unitTests.isIncludeAndroidResources = true
         unitTests.isReturnDefaultValues = true
@@ -85,8 +92,17 @@ dependencies {
     testImplementation(libs.mockito.kotlin)
     testImplementation(libs.androidx.compose.ui.test.junit4)
     testImplementation(libs.robolectric)
+    testImplementation(libs.karoo.ext.testing)
+    testImplementation(libs.karoo.ext.testing.robolectric)
+    testImplementation(libs.androidx.test.core)
     testRuntimeOnly(libs.junit.vintage.engine)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+}
+
+tasks.register("generateFieldScreenshots") {
+    description = "Generates high-resolution RemoteViews data field screenshots for documentation."
+    group = "documentation"
+    dependsOn("testDebugUnitTest")
 }
 
 
