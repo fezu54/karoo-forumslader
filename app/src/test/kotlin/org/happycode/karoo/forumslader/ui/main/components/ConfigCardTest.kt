@@ -1,5 +1,6 @@
 package org.happycode.karoo.forumslader.ui.main.components
 
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
@@ -105,10 +106,28 @@ class ConfigCardTest {
         )
 
         // when
-        composeTestRule.onNodeWithText("Auto-disable USB when lights turn on").performClick()
+        composeTestRule.onNodeWithText("Auto-disable USB on lights").performClick()
 
         // then
         toggleValue shouldBe true
+    }
+
+    @Test
+    fun `should display uppercase version badge when version is known`() {
+        // given / when
+        renderCard(versionKey = "v6")
+
+        // then
+        composeTestRule.onNodeWithText("V6").assertIsDisplayed()
+    }
+
+    @Test
+    fun `should not display uppercase version badge when version is unknown`() {
+        // given / when
+        renderCard(versionKey = "unknown")
+
+        // then
+        composeTestRule.onNodeWithText("UNKNOWN").assertDoesNotExist()
     }
 
     private fun renderCard(

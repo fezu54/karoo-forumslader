@@ -1,6 +1,7 @@
 package org.happycode.karoo.forumslader.extension
 
 import android.content.Context
+import androidx.core.content.ContextCompat
 import io.hammerhead.karooext.KarooSystemService
 import io.hammerhead.karooext.internal.ViewEmitter
 import io.hammerhead.karooext.models.DataPoint
@@ -14,6 +15,7 @@ import io.kotest.core.spec.style.ShouldSpec
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkConstructor
+import io.mockk.mockkStatic
 import io.mockk.slot
 import io.mockk.unmockkAll
 import io.mockk.verify
@@ -35,6 +37,10 @@ class ForumsladerDataTypeTest : ShouldSpec({
         every { context.getString(R.string.charge_state_full) } returns "Full"
         every { context.getString(R.string.status_searching) } returns "Searching"
         every { context.getString(R.string.status_not_available) } returns "N/A"
+
+        mockkStatic(ContextCompat::class)
+        every { ContextCompat.getColor(any(), R.color.karoo_battery_good) } returns 0xFF00FF00.toInt()
+        every { ContextCompat.getColor(any(), R.color.karoo_battery_medium) } returns 0xFFFFA500.toInt()
     }
 
     fun singleValueDataPoint(dataTypeId: String, value: Double?): DataPoint = DataPoint(
@@ -139,7 +145,7 @@ class ForumsladerDataTypeTest : ShouldSpec({
         )
 
         // then
-        verify { emitter.onNext(ShowCustomStreamState("Charging", color = null)) }
+        verify { emitter.onNext(ShowCustomStreamState("Charging", color = 0xFF00FF00.toInt())) }
     }
 
     should("emit discharging status when streaming 2") {
@@ -155,7 +161,7 @@ class ForumsladerDataTypeTest : ShouldSpec({
         )
 
         // then
-        verify { emitter.onNext(ShowCustomStreamState("Discharging", color = null)) }
+        verify { emitter.onNext(ShowCustomStreamState("Discharging", color = 0xFFFFA500.toInt())) }
     }
 
     should("emit full status when streaming 3") {
@@ -171,7 +177,7 @@ class ForumsladerDataTypeTest : ShouldSpec({
         )
 
         // then
-        verify { emitter.onNext(ShowCustomStreamState("Full", color = null)) }
+        verify { emitter.onNext(ShowCustomStreamState("Full", color = 0xFF00FF00.toInt())) }
     }
 
     should("emit placeholder when streaming unknown value") {

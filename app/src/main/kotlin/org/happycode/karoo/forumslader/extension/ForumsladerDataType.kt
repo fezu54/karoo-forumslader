@@ -1,6 +1,7 @@
 package org.happycode.karoo.forumslader.extension
 
 import android.content.Context
+import androidx.core.content.ContextCompat
 import io.hammerhead.karooext.KarooSystemService
 import io.hammerhead.karooext.extension.DataTypeImpl
 import io.hammerhead.karooext.internal.ViewEmitter
@@ -49,14 +50,15 @@ class ForumsladerDataType(
     internal fun handleStreamState(event: OnStreamState, emitter: ViewEmitter, context: Context) {
         emitter.handleCommonState(event, context) { streamingState ->
             streamingState.dataPoint.singleValue?.let { value ->
-                val stateStr = when (value.toInt()) {
-                    0 -> context.getString(R.string.charge_state_standby)
-                    1 -> context.getString(R.string.charge_state_charging)
-                    2 -> context.getString(R.string.charge_state_discharging)
-                    3 -> context.getString(R.string.charge_state_full)
-                    else -> "---"
+                val (stateStr, colorRes) = when (value.toInt()) {
+                    0 -> Pair(context.getString(R.string.charge_state_standby), null)
+                    1 -> Pair(context.getString(R.string.charge_state_charging), R.color.karoo_battery_good)
+                    2 -> Pair(context.getString(R.string.charge_state_discharging), R.color.karoo_battery_medium)
+                    3 -> Pair(context.getString(R.string.charge_state_full), R.color.karoo_battery_good)
+                    else -> Pair("---", null)
                 }
-                emitter.onNext(ShowCustomStreamState(stateStr, color = null))
+                val color = colorRes?.let { ContextCompat.getColor(context, it) }
+                emitter.onNext(ShowCustomStreamState(stateStr, color = color))
             }
         }
     }

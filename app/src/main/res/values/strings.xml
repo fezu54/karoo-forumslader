@@ -8,9 +8,9 @@
     <string name="datafield_battery_level_desc">Forumslader battery level and estimated range</string>
     <string name="datafield_battery_voltage">Battery Voltage</string>
     <string name="datafield_battery_voltage_desc">Forumslader total battery voltage in Volts</string>
-    <string name="datafield_battery_current">Battery Current (mA)</string>
+    <string name="datafield_battery_current">Battery Current</string>
     <string name="datafield_battery_current_desc">Forumslader battery current in milliamperes</string>
-    <string name="datafield_consumer_current">Consumer Current (mA)</string>
+    <string name="datafield_consumer_current">Consumer Current</string>
     <string name="datafield_consumer_current_desc">Forumslader consumer current in milliamperes</string>
     <string name="datafield_speed">Speed</string>
     <string name="datafield_speed_desc">Forumslader current speed in km/h</string>
@@ -22,13 +22,13 @@
     <string name="datafield_temperature_desc">Forumslader temperature in Celsius</string>
     <string name="datafield_generator_gear">Generator Gear</string>
     <string name="datafield_generator_gear_desc">Current gear of the Forumslader generator (0–10)</string>
-    <string name="datafield_charge_state">Charge State (0=Stby,1=Chg,2=Dsc,3=Ful)</string>
+    <string name="datafield_charge_state">Charge State</string>
     <string name="datafield_charge_state_desc">Current charge state (0=Standby, 1=Charging, 2=Discharging, 3=Full)</string>
-    <string name="datafield_trip_energy">Trip Energy (Wh)</string>
+    <string name="datafield_trip_energy">Trip Energy</string>
     <string name="datafield_trip_energy_desc">Energy consumed during trip in Wh</string>
-    <string name="datafield_tour_energy">Tour Energy (Wh)</string>
+    <string name="datafield_tour_energy">Tour Energy</string>
     <string name="datafield_tour_energy_desc">Energy consumed during tour in Wh</string>
-    <string name="datafield_dynamo_power">Dynamo Power (W)</string>
+    <string name="datafield_dynamo_power">Dynamo Power</string>
     <string name="datafield_dynamo_power_desc">Calculated dynamo power in W</string>
     <string name="datafield_odometer">Odometer</string>
     <string name="datafield_odometer_desc">Total distance traveled in km</string>
@@ -48,8 +48,14 @@
     <string name="battery_range_not_enough_data">Not enough data…</string>
     <string name="battery_range_remaining">~%1$d km remaining</string>
     <string name="battery_range_rate">%1$.1f%%/km</string>
-    <string name="battery_range_sufficient">✅ Sufficient for route</string>
-    <string name="battery_range_insufficient">⚠️ Battery may run out early</string>
+    <string name="battery_range_sufficient">Sufficient for route</string>
+    <string name="battery_range_insufficient">Battery may run out early</string>
+
+    <string name="card_title_overview">Overview</string>
+    <string name="card_title_power">Power &amp; Dynamo</string>
+    <string name="card_title_distance">Distance &amp; Energy</string>
+    <string name="action_decrease">Decrease</string>
+    <string name="action_increase">Increase</string>
 
     <string name="missing_streams_warning">Some data fields are unsupported by your paired device. Please delete and re-pair your Forumslader in the Karoo sensor settings to update its capabilities.</string>
 
@@ -87,8 +93,8 @@
     <string name="alert_high_temperature_detail">High Temperature (%1$d°C)</string>
     <string name="alert_usb_disabled_by_light_title">USB Output Disabled</string>
     <string name="alert_usb_disabled_by_light_detail">12V headlight active. Preserving battery.</string>
-    <string name="label_auto_disable_usb_on_light">Auto-disable USB when lights turn on</string>
-    <string name="desc_auto_disable_usb_on_light">Switches off 5V USB output when 12V headlight draw is detected to prevent battery drain.</string>
+    <string name="label_auto_disable_usb_on_light">Auto-disable USB on lights</string>
+    <string name="desc_auto_disable_usb_on_light">Conserves battery when headlight is on</string>
 
     <!-- Diagnostics & Logs -->
     <string name="diagnostics_title">Diagnostics &amp; Logs</string>
@@ -107,7 +113,10 @@
     <string name="label_use_device_values">Use device values ($FLP)</string>
     <string name="label_override_wheel_size">Override Wheel Size (mm)</string>
     <string name="label_override_poles">Override Poles</string>
-    <string name="label_pole_preset_format">%1$s (%2$d pairs)</string>
+    <plurals name="label_pole_preset_format">
+        <item quantity="one">%1$s (%2$d pair)</item>
+        <item quantity="other">%1$s (%2$d pairs)</item>
+    </plurals>
 
     <!-- Firmware Update -->
     <string name="firmware_update_title">Firmware Update (V6)</string>
@@ -125,7 +134,10 @@
     <string name="dfu_not_implemented">Currently not implemented, waiting for further information…</string>
 
     <string name="action_reset_metric">Reset %1$s</string>
-    <string name="telemetry_rows_format">%1$d rows (%2$s)</string>
+    <plurals name="telemetry_rows_format">
+        <item quantity="one">%1$d row (%2$s)</item>
+        <item quantity="other">%1$d rows (%2$s)</item>
+    </plurals>
 
     <!-- Ride Energy Summary Notification -->
     <string name="ride_summary_notification_header">Forumslader Ride Summary</string>

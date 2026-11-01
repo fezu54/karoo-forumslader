@@ -1,13 +1,23 @@
 package org.happycode.karoo.forumslader.ui.main.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ElectricalServices
+import androidx.compose.material.icons.filled.PedalBike
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.UsbOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -17,8 +27,10 @@ import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -28,13 +40,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.material3.Switch
 import org.happycode.karoo.forumslader.R
 import org.happycode.karoo.forumslader.domain.DynamoPolePreset
 import org.happycode.karoo.forumslader.domain.WheelSizePreset
@@ -55,14 +67,50 @@ fun ConfigCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Text(
-                text = stringResource(R.string.configuration_title),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f, fill = false),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Tune,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = stringResource(R.string.configuration_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
+                }
+                if (versionKey.isNotBlank() && !versionKey.equals("unknown", ignoreCase = true)) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = versionKey.uppercase(),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier
+                            .background(
+                                MaterialTheme.colorScheme.primaryContainer,
+                                RoundedCornerShape(4.dp)
+                            )
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+            }
             HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
             ConfigItem(label = stringResource(R.string.label_version), value = versionKey)
 
@@ -105,19 +153,28 @@ private fun AutoDisableUsbOnLightToggle(
                 value = checked,
                 role = Role.Switch,
                 onValueChange = onCheckedChange
-            ),
+            )
+            .padding(vertical = 2.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+        Icon(
+            imageVector = Icons.Default.UsbOff,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(18.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
             Text(
                 text = stringResource(R.string.label_auto_disable_usb_on_light),
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
                 text = stringResource(R.string.desc_auto_disable_usb_on_light),
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
             )
         }
@@ -152,7 +209,15 @@ private fun WheelSizeOverrideField(
                 input.toIntOrNull()?.takeIf { it in 1000..2500 }?.let(onValueChange)
             },
             label = { Text(stringResource(R.string.label_override_wheel_size)) },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.PedalBike,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+            },
             isError = isError,
+            singleLine = true,
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Number,
@@ -209,7 +274,15 @@ private fun PolesOverrideField(
                 input.toIntOrNull()?.takeIf { it in 1..60 }?.let(onValueChange)
             },
             label = { Text(stringResource(R.string.label_override_poles)) },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.ElectricalServices,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+            },
             isError = isError,
+            singleLine = true,
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Number,
@@ -231,8 +304,9 @@ private fun PolesOverrideField(
                 DropdownMenuItem(
                     text = {
                         Text(
-                            stringResource(
-                                R.string.label_pole_preset_format,
+                            pluralStringResource(
+                                R.plurals.label_pole_preset_format,
+                                preset.poles,
                                 preset.name,
                                 preset.poles
                             )
@@ -257,7 +331,7 @@ private fun LockedMacSection(macAddress: String, onForgetDevice: () -> Unit) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column {
+        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
             Text(
                 text = stringResource(R.string.label_locked_device),
                 style = MaterialTheme.typography.bodyMedium,
@@ -279,12 +353,14 @@ private fun LockedMacSection(macAddress: String, onForgetDevice: () -> Unit) {
 fun ConfigItem(label: String, value: String) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f)
         )
         Text(
             text = value,
