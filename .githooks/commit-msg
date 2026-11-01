@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# Git commit-msg hook to enforce Conventional Commits
+# Compatible with Git CLI and Android Studio / IntelliJ IDEA
+
+set -e
+
+COMMIT_MSG_FILE="$1"
+
+if [ -z "$COMMIT_MSG_FILE" ] || [ ! -f "$COMMIT_MSG_FILE" ]; then
+    exit 0
+fi
+
+# Extract the first non-comment, non-empty line (the commit subject)
+# Android Studio and git templates may prefix or append '#' comments
+SUBJECT=$(grep -v '^[[:space:]]*#' "$COMMIT_MSG_FILE" | grep -v '^[[:space:]]*$' | head -n 1 || true)
+
+# If subject is empty, let git handle the empty commit message error
+if [ -z "$SUBJECT" ]; then
+    exit 0
+fi
+
+# Allow merge commits
+if echo "$SUBJECT" | grep -qE '^Merge (branch|tag|remote-tracking branch|pull request|\x27.+\x27)'; then
+    exit 0
+fi
+
+# Conventional Commits regex pattern:
+# <type>(<optional-scope>)<!-optional>: <description>
+# Allowed types: feat, fix, refactor, docs, style, perf, test, build, ci, chore, revert
+# Allows optional [BREAKING] prefix for backward compatibility
+# Allows both uppercase and lowercase initial characters in the description
+CONVENTIONAL_REGEX='^(\[BREAKING\] )?(feat|fix|refactor|docs|style|perf|test|build|ci|chore|revert)(\([a-zA-Z0-9_\-\./ ]+\))?!?:[[:space:]]+[^[:space:]].*$'
+
+if ! echo "$SUBJECT" | grep -qE "$CONVENTIONAL_REGEX"; then
+    cat >&2 << 'EOF'
+
+================================================================================
+COMMIT REJECTED: Commit message does not follow Conventional Commits!
+================================================================================
+Your commit subject:
+EOF
+    echo "  \"$SUBJECT\"" >&2
+    cat >&2 << 'EOF'
+
+Commit subjects must follow this format:
+  <type>(<scope>): <description>   OR   <type>: <description>
+
+Allowed types:
+  feat      - A new feature (triggers MINOR release)
+  refactor  - Code changes that neither fix a bug nor add a feature (triggers MINOR release)
+  fix       - A bug fix (triggers PATCH release)
+  docs      - Documentation changes only
+  style     - Changes that do not affect code logic (formatting, etc.)
+  perf      - A code change that improves performance
+  test      - Adding or correcting tests
+  build     - Changes that affect the build system or external dependencies
+  ci        - Changes to CI configuration files and scripts
+  chore     - Other changes that do not modify src or test files
+  revert    - Reverts a previous commit
+
+Breaking changes:
+  Add '!' before the colon or include 'BREAKING CHANGE:' in the body (triggers MAJOR release).
+  Example: feat(api)!: drop legacy endpoint
+
+Valid Examples:
+  feat(ui): add battery gauge widget
+  fix(bluetooth): resolve reconnect timeout
+  refactor: simplify state machine
+  docs(readme): add configuration instructions
+  chore: update coverage baseline [skip ci]
+
+Note: Type prefixes must be strictly LOWERCASE (use 'fix:', not 'Fix:').
+================================================================================
+
+EOF
+    exit 1
+fi
+
+exit 0
