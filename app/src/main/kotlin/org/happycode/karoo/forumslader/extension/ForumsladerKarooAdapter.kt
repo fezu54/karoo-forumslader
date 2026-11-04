@@ -24,6 +24,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.happycode.karoo.forumslader.PreferencesConstants.DEFAULT_AUTO_DISABLE_USB_ON_LIGHT
 import org.happycode.karoo.forumslader.PreferencesConstants.KEY_AUTO_DISABLE_USB_ON_LIGHT
@@ -498,11 +499,21 @@ class ForumsladerKarooAdapter(
             ForumsladerCommand.ResetTourDistance -> "FLT,6"
             is ForumsladerCommand.UpdateConfig -> "FLT,9,${command.wheelsize},${command.poles}"
             is ForumsladerCommand.SetConsumerState -> "FLT,2"
+            is ForumsladerCommand.EnterDfuMode -> "FLT,99"
         }
         val checksum = payload.fold(0) { acc, char -> acc xor char.code }.toString(16).uppercase().padStart(2, '0')
         val cmdBytes = $$"$$$payload*$$checksum\r\n".toByteArray(Charsets.US_ASCII)
         bleManager.writeCommand(cmdBytes)
-        parser.resetConfigLoaded()
-        protocol.startParameterRequestLoop()
+        if (command is ForumsladerCommand.EnterDfuMode) {
+            protocol.stopParameterRequestLoop()
+            adapterScope.launch {
+                bleManager.connectionState
+                    .first { it == ConnectionStatus.DISCONNECTED }
+                command.onDisconnected.complete(Unit)
+            }
+        } else {
+            parser.resetConfigLoaded()
+            protocol.startParameterRequestLoop()
+        }
     }
 }

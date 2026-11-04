@@ -16,11 +16,13 @@ Designed for bike-packers, tourers, and endurance cyclists, this extension goes 
   - [In-Ride Safety Alerts](#in-ride-safety-alerts)
   - [FIT Activity Recording & Ride Summaries](#fit-activity-recording--ride-summaries)
   - [Diagnostics & Wireless Log Export](#diagnostics--wireless-log-export)
+  - [Wireless Firmware Update (DFU)](#wireless-firmware-update-dfu)
 - [Configuration Guide](#configuration-guide)
   - [Wheel Size & Dynamo Pole Overrides](#wheel-size--dynamo-pole-overrides)
   - [Safety Alert Thresholds](#safety-alert-thresholds)
   - [Auto-Disable USB on 12V Headlight Draw](#auto-disable-usb-on-12v-headlight-draw)
   - [BLE Device Lock (Fast Reconnection)](#ble-device-lock-fast-reconnection)
+  - [Firmware Updates (V6 Hardware)](#firmware-updates-v6-hardware)
 - [Getting Started](#getting-started)
   - [Requirements](#requirements)
   - [Installation & Setup](#installation--setup)
@@ -42,35 +44,35 @@ The extension features a custom graphical RemoteViews data field (`Battery & Ran
 
 #### Visual Data Field Showcase
 
-| Ride & Navigation Scenario | Standard Layout (`60x15`) | Compact Layout (`30x15`) | Status & Visual Indicator |
-| :--- | :---: | :---: | :--- |
-| **Sufficient Route Range**<br>*(80 km range vs. 50 km route)* | ![Standard Sufficient Range](docs/images/data-fields/battery-range-standard-sufficient.png) | ![Compact Sufficient Range](docs/images/data-fields/battery-range-compact-sufficient.png) | **`✓` Green (`karoo_status_ok`)**: Projected range covers remaining distance and ascent (`+30 km` surplus). |
+| Ride & Navigation Scenario                                      |                                    Standard Layout (`60x15`)                                    |                                   Compact Layout (`30x15`)                                    | Status & Visual Indicator                                                                                             |
+|:----------------------------------------------------------------|:-----------------------------------------------------------------------------------------------:|:---------------------------------------------------------------------------------------------:|:----------------------------------------------------------------------------------------------------------------------|
+| **Sufficient Route Range**<br>*(80 km range vs. 50 km route)*   |   ![Standard Sufficient Range](docs/images/data-fields/battery-range-standard-sufficient.png)   |   ![Compact Sufficient Range](docs/images/data-fields/battery-range-compact-sufficient.png)   | **`✓` Green (`karoo_status_ok`)**: Projected range covers remaining distance and ascent (`+30 km` surplus).          |
 | **Insufficient Route Range**<br>*(40 km range vs. 70 km route)* | ![Standard Insufficient Range](docs/images/data-fields/battery-range-standard-insufficient.png) | ![Compact Insufficient Range](docs/images/data-fields/battery-range-compact-insufficient.png) | **`!` Red/Amber (`karoo_status_warn`)**: Battery projected to deplete before reaching destination (`-30 km` deficit). |
-| **Active Dynamo Charging**<br>*(75% battery, charging active)* | ![Standard Dynamo Charging](docs/images/data-fields/battery-range-standard-charging.png) | ![Compact Dynamo Charging](docs/images/data-fields/battery-range-compact-charging.png) | **`⚡%` Charging Indicator**: Dynamo power exceeds consumer draw; battery is actively charging. |
-| **Low Battery Warning**<br>*(15% battery, below 20% threshold)* | ![Standard Low Battery](docs/images/data-fields/battery-range-standard-low-battery.png) | ![Compact Low Battery](docs/images/data-fields/battery-range-compact-low-battery.png) | **Red (`karoo_battery_low`)**: Battery percentage is at or below the configured safety alert threshold. |
+| **Active Dynamo Charging**<br>*(75% battery, charging active)*  |    ![Standard Dynamo Charging](docs/images/data-fields/battery-range-standard-charging.png)     |    ![Compact Dynamo Charging](docs/images/data-fields/battery-range-compact-charging.png)     | **`⚡%` Charging Indicator**: Dynamo power exceeds consumer draw; battery is actively charging.                       |
+| **Low Battery Warning**<br>*(15% battery, below 20% threshold)* |     ![Standard Low Battery](docs/images/data-fields/battery-range-standard-low-battery.png)     |     ![Compact Low Battery](docs/images/data-fields/battery-range-compact-low-battery.png)     | **Red (`karoo_battery_low`)**: Battery percentage is at or below the configured safety alert threshold.               |
 
 ### Supported Data Fields
 
 Add any of these 16 dedicated Forumslader data fields directly to your Karoo ride profiles:
 
-| Data Field | Unit | Identifier | Description |
-| :--- | :--- | :--- | :--- |
-| **Battery & Range** | `%` / `km` (`mi`) | `fl_battery_level` | Dual graphical field: battery level + estimated remaining range & route sufficiency |
-| **Charge State** | Text | `fl_charge_state` | Human-readable charging state: *Standby*, *Charging*, *Discharging*, *Full* |
-| **Dynamo Power** | `W` | `fl_dynamo_power` | Real-time electrical power generated by the dynamo hub |
-| **Battery Voltage** | `V` | `fl_battery_voltage` | Total internal battery pack voltage |
-| **Battery Current** | `mA` | `fl_battery_current` | Net current flowing into (charge) or out of (discharge) the battery |
-| **Consumer Current** | `mA` | `fl_consumer_current` | Current drawn by USB consumers (phone, GPS, external devices) |
-| **Speed** | `km/h` / `mph` | `fl_speed` | High-precision speed derived directly from dynamo frequency and wheel circumference |
-| **Trip Distance** | `km` / `mi` | `fl_trip_distance` | Distance traveled during the current trip |
-| **Day Distance** | `km` / `mi` | `fl_day_distance` | Daily distance counter (resettable from companion app) |
-| **Tour Distance** | `km` / `mi` | `fl_tour_distance` | Multi-day tour distance counter (resettable from companion app) |
-| **Odometer** | `km` / `mi` | `fl_odometer` | Total lifetime distance recorded by the Forumslader |
-| **Trip Energy** | `Wh` | `fl_trip_energy` | Total energy delivered during the trip in Watt-hours |
-| **Tour Energy** | `Wh` | `fl_tour_energy` | Total energy delivered during the multi-day tour in Watt-hours |
-| **Internal Temperature** | `°C` / `°F` | `fl_temperature` | Internal electronics temperature of the Forumslader |
-| **Dynamo Frequency** | `Hz` | `fl_frequency` | Raw electrical AC generator frequency |
-| **Generator Gear** | `0–10` | `fl_generator_gear` | Current automatic electronic transmission switching stage |
+| Data Field               | Unit              | Identifier            | Description                                                                         |
+|:-------------------------|:------------------|:----------------------|:------------------------------------------------------------------------------------|
+| **Battery & Range**      | `%` / `km` (`mi`) | `fl_battery_level`    | Dual graphical field: battery level + estimated remaining range & route sufficiency |
+| **Charge State**         | Text              | `fl_charge_state`     | Human-readable charging state: *Standby*, *Charging*, *Discharging*, *Full*         |
+| **Dynamo Power**         | `W`               | `fl_dynamo_power`     | Real-time electrical power generated by the dynamo hub                              |
+| **Battery Voltage**      | `V`               | `fl_battery_voltage`  | Total internal battery pack voltage                                                 |
+| **Battery Current**      | `mA`              | `fl_battery_current`  | Net current flowing into (charge) or out of (discharge) the battery                 |
+| **Consumer Current**     | `mA`              | `fl_consumer_current` | Current drawn by USB consumers (phone, GPS, external devices)                       |
+| **Speed**                | `km/h` / `mph`    | `fl_speed`            | High-precision speed derived directly from dynamo frequency and wheel circumference |
+| **Trip Distance**        | `km` / `mi`       | `fl_trip_distance`    | Distance traveled during the current trip                                           |
+| **Day Distance**         | `km` / `mi`       | `fl_day_distance`     | Daily distance counter (resettable from companion app)                              |
+| **Tour Distance**        | `km` / `mi`       | `fl_tour_distance`    | Multi-day tour distance counter (resettable from companion app)                     |
+| **Odometer**             | `km` / `mi`       | `fl_odometer`         | Total lifetime distance recorded by the Forumslader                                 |
+| **Trip Energy**          | `Wh`              | `fl_trip_energy`      | Total energy delivered during the trip in Watt-hours                                |
+| **Tour Energy**          | `Wh`              | `fl_tour_energy`      | Total energy delivered during the multi-day tour in Watt-hours                      |
+| **Internal Temperature** | `°C` / `°F`       | `fl_temperature`      | Internal electronics temperature of the Forumslader                                 |
+| **Dynamo Frequency**     | `Hz`              | `fl_frequency`        | Raw electrical AC generator frequency                                               |
+| **Generator Gear**       | `0–10`            | `fl_generator_gear`   | Current automatic electronic transmission switching stage                           |
 
 ### Intelligent Climb-Aware Range Estimation
 
@@ -113,6 +115,16 @@ The companion app includes a comprehensive diagnostic suite:
 - **Internal CSV Logging**: High-frequency recording of all incoming Forumslader NMEA sentences and parsed metrics.
 - **Direct USB Export**: One-tap export of `telemetry.csv` and application `logcat` dumps to the public `Download/forumslader/` folder on Karoo storage.
 - **Wi-Fi Web Server with QR Code**: Starts a local HTTP server on port 8080. Displays a QR code on the Karoo display—scan it with your smartphone connected to the same Wi-Fi network (or Karoo hotspot) to instantly download diagnostic CSVs and logs in your mobile browser.
+
+### Wireless Firmware Update (DFU)
+
+For Forumslader V6 units, you can update the device firmware wirelessly over Bluetooth Low Energy directly from your Karoo:
+
+- **In-App Direct Download**: One-tap download of the latest official Forumslader firmware package directly over Wi-Fi/cellular connection—no PC, smartphone, or web browser needed.
+- **Local Firmware File Selection**: Use the Android system file picker to select a custom firmware package (`.zip` distribution or `.hex` binary) stored on the Karoo.
+- **Safe Handshake & Sequencing**: Transmits the enter-DFU command (`$FLT,6`), reliably awaits clean BLE disconnection as the device reboots into the Nordic bootloader, and automatically scans for the bootloader address before initiating the transfer.
+- **Background Foreground Service**: Flashing executes reliably in a dedicated Android foreground service (`connectedDevice` type) with live progress tracking (`Connecting`, `Validating`, `Uploading`, `Verifying`, `Success`).
+- **Cancellation & Safety**: In-progress updates can be canceled, and terminal states allow clean resetting back to idle.
 
 ---
 
@@ -162,6 +174,20 @@ Select your dynamo hub model or enter a custom pole count (range: 1–60):
 - On the first successful connection, the app locks onto your Forumslader's Bluetooth MAC address.
 - Subsequent connections bypass BLE discovery scanning entirely, achieving instant reconnects even after Karoo sleep or reboot.
 - To pair a different Forumslader, tap **Forget** under the *Locked Device* section in the companion settings.
+
+### Firmware Updates (V6 Hardware)
+
+The companion app includes a dedicated **Firmware Update (V6)** card located on the settings page:
+
+1. **Check Prerequisites**: Ensure your Forumslader V6 is actively connected via Bluetooth and has sufficient internal battery charge.
+2. **Obtain Firmware**:
+   - **Download Directly**: Tap **Download Latest (Requires Internet)** to fetch the latest official firmware release directly to your Karoo.
+   - **Select Local File**: Tap **Browse** to choose a custom `.zip` or `.hex` firmware file from internal storage.
+3. **Execute Update**:
+   - Tap **Start Update**.
+   - Keep your Karoo near the Forumslader. The companion app will command the device to enter bootloader mode, establish the DFU link, and upload the firmware.
+   - Live progress is displayed during the upload (`Connecting`, `Validating`, `Uploading`, `Verifying`). Once flashing completes successfully, tap **Done** to reset the updater.
+   - If needed, tap **Cancel** to abort an in-progress update before flashing begins.
 
 ---
 

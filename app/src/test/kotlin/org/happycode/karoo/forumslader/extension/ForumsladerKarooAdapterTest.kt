@@ -891,6 +891,27 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
         }
     }
 
+    should("send DFU entry command without parameter request loop when executeCommand is called with EnterDfuMode") {
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            val forumslader = createAdapter(scope = backgroundScope)
+            forumslader.connect(emitter)
+
+            // when
+            val command = ForumsladerCommand.EnterDfuMode()
+            forumslader.executeCommand(command)
+
+            // then
+            verify(exactly = 1) {
+                bleManager.writeCommand(match { it.decodeToString() == $$"$FLT,99*72\r\n" })
+            }
+            verify(exactly = 0) {
+                bleManager.writeCommand(match { it.decodeToString().startsWith($$"$FLT,5") })
+            }
+            command.onDisconnected.isCompleted shouldBe true
+        }
+    }
+
     should("slice remaining climbs from OnNavigationState based on remaining route distance") {
         runTest(UnconfinedTestDispatcher()) {
             // given
