@@ -1,8 +1,11 @@
 package org.happycode.karoo.forumslader.ui.main.components
 
 import android.net.Uri
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import io.kotest.matchers.shouldBe
 import io.mockk.mockk
 import org.happycode.karoo.forumslader.domain.DfuState
 import org.junit.Rule
@@ -71,6 +74,27 @@ class FirmwareUpdateCardTest {
     }
 
     @Test
+    fun `should not offer starting another update when update is running`() {
+        // given
+        val uri = mockk<Uri>(relaxed = true)
+
+        // when
+        composeTestRule.setContent {
+            FirmwareUpdateCard(
+                dfuState = DfuState.Uploading(50),
+                sharedUri = uri,
+                onStartUpdate = {},
+                onDownloadLatest = {}
+            )
+        }
+
+        // then
+        composeTestRule.onNodeWithText("Start Update").assertDoesNotExist()
+        composeTestRule.onNodeWithText("Browse").assertIsNotEnabled()
+        composeTestRule.onNodeWithText("Download Latest (Requires Internet)").assertIsNotEnabled()
+    }
+
+    @Test
     fun `should show connecting state`() {
         composeTestRule.setContent {
             FirmwareUpdateCard(
@@ -133,6 +157,68 @@ class FirmwareUpdateCardTest {
             )
         }
         composeTestRule.onNodeWithText("Error: Test Error").assertExists()
+    }
+
+    @Test
+    fun `should start update again when retry clicked after error`() {
+        // given
+        val uri = mockk<Uri>(relaxed = true)
+        val startedUris = mutableListOf<Uri>()
+        composeTestRule.setContent {
+            FirmwareUpdateCard(
+                dfuState = DfuState.Error("Test Error"),
+                sharedUri = uri,
+                onStartUpdate = { startedUris += it },
+                onDownloadLatest = {}
+            )
+        }
+
+        // when
+        composeTestRule.onNodeWithText("Start Update").performClick()
+
+        // then
+        startedUris shouldBe listOf(uri)
+    }
+
+    @Test
+    fun `should show cancel button and trigger onCancelUpdate when update is running`() {
+        // given
+        var cancelClicked = false
+        composeTestRule.setContent {
+            FirmwareUpdateCard(
+                dfuState = DfuState.Uploading(30),
+                sharedUri = null,
+                onStartUpdate = {},
+                onDownloadLatest = {},
+                onCancelUpdate = { cancelClicked = true }
+            )
+        }
+
+        // when
+        composeTestRule.onNodeWithText("Cancel").performClick()
+
+        // then
+        cancelClicked shouldBe true
+    }
+
+    @Test
+    fun `should show done button and trigger onReset when update succeeds`() {
+        // given
+        var resetClicked = false
+        composeTestRule.setContent {
+            FirmwareUpdateCard(
+                dfuState = DfuState.Success,
+                sharedUri = null,
+                onStartUpdate = {},
+                onDownloadLatest = {}
+            ) { resetClicked = true }
+        }
+
+        // when
+        composeTestRule.onNodeWithText("Done").performClick()
+
+        // then
+        resetClicked shouldBe true
     }
 
     @Test

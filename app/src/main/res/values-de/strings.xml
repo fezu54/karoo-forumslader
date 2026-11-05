@@ -132,7 +132,10 @@
     <string name="status_dfu_verifying">Verifiziere Update…</string>
     <string name="status_dfu_success">Update erfolgreich!</string>
     <string name="status_dfu_error">Fehler: %1$s</string>
-    <string name="dfu_not_implemented">Derzeit nicht implementiert, warte auf weitere Informationen…</string>
+    <string name="action_cancel">Abbrechen</string>
+    <string name="action_done">Fertig</string>
+    <string name="status_download_complete">Firmware erfolgreich heruntergeladen</string>
+    <string name="status_download_failed">Herunterladen fehlgeschlagen: %1$s</string>
 
     <string name="action_reset_metric">%1$s zurücksetzen</string>
     <plurals name="telemetry_rows_format">

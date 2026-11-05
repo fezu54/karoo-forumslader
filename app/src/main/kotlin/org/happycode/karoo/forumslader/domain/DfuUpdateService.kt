@@ -26,4 +26,9 @@ interface DfuUpdateService {
      * Cancels any ongoing update.
      */
     fun cancelUpdate()
+
+    /**
+     * Resets the update state back to Idle after completion or failure.
+     */
+    fun reset()
 }

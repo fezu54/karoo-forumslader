@@ -40,6 +40,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.content.edit
+import androidx.lifecycle.viewmodel.compose.viewModel
 import io.hammerhead.karooext.KarooSystemService
 import io.hammerhead.karooext.models.DataPoint
 import io.hammerhead.karooext.models.DataType
@@ -62,6 +63,7 @@ import org.happycode.karoo.forumslader.PreferencesConstants.PREFS_NAME
 import org.happycode.karoo.forumslader.R
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
 import org.happycode.karoo.forumslader.adapters.network.CoroutineLogServer
+import org.happycode.karoo.forumslader.adapters.network.FirmwareDownloader
 import org.happycode.karoo.forumslader.adapters.storage.PublicStorageAdapter
 import org.happycode.karoo.forumslader.application.estimation.BatteryEstimateStore
 import org.happycode.karoo.forumslader.application.CsvLoggerProvider
@@ -73,6 +75,7 @@ import org.happycode.karoo.forumslader.domain.estimation.BatteryEstimate
 import org.happycode.karoo.forumslader.domain.CommandBus
 import org.happycode.karoo.forumslader.domain.DfuState
 import org.happycode.karoo.forumslader.domain.ForumsladerCommand
+import org.happycode.karoo.forumslader.framework.DfuUpdateServiceProvider
 import org.happycode.karoo.forumslader.model.ForumsladerVersion
 import org.happycode.karoo.forumslader.theme.AppTheme
 import org.happycode.karoo.forumslader.ui.main.components.AlertsConfigCard
@@ -94,6 +97,8 @@ fun MainScreen(sharedUri: Uri? = null) {
     var userProfile by remember { mutableStateOf<UserProfile?>(null) }
     val streamStates = remember { mutableStateMapOf<String, StreamState>() }
     val estimate by BatteryEstimateStore.estimateFlow.collectAsState(null)
+    val dfuViewModel = viewModel { DfuViewModel(DfuUpdateServiceProvider.getInstance(context)) }
+    val dfuState by dfuViewModel.state.collectAsState()
     val hasMissingStreams by remember {
         derivedStateOf {
             val hasActive = streamStates.values.any { it is StreamState.Streaming || it is StreamState.Searching }
@@ -205,11 +210,12 @@ fun MainScreen(sharedUri: Uri? = null) {
 
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
-    val dfuNotImplementedMessage = stringResource(R.string.dfu_not_implemented)
     val telemetryDir = remember { context.filesDir.toPath().resolve("telemetry") }
     val csvLogger = remember { CsvLoggerProvider.getInstance(telemetryDir) }
     val logcatDumper = remember { LogcatDumper(telemetryDir) }
     val publicStorageGateway: PublicStorageGateway = remember { PublicStorageAdapter(context) }
+    val firmwareDownloader = remember { FirmwareDownloader(context) }
+    var downloadedFirmwareUri by remember { mutableStateOf<Uri?>(null) }
 
     var csvRowCount by remember { mutableIntStateOf(csvLogger.getRowCount()) }
     var csvFileSize by remember { mutableLongStateOf(csvLogger.getFileSize()) }
@@ -230,6 +236,8 @@ fun MainScreen(sharedUri: Uri? = null) {
 
     val isServerRunning by serverGateway.isRunning.collectAsState()
     val serverUrl by serverGateway.serverUrl.collectAsState()
+    val downloadCompleteMessage = stringResource(R.string.status_download_complete)
+    val downloadFailedFormat = stringResource(R.string.status_download_failed)
 
     DisposableEffect(Unit) {
         onDispose {
@@ -257,19 +265,26 @@ fun MainScreen(sharedUri: Uri? = null) {
         isServerRunning = isServerRunning,
         serverUrl = serverUrl,
         logExportStatus = logExportStatus,
-        sharedUri = sharedUri,
-        dfuState = DfuState.Idle,
+        sharedUri = downloadedFirmwareUri ?: sharedUri,
+        dfuState = dfuState,
         snackbarHostState = snackbarHostState,
-        onStartUpdate = { _ ->
-            coroutineScope.launch {
-                snackbarHostState.showSnackbar(dfuNotImplementedMessage)
-            }
-        },
+        onStartUpdate = dfuViewModel::startUpdate,
         onDownloadLatest = {
             coroutineScope.launch {
-                snackbarHostState.showSnackbar(dfuNotImplementedMessage)
+                firmwareDownloader.downloadLatest()
+                    .onSuccess { uri ->
+                        downloadedFirmwareUri = uri
+                        snackbarHostState.showSnackbar(downloadCompleteMessage)
+                    }
+                    .onFailure { error ->
+                        snackbarHostState.showSnackbar(
+                            downloadFailedFormat.format(error.localizedMessage ?: "")
+                        )
+                    }
             }
         },
+        onCancelUpdate = dfuViewModel::cancelUpdate,
+        onReset = dfuViewModel::reset,
         onConfigUpdate = { ws, p ->
             CommandBus.sendCommand(ForumsladerCommand.UpdateConfig(ws, p))
         },
@@ -356,6 +371,8 @@ fun MainScreenContent(
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
     onStartUpdate: (Uri) -> Unit = {},
     onDownloadLatest: () -> Unit = {},
+    onCancelUpdate: () -> Unit = {},
+    onReset: () -> Unit = {},
     onConfigUpdate: (Int, Int) -> Unit,
     onForgetDevice: () -> Unit,
     onBatteryLowThresholdChange: (Int) -> Unit,
@@ -431,7 +448,9 @@ fun MainScreenContent(
                                 dfuState = dfuState,
                                 sharedUri = sharedUri,
                                 onStartUpdate = onStartUpdate,
-                                onDownloadLatest = onDownloadLatest
+                                onDownloadLatest = onDownloadLatest,
+                                onCancelUpdate = onCancelUpdate,
+                                onReset = onReset
                             )
                         } else {
                             LogExportCard(

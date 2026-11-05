@@ -26,6 +26,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,11 +43,19 @@ import org.happycode.karoo.forumslader.domain.DfuState
 fun FirmwareUpdateCard(
     dfuState: DfuState,
     sharedUri: Uri?,
+    modifier: Modifier = Modifier,
     onStartUpdate: (Uri) -> Unit,
     onDownloadLatest: () -> Unit,
-    modifier: Modifier = Modifier
+    onCancelUpdate: () -> Unit = {},
+    onReset: () -> Unit = {}
 ) {
     var selectedUri by remember { mutableStateOf(sharedUri) }
+    LaunchedEffect(sharedUri) {
+        if (sharedUri != null) {
+            selectedUri = sharedUri
+        }
+    }
+    val canStartUpdate = dfuState is DfuState.Idle || dfuState is DfuState.Error
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -86,7 +95,7 @@ fun FirmwareUpdateCard(
             Button(
                 onClick = onDownloadLatest,
                 modifier = Modifier.fillMaxWidth(),
-                enabled = dfuState is DfuState.Idle
+                enabled = canStartUpdate
             ) {
                 Icon(
                     imageVector = Icons.Default.CloudDownload,
@@ -122,7 +131,7 @@ fun FirmwareUpdateCard(
                 }
                 OutlinedButton(
                     onClick = { filePickerLauncher.launch(arrayOf("application/octet-stream", "*/*")) },
-                    enabled = dfuState is DfuState.Idle
+                    enabled = canStartUpdate
                 ) {
                     Icon(
                         imageVector = Icons.Default.FolderOpen,
@@ -135,44 +144,84 @@ fun FirmwareUpdateCard(
             }
 
             when (dfuState) {
-                is DfuState.Idle -> {
-                    Button(
-                        onClick = { selectedUri?.let { onStartUpdate(it) } },
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = selectedUri != null
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.SystemUpdateAlt,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = stringResource(R.string.action_start_update))
-                    }
+                is DfuState.Idle -> StartUpdateButton(
+                    enabled = selectedUri != null,
+                    onClick = { selectedUri?.let(onStartUpdate) }
+                )
+                is DfuState.Connecting -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(text = stringResource(R.string.status_dfu_connecting))
+                    CancelUpdateButton(onClick = onCancelUpdate)
                 }
-                is DfuState.Connecting -> Text(text = stringResource(R.string.status_dfu_connecting))
-                is DfuState.Validating -> Text(text = stringResource(R.string.status_dfu_validating))
+                is DfuState.Validating -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(text = stringResource(R.string.status_dfu_validating))
+                    CancelUpdateButton(onClick = onCancelUpdate)
+                }
                 is DfuState.Uploading -> {
-                    Column {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(text = stringResource(R.string.status_dfu_uploading, dfuState.progressPercent))
                         LinearProgressIndicator(
                             progress = { dfuState.progressPercent / 100f },
                             modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
                         )
+                        CancelUpdateButton(onClick = onCancelUpdate)
                     }
                 }
-                is DfuState.Verifying -> Text(text = stringResource(R.string.status_dfu_verifying))
-                is DfuState.Success -> Text(
-                    text = stringResource(R.string.status_dfu_success),
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold
-                )
-                is DfuState.Error -> Text(
-                    text = stringResource(R.string.status_dfu_error, dfuState.message),
-                    color = MaterialTheme.colorScheme.error,
-                    fontWeight = FontWeight.Medium
-                )
+                is DfuState.Verifying -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(text = stringResource(R.string.status_dfu_verifying))
+                    CancelUpdateButton(onClick = onCancelUpdate)
+                }
+                is DfuState.Success -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = stringResource(R.string.status_dfu_success),
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Button(
+                        onClick = onReset,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(text = stringResource(R.string.action_done))
+                    }
+                }
+                is DfuState.Error -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = stringResource(R.string.status_dfu_error, dfuState.message),
+                        color = MaterialTheme.colorScheme.error,
+                        fontWeight = FontWeight.Medium
+                    )
+                    StartUpdateButton(
+                        enabled = selectedUri != null,
+                        onClick = { selectedUri?.let(onStartUpdate) }
+                    )
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun StartUpdateButton(enabled: Boolean, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        enabled = enabled
+    ) {
+        Icon(
+            imageVector = Icons.Default.SystemUpdateAlt,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(text = stringResource(R.string.action_start_update))
+    }
+}
+
+@Composable
+private fun CancelUpdateButton(onClick: () -> Unit) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(text = stringResource(R.string.action_cancel))
     }
 }
