@@ -1,7 +1,9 @@
 package org.happycode.karoo.forumslader.ui.main.components
 
 import android.net.Uri
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasProgressBarRangeInfo
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -236,5 +238,23 @@ class FirmwareUpdateCardTest {
         composeTestRule.onNodeWithText("Firmware-Update (V6)").assertExists()
         composeTestRule.onNodeWithText("Neueste herunterladen (Internet erforderlich)").assertExists()
         composeTestRule.onNodeWithText("Durchsuchen").assertExists()
+    }
+
+    @Test
+    fun `should show progress indicator and disable button when downloading latest firmware`() {
+        // given / when
+        composeTestRule.setContent {
+            FirmwareUpdateCard(
+                dfuState = DfuState.Idle,
+                sharedUri = null,
+                isDownloadingLatest = true,
+                onStartUpdate = {},
+                onDownloadLatest = {}
+            )
+        }
+
+        // then
+        composeTestRule.onNode(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate)).assertExists()
+        composeTestRule.onNodeWithText("Download Latest (Requires Internet)").assertIsNotEnabled()
     }
 }

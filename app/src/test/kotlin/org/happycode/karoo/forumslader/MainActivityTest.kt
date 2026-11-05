@@ -28,4 +28,11 @@ class MainActivityTest {
         val controller = Robolectric.buildActivity(MainActivity::class.java, intent).create().start().resume()
         controller.get() shouldNotBe null
     }
+
+    @Test
+    @Config(sdk = [30])
+    fun `should request location permissions on Android 11 or lower`() {
+        val controller = Robolectric.buildActivity(MainActivity::class.java).create().start().resume()
+        controller.get() shouldNotBe null
+    }
 }

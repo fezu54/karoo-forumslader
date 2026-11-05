@@ -14,12 +14,7 @@ class FirmwareDownloader(
 ) {
     suspend fun downloadLatest(): Result<Uri> = withContext(Dispatchers.IO) {
         runCatching {
-            val url = URL(firmwareUrl)
-            val connection = connectionFactory(url).apply {
-                instanceFollowRedirects = true
-                connectTimeout = 10_000
-                readTimeout = 30_000
-            }
+            val connection = openConnection(URL(firmwareUrl))
             try {
                 val responseCode = connection.responseCode
                 if (responseCode !in 200..299) {
@@ -37,5 +32,27 @@ class FirmwareDownloader(
                 connection.disconnect()
             }
         }
+    }
+
+    private tailrec fun openConnection(url: URL, hops: Int = 0): HttpURLConnection {
+        if (hops >= 5) throw IllegalStateException("Too many redirects")
+        val connection = connectionFactory(url).apply {
+            instanceFollowRedirects = false
+            connectTimeout = 10_000
+            readTimeout = 30_000
+        }
+        val location = when (connection.responseCode) {
+            in 300..399 -> connection.getHeaderField("Location") ?: throw IllegalStateException("Missing Location header")
+            else -> return connection
+        }
+        connection.disconnect()
+        val nextUrl = URL(url, location).let { target ->
+            if (target.protocol.equals("http", ignoreCase = true)) {
+                URL("https", target.host, target.file)
+            } else {
+                target
+            }
+        }
+        return openConnection(nextUrl, hops + 1)
     }
 }
