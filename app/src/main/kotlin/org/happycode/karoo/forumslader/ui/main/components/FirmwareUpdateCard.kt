@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.SystemUpdateAlt
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -44,6 +45,7 @@ fun FirmwareUpdateCard(
     dfuState: DfuState,
     sharedUri: Uri?,
     modifier: Modifier = Modifier,
+    isDownloadingLatest: Boolean = false,
     onStartUpdate: (Uri) -> Unit,
     onDownloadLatest: () -> Unit,
     onCancelUpdate: () -> Unit = {},
@@ -95,13 +97,21 @@ fun FirmwareUpdateCard(
             Button(
                 onClick = onDownloadLatest,
                 modifier = Modifier.fillMaxWidth(),
-                enabled = canStartUpdate
+                enabled = canStartUpdate && !isDownloadingLatest
             ) {
-                Icon(
-                    imageVector = Icons.Default.CloudDownload,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
+                if (isDownloadingLatest) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.CloudDownload,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(text = stringResource(R.string.action_download_latest))
             }
@@ -143,10 +153,12 @@ fun FirmwareUpdateCard(
                 }
             }
 
+            val onStartClick: () -> Unit = { selectedUri?.let(onStartUpdate) }
+
             when (dfuState) {
                 is DfuState.Idle -> StartUpdateButton(
                     enabled = selectedUri != null,
-                    onClick = { selectedUri?.let(onStartUpdate) }
+                    onClick = onStartClick
                 )
                 is DfuState.Connecting -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(text = stringResource(R.string.status_dfu_connecting))
@@ -191,7 +203,7 @@ fun FirmwareUpdateCard(
                     )
                     StartUpdateButton(
                         enabled = selectedUri != null,
-                        onClick = { selectedUri?.let(onStartUpdate) }
+                        onClick = onStartClick
                     )
                 }
             }

@@ -70,4 +70,22 @@ class PublicStorageAdapterTest : ShouldSpec({
         //then
         adapter.shouldNotBeNull()
     }
+
+    should("copy file to destination directory when context is null") {
+        //given
+        val sourceDir = createTempDirectory()
+        val targetDir = createTempDirectory()
+        val sourceFile = sourceDir.resolve("sample.txt").apply { writeText("Hello storage") }
+        val adapter = PublicStorageAdapter(context = null, targetDirectory = targetDir)
+
+        //when
+        val result = adapter.exportToPublicStorage(sourcePath = sourceFile, destinationFileName = "exported.txt")
+
+        //then
+        result.isSuccess shouldBe true
+        val exportedPath = result.getOrThrow()
+        exportedPath.exists() shouldBe true
+        exportedPath.readText() shouldBe "Hello storage"
+        exportedPath.fileName.toString() shouldBe "exported.txt"
+    }
 })

@@ -216,6 +216,7 @@ fun MainScreen(sharedUri: Uri? = null) {
     val publicStorageGateway: PublicStorageGateway = remember { PublicStorageAdapter(context) }
     val firmwareDownloader = remember { FirmwareDownloader(context) }
     var downloadedFirmwareUri by remember { mutableStateOf<Uri?>(null) }
+    var isDownloadingLatest by remember { mutableStateOf(false) }
 
     var csvRowCount by remember { mutableIntStateOf(csvLogger.getRowCount()) }
     var csvFileSize by remember { mutableLongStateOf(csvLogger.getFileSize()) }
@@ -267,20 +268,26 @@ fun MainScreen(sharedUri: Uri? = null) {
         logExportStatus = logExportStatus,
         sharedUri = downloadedFirmwareUri ?: sharedUri,
         dfuState = dfuState,
+        isDownloadingLatest = isDownloadingLatest,
         snackbarHostState = snackbarHostState,
         onStartUpdate = dfuViewModel::startUpdate,
         onDownloadLatest = {
             coroutineScope.launch {
-                firmwareDownloader.downloadLatest()
-                    .onSuccess { uri ->
-                        downloadedFirmwareUri = uri
-                        snackbarHostState.showSnackbar(downloadCompleteMessage)
-                    }
-                    .onFailure { error ->
-                        snackbarHostState.showSnackbar(
-                            downloadFailedFormat.format(error.localizedMessage ?: "")
-                        )
-                    }
+                isDownloadingLatest = true
+                try {
+                    firmwareDownloader.downloadLatest()
+                        .onSuccess { uri ->
+                            downloadedFirmwareUri = uri
+                            snackbarHostState.showSnackbar(downloadCompleteMessage)
+                        }
+                        .onFailure { error ->
+                            snackbarHostState.showSnackbar(
+                                downloadFailedFormat.format(error.localizedMessage ?: "")
+                            )
+                        }
+                } finally {
+                    isDownloadingLatest = false
+                }
             }
         },
         onCancelUpdate = dfuViewModel::cancelUpdate,
@@ -368,6 +375,7 @@ fun MainScreenContent(
     logExportStatus: String? = null,
     sharedUri: Uri? = null,
     dfuState: DfuState = DfuState.Idle,
+    isDownloadingLatest: Boolean = false,
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
     onStartUpdate: (Uri) -> Unit = {},
     onDownloadLatest: () -> Unit = {},
@@ -447,6 +455,7 @@ fun MainScreenContent(
                             FirmwareUpdateCard(
                                 dfuState = dfuState,
                                 sharedUri = sharedUri,
+                                isDownloadingLatest = isDownloadingLatest,
                                 onStartUpdate = onStartUpdate,
                                 onDownloadLatest = onDownloadLatest,
                                 onCancelUpdate = onCancelUpdate,

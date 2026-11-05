@@ -66,4 +66,20 @@ class DynamoPowerCurveTest : ShouldSpec({
         // then
         predictedWatts shouldBe (curve.predictFromFrequency(50.0f) plusOrMinus 0.01f)
     }
+
+    should("predict power from frequency when baseProfile is not specified") {
+        // given
+        val profile = GradientProfile(
+            gradientPct = 5,
+            speedMetersPerSecond = 3.0f,
+            frequencyHz = 50.0f,
+            dynamoPowerWatts = 0f
+        )
+
+        // when
+        val predictedWatts = curve.predictPowerWatts(profile = profile)
+
+        // then
+        predictedWatts shouldBe (curve.predictFromFrequency(50.0f) plusOrMinus 0.01f)
+    }
 })
