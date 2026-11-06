@@ -14,6 +14,7 @@ import io.hammerhead.karooext.models.ConnectionStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -39,6 +40,7 @@ import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.SERVICE_UUID_
 import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.SERVICE_UUID_V6_ALT
 import org.happycode.karoo.forumslader.model.ForumsladerVersion
 import java.util.UUID
+import kotlin.coroutines.coroutineContext
 import kotlin.time.Duration.Companion.seconds
 
 class ForumsladerBleManager(
@@ -96,6 +98,9 @@ class ForumsladerBleManager(
             } finally {
                 cleanupSession()
             }
+            // The state collector and the write loop never complete, so without this the scope
+            // never ends and the reconnect below is never reached.
+            coroutineContext.cancelChildren()
         }
         throw ConnectionRestartException()
     }

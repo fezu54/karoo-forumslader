@@ -22,6 +22,7 @@ mockito-kotlin = "6.4.0"
 robolectric = "4.17"
 karooExtTesting = "0.1.1"
 androidxTestCore = "1.7.0"
+androidxStartup = "1.2.0"
 
 room = "2.8.5"
 ksp = "2.3.12"
@@ -68,6 +69,7 @@ kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-cor
 karoo-ext-testing = { module = "com.github.nikosavola.karoo-ext-testing:karoo-ext-testing", version.ref = "karooExtTesting" }
 karoo-ext-testing-robolectric = { module = "com.github.nikosavola.karoo-ext-testing:karoo-ext-testing-robolectric", version.ref = "karooExtTesting" }
 androidx-test-core = { module = "androidx.test:core", version.ref = "androidxTestCore" }
+androidx-startup-runtime = { module = "androidx.startup:startup-runtime", version.ref = "androidxStartup" }
 
 [bundles]
 androidx-lifeycle = ["androidx-lifecycle-runtime-compose", "androidx-lifecycle-viewmodel-compose"]

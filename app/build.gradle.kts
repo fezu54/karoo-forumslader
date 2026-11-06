@@ -95,6 +95,7 @@ dependencies {
     testImplementation(libs.karoo.ext.testing)
     testImplementation(libs.karoo.ext.testing.robolectric)
     testImplementation(libs.androidx.test.core)
+    testImplementation(libs.androidx.startup.runtime)
     testRuntimeOnly(libs.junit.vintage.engine)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
