@@ -24,7 +24,7 @@ karooExtTesting = "0.1.1"
 androidxTestCore = "1.7.0"
 
 room = "2.8.5"
-ksp = "2.3.12"
+ksp = "2.3.13"
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
