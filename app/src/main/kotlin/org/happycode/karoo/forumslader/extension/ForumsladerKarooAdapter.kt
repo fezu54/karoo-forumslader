@@ -133,6 +133,7 @@ class ForumsladerKarooAdapter(
         ?: RoomRiderProfileRepository(ForumsladerDatabase.getInstance(context).riderProfileDao())
     private val recordRiderProfileUseCase = RecordRiderProfileUseCase(profileRepository)
     private var previousLightState: LightLoadState = LightLoadState.IDLE
+    private var autoDisabledUsbByLight = false
     private var previousRideState: RideState = RideState.Idle
     
     private var flowCollectionJob: Job? = null
@@ -204,6 +205,7 @@ class ForumsladerKarooAdapter(
             lightLoadDetector.reset()
             rideEnergyAccumulator.reset()
             previousLightState = LightLoadState.IDLE
+            autoDisabledUsbByLight = false
             previousRideState = RideState.Idle
             bleManager.stop()
             karooSystem.disconnect()
@@ -226,6 +228,7 @@ class ForumsladerKarooAdapter(
                         BatteryEstimateStore.clear()
                         lightLoadDetector.reset()
                         previousLightState = LightLoadState.IDLE
+                        autoDisabledUsbByLight = false
                         currentGradientPct = null
                         totalRouteDistanceMeters = null
                         routeClimbs = emptyList()
@@ -433,13 +436,28 @@ class ForumsladerKarooAdapter(
                     id = ForumsladerAlert.UsbDisabledByLight.id,
                     icon = R.drawable.ic_alert,
                     title = context.getString(R.string.alert_usb_disabled_by_light_title),
-                    detail = context.getString(R.string.alert_usb_disabled_by_light_detail),
+                    detail = resolveAlertDetail(ForumsladerAlert.UsbDisabledByLight),
                     autoDismissMs = 5000L,
                     backgroundColor = android.R.color.holo_red_dark,
                     textColor = android.R.color.white
                 )
             )
             CommandBus.sendCommand(ForumsladerCommand.SetConsumerState(enabled = false))
+            autoDisabledUsbByLight = true
+        } else if (previousLightState == LightLoadState.DETECTED && currentState != LightLoadState.DETECTED && autoDisabledUsbByLight) {
+            karooSystem.dispatch(
+                InRideAlert(
+                    id = ForumsladerAlert.UsbEnabledByLight.id,
+                    icon = R.drawable.ic_alert,
+                    title = context.getString(R.string.alert_usb_enabled_by_light_title),
+                    detail = resolveAlertDetail(ForumsladerAlert.UsbEnabledByLight),
+                    autoDismissMs = 5000L,
+                    backgroundColor = android.R.color.holo_green_dark,
+                    textColor = android.R.color.white
+                )
+            )
+            CommandBus.sendCommand(ForumsladerCommand.SetConsumerState(enabled = true))
+            autoDisabledUsbByLight = false
         }
         previousLightState = currentState
     }
@@ -450,6 +468,7 @@ class ForumsladerKarooAdapter(
         is ForumsladerAlert.SystemInterrupt -> context.getString(R.string.alert_system_interrupt_detail)
         is ForumsladerAlert.HighTemperature -> context.getString(R.string.alert_high_temperature_detail, alert.temperature.toInt())
         is ForumsladerAlert.UsbDisabledByLight -> context.getString(R.string.alert_usb_disabled_by_light_detail)
+        is ForumsladerAlert.UsbEnabledByLight -> context.getString(R.string.alert_usb_enabled_by_light_detail)
     }
 
     private fun emitMetrics(emitter: Emitter<DeviceEvent>, metrics: ForumsladerMetrics) {
