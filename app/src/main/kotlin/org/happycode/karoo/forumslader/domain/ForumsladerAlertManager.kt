@@ -34,6 +34,12 @@ sealed interface ForumsladerAlert {
         override val title = "USB Output Disabled"
         override val detail = "12V headlight active. Preserving battery."
     }
+
+    data object UsbEnabledByLight : ForumsladerAlert {
+        override val id = "fl_usb_enabled_by_light"
+        override val title = "USB Output Enabled"
+        override val detail = "12V headlight off. USB charging restored."
+    }
 }
 
 interface AlertRule {
