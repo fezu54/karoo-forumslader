@@ -94,6 +94,8 @@
     <string name="alert_high_temperature_detail">Hohe Temperatur (%1$d°C)</string>
     <string name="alert_usb_disabled_by_light_title">USB-Ausgang deaktiviert</string>
     <string name="alert_usb_disabled_by_light_detail">12V-Licht aktiv. Akku wird geschont.</string>
+    <string name="alert_usb_enabled_by_light_title">USB-Ausgang aktiviert</string>
+    <string name="alert_usb_enabled_by_light_detail">12V-Licht aus. USB-Laden wiederhergestellt.</string>
     <string name="label_auto_disable_usb_on_light">USB bei Licht abschalten</string>
     <string name="desc_auto_disable_usb_on_light">Schont Akku bei aktivem Scheinwerfer</string>
 

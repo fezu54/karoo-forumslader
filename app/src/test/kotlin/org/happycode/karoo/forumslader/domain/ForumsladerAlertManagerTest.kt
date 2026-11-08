@@ -201,6 +201,8 @@ class ForumsladerAlertManagerTest : ShouldSpec({
             ForumsladerAlert.SystemInterrupt.detail shouldBe "System Interrupt!"
             ForumsladerAlert.UsbDisabledByLight.title shouldBe "USB Output Disabled"
             ForumsladerAlert.UsbDisabledByLight.detail shouldBe "12V headlight active. Preserving battery."
+            ForumsladerAlert.UsbEnabledByLight.title shouldBe "USB Output Enabled"
+            ForumsladerAlert.UsbEnabledByLight.detail shouldBe "12V headlight off. USB charging restored."
         }
     }
 

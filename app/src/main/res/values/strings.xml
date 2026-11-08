@@ -93,6 +93,8 @@
     <string name="alert_high_temperature_detail">High Temperature (%1$d°C)</string>
     <string name="alert_usb_disabled_by_light_title">USB Output Disabled</string>
     <string name="alert_usb_disabled_by_light_detail">12V headlight active. Preserving battery.</string>
+    <string name="alert_usb_enabled_by_light_title">USB Output Enabled</string>
+    <string name="alert_usb_enabled_by_light_detail">12V headlight off. USB charging restored.</string>
     <string name="label_auto_disable_usb_on_light">Auto-disable USB on lights</string>
     <string name="desc_auto_disable_usb_on_light">Conserves battery when headlight is on</string>
 

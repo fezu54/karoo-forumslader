@@ -874,6 +874,106 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
         }
     }
 
+    should("dispatch alert and send enable command when 12V light is turned off after being auto-disabled") {
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            every { mockPrefs.getBoolean(KEY_AUTO_DISABLE_USB_ON_LIGHT, false) } returns true
+            val detector = LightLoadDetector(debounceDuration = Duration.ZERO)
+            val forumslader = createAdapter(scope = backgroundScope, lightLoadDetector = detector)
+            forumslader.connect(emitter)
+
+            val dispatchedCommands = mutableListOf<ForumsladerCommand>()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                CommandBus.commands.collect { dispatchedCommands.add(it) }
+            }
+
+            val fldLightOn = $$"$FLD,19,,0,50,12.0,-0.5,0.0,-,7,0,0,0,0,1.0\n"
+            val fldLightOff = $$"$FLD,19,,0,50,12.0,0.0,0.0,-,7,0,0,0,0,1.0\n"
+
+            // when
+            incomingDataFlow.emit(fldLightOn.toByteArray(Charsets.US_ASCII))
+            incomingDataFlow.emit(fldLightOff.toByteArray(Charsets.US_ASCII))
+
+            // then
+            verify {
+                karooSystem.dispatch(match {
+                    it is InRideAlert && it.id == "fl_usb_disabled_by_light"
+                })
+            }
+            verify {
+                karooSystem.dispatch(match {
+                    it is InRideAlert && it.id == "fl_usb_enabled_by_light"
+                })
+            }
+            dispatchedCommands shouldBe listOf(
+                ForumsladerCommand.SetConsumerState(enabled = false),
+                ForumsladerCommand.SetConsumerState(enabled = true)
+            )
+        }
+    }
+
+    should("not send enable command when 12V light turns off if auto-disable was disabled") {
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            every { mockPrefs.getBoolean(KEY_AUTO_DISABLE_USB_ON_LIGHT, false) } returns false
+            val detector = LightLoadDetector(debounceDuration = Duration.ZERO)
+            val forumslader = createAdapter(scope = backgroundScope, lightLoadDetector = detector)
+            forumslader.connect(emitter)
+
+            val dispatchedCommands = mutableListOf<ForumsladerCommand>()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                CommandBus.commands.collect { dispatchedCommands.add(it) }
+            }
+
+            val fldLightOn = $$"$FLD,19,,0,50,12.0,-0.5,0.0,-,7,0,0,0,0,1.0\n"
+            val fldLightOff = $$"$FLD,19,,0,50,12.0,0.0,0.0,-,7,0,0,0,0,1.0\n"
+
+            // when
+            incomingDataFlow.emit(fldLightOn.toByteArray(Charsets.US_ASCII))
+            incomingDataFlow.emit(fldLightOff.toByteArray(Charsets.US_ASCII))
+
+            // then
+            verify(exactly = 0) {
+                karooSystem.dispatch(match {
+                    it is InRideAlert && (it.id == "fl_usb_disabled_by_light" || it.id == "fl_usb_enabled_by_light")
+                })
+            }
+            dispatchedCommands shouldBe emptyList()
+        }
+    }
+
+    should("reset auto-disabled flag on disconnect so light turn off does not trigger enable command") {
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            every { mockPrefs.getBoolean(KEY_AUTO_DISABLE_USB_ON_LIGHT, false) } returns true
+            val detector = LightLoadDetector(debounceDuration = Duration.ZERO)
+            val forumslader = createAdapter(scope = backgroundScope, lightLoadDetector = detector)
+            forumslader.connect(emitter)
+
+            val dispatchedCommands = mutableListOf<ForumsladerCommand>()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                CommandBus.commands.collect { dispatchedCommands.add(it) }
+            }
+
+            connectionStateFlow.value = ConnectionStatus.CONNECTED
+            val fldLightOn = $$"$FLD,19,,0,50,12.0,-0.5,0.0,-,7,0,0,0,0,1.0\n"
+            incomingDataFlow.emit(fldLightOn.toByteArray(Charsets.US_ASCII))
+
+            // when
+            connectionStateFlow.value = ConnectionStatus.DISCONNECTED
+            val fldLightOff = $$"$FLD,19,,0,50,12.0,0.0,0.0,-,7,0,0,0,0,1.0\n"
+            incomingDataFlow.emit(fldLightOff.toByteArray(Charsets.US_ASCII))
+
+            // then
+            verify(exactly = 0) {
+                karooSystem.dispatch(match {
+                    it is InRideAlert && it.id == "fl_usb_enabled_by_light"
+                })
+            }
+            dispatchedCommands shouldBe listOf(ForumsladerCommand.SetConsumerState(enabled = false))
+        }
+    }
+
     should("send consumer toggle command when executeCommand is called with SetConsumerState") {
         runTest(UnconfinedTestDispatcher()) {
             // given
