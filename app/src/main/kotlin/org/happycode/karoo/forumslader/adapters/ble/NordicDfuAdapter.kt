@@ -24,6 +24,7 @@ import org.happycode.karoo.forumslader.domain.DfuState
 import org.happycode.karoo.forumslader.domain.DfuUpdateService
 import org.happycode.karoo.forumslader.domain.ForumsladerCommand
 import java.net.URI
+import java.util.Locale
 import kotlin.time.Duration.Companion.milliseconds
 
 class NordicDfuAdapter(
@@ -134,7 +135,9 @@ class NordicDfuAdapter(
             val androidUri = fileUri.toString().toUri()
             val isZip = isZipFile(androidUri, fileUri)
 
-            val initiator = serviceInitiatorFactory(address)
+            val dfuAddress = incrementMacAddress(address)
+            val initiator = serviceInitiatorFactory(dfuAddress)
+                .setDeviceName(DFU_DEVICE_NAME)
                 .setKeepBond(false)
                 .setForceDfu(false)
                 .setForceScanningForNewAddressInLegacyDfu(true)
@@ -195,5 +198,16 @@ class NordicDfuAdapter(
 
     private fun unregisterListener() {
         DfuServiceListenerHelper.unregisterProgressListener(context, progressListener)
+    }
+
+    companion object {
+        const val DFU_DEVICE_NAME = "FLV6-DFU"
+
+        fun incrementMacAddress(address: String): String = runCatching {
+            val prefix = address.substring(0, 15)
+            val lastByte = address.substring(15).toInt(16)
+            val incremented = (lastByte + 1) and 0xFF
+            prefix + "%02X".format(Locale.US, incremented)
+        }.getOrDefault(address)
     }
 }

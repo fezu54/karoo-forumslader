@@ -57,6 +57,7 @@ class NordicDfuAdapterTest : StringSpec({
         every { DfuServiceListenerHelper.registerProgressListener(any<Context>(), any<DfuProgressListener>()) } returns Unit
         every { DfuServiceListenerHelper.unregisterProgressListener(any<Context>(), any<DfuProgressListener>()) } returns Unit
         every { DfuServiceInitiator.createDfuNotificationChannel(any<Context>()) } returns Unit
+        every { initiator.setDeviceName(any<String>()) } returns initiator
         every { initiator.setKeepBond(any<Boolean>()) } returns initiator
         every { initiator.setForceDfu(any<Boolean>()) } returns initiator
         every { initiator.setForceScanningForNewAddressInLegacyDfu(any<Boolean>()) } returns initiator
@@ -177,6 +178,7 @@ class NordicDfuAdapterTest : StringSpec({
         adapter.startUpdate(URI("file:///path/to/firmware.hex"))
 
         // then
+        verify { initiator.setDeviceName("FLV6-DFU") }
         verify { initiator.setForceScanningForNewAddressInLegacyDfu(true) }
         verify { initiator.setScanTimeout(DfuServiceInitiator.DEFAULT_SCAN_TIMEOUT) }
         verify { initiator.setPacketsReceiptNotificationsEnabled(true) }
@@ -399,5 +401,61 @@ class NordicDfuAdapterTest : StringSpec({
         adapter.reset()
 
         adapter.state.value shouldBe DfuState.Idle
+    }
+
+    "should pass incremented MAC address to serviceInitiatorFactory when update starts" {
+        // given
+        var passedAddress: String? = null
+        val customAdapter = NordicDfuAdapter(
+            context = context,
+            deviceAddressProvider = { "AA:BB:CC:DD:EE:01" },
+            serviceInitiatorFactory = { addr ->
+                passedAddress = addr
+                initiator
+            },
+            scope = testScope,
+            handshakeTimeoutMs = 50L,
+            notificationChannelCreator = { DfuServiceInitiator.createDfuNotificationChannel(it) }
+        )
+        startListeningForDfuCommand()
+
+        // when
+        customAdapter.startUpdate(URI("file:///test.hex"))
+
+        // then
+        passedAddress shouldBe "AA:BB:CC:DD:EE:02"
+    }
+
+    "should increment last octet of MAC address by one when incrementMacAddress is called" {
+        // given
+        val address = "11:22:33:44:55:09"
+
+        // when
+        val result = NordicDfuAdapter.incrementMacAddress(address)
+
+        // then
+        result shouldBe "11:22:33:44:55:0A"
+    }
+
+    "should wrap around last octet when last octet is FF" {
+        // given
+        val address = "AA:BB:CC:DD:EE:FF"
+
+        // when
+        val result = NordicDfuAdapter.incrementMacAddress(address)
+
+        // then
+        result shouldBe "AA:BB:CC:DD:EE:00"
+    }
+
+    "should return original address when MAC address format is invalid" {
+        // given
+        val invalidAddress = "invalid-address"
+
+        // when
+        val result = NordicDfuAdapter.incrementMacAddress(invalidAddress)
+
+        // then
+        result shouldBe invalidAddress
     }
 })
