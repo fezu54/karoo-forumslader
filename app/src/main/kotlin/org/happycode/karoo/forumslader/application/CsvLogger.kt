@@ -18,12 +18,24 @@ import kotlin.io.path.writeText
 class CsvLogger(
     private val directory: Path,
     private val maxFileSizeBytes: Long = DEFAULT_MAX_FILE_SIZE_BYTES,
+    private val flushBatchSize: Int = DEFAULT_FLUSH_BATCH_SIZE,
 ) {
     private val activeCsvPath = directory.resolve(FILE_NAME)
     private var sessionStartTime: Instant? = null
+    private var cachedFileSizeBytes: Long = 0L
+    private var hasHeader: Boolean = false
+    private val pendingRows = StringBuilder()
+    private var pendingRowCount: Int = 0
+    private var pendingBytes: Long = 0L
 
     init {
         directory.createDirectories()
+        cachedFileSizeBytes = if (activeCsvPath.exists()) {
+            runCatching { activeCsvPath.fileSize() }.getOrDefault(0L)
+        } else {
+            0L
+        }
+        hasHeader = cachedFileSizeBytes > 0L
     }
 
     @Synchronized
@@ -63,18 +75,30 @@ class CsvLogger(
             append("\n")
         }
 
-        activeCsvPath.appendText(row)
+        pendingRows.append(row)
+        pendingRowCount++
+        pendingBytes += row.toByteArray(Charsets.UTF_8).size
+        if (pendingRowCount >= flushBatchSize) {
+            flushLocked()
+        }
+    }
+
+    @Synchronized
+    fun flush() {
+        flushLocked()
     }
 
     @Synchronized
     fun getCsvPath(): Path? {
         ensureHeaderExists()
+        flushLocked()
         return if (activeCsvPath.exists()) activeCsvPath else null
     }
 
     @Synchronized
-    fun getRowCount(): Int =
-        if (activeCsvPath.exists()) {
+    fun getRowCount(): Int {
+        flushLocked()
+        return if (activeCsvPath.exists()) {
             runCatching {
                 activeCsvPath.useLines { lines ->
                     val count = lines.count()
@@ -84,31 +108,53 @@ class CsvLogger(
         } else {
             0
         }
+    }
 
     @Synchronized
-    fun getFileSize(): Long =
-        if (activeCsvPath.exists()) runCatching { activeCsvPath.fileSize() }.getOrDefault(0L) else 0L
+    fun getFileSize(): Long = cachedFileSizeBytes + pendingBytes
 
     @Synchronized
     fun clear() {
         sessionStartTime = null
+        cachedFileSizeBytes = 0L
+        hasHeader = false
+        pendingRows.clear()
+        pendingRowCount = 0
+        pendingBytes = 0L
         directory.listDirectoryEntries("telemetry*.csv").forEach { path ->
             path.deleteIfExists()
         }
     }
 
+    private fun flushLocked() {
+        if (pendingRowCount == 0) return
+        ensureHeaderExists()
+        val batch = pendingRows.toString()
+        activeCsvPath.appendText(batch)
+        cachedFileSizeBytes += pendingBytes
+        pendingRows.clear()
+        pendingRowCount = 0
+        pendingBytes = 0L
+    }
+
     private fun ensureHeaderExists() {
-        if ((!activeCsvPath.exists()) || (activeCsvPath.fileSize() == 0L)) {
-            activeCsvPath.writeText("$CSV_HEADER\n")
+        if (!hasHeader) {
+            val headerLine = "$CSV_HEADER\n"
+            activeCsvPath.writeText(headerLine)
+            cachedFileSizeBytes = headerLine.toByteArray(Charsets.UTF_8).size.toLong()
+            hasHeader = true
         }
     }
 
     private fun rotateIfNeeded() {
-        if (activeCsvPath.exists() && (activeCsvPath.fileSize() >= maxFileSizeBytes)) {
+        if (hasHeader && (cachedFileSizeBytes + pendingBytes) >= maxFileSizeBytes) {
+            flushLocked()
             val backupPath = directory.resolve("telemetry_backup.csv")
             backupPath.deleteIfExists()
             activeCsvPath.moveTo(backupPath)
             sessionStartTime = null
+            cachedFileSizeBytes = 0L
+            hasHeader = false
             ensureHeaderExists()
         }
     }
@@ -116,6 +162,7 @@ class CsvLogger(
     companion object {
         const val FILE_NAME = "telemetry.csv"
         const val DEFAULT_MAX_FILE_SIZE_BYTES = 5L * 1024L * 1024L
+        const val DEFAULT_FLUSH_BATCH_SIZE = 20
         const val CSV_HEADER = "elapsedSeconds,batteryVoltage,batteryCurrent,consumerCurrent,batteryLevel,frequency,speed,tripDistance,temperature,gear,chargeState,tripEnergy,dynamoPower"
     }
 }

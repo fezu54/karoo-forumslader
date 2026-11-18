@@ -27,6 +27,7 @@ import io.kotest.matchers.maps.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
@@ -226,7 +227,7 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
             val flb = $$"$FLB,255,0,1005\n"
             val flc1 = $$"$FLC,5,0,85\n"
             val flc2 = $$"$FLC,3,0,123.4,45.6\n"
-            val fl5 = $$"$FL5,200,3,100,500,500,500,2500,3500,0,0,0,0,1000\n"
+            val fl5 = $$"$FL5,0,3,100,500,500,500,2500,3500,0,0,0,0,1000\n"
 
             // when
             incomingDataFlow.emit((flb + flc1 + flc2 + fl5).toByteArray(Charsets.US_ASCII))
@@ -1135,6 +1136,60 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
                     it is SystemNotification && it.id == "fl_ride_summary"
                 })
             }
+        }
+    }
+
+    should("fall back to singleValue when headwind dataPoint values map omits SINGLE key") {
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            val mockEstimator = mockk<BatteryEstimator>(relaxed = true)
+            val forumslader = createAdapter(scope = backgroundScope, batteryEstimator = mockEstimator)
+            forumslader.connect(emitter)
+
+            val headwindPoint = DataPoint(
+                DataType.dataTypeId("karoo-headwind", "headwindSpeed"),
+                mapOf("custom" to 4.5)
+            )
+
+            // when
+            forumslader.handleHeadwindStreamState(OnStreamState(StreamState.Streaming(headwindPoint)))
+
+            // then
+            verify { mockEstimator.onHeadwindSpeed(4.5f) }
+        }
+    }
+
+    should("batch rider profile writes in memory during riding and flush on pause") {
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            val mockRepository = mockk<RiderProfileRepository>(relaxed = true)
+            val forumslader = createAdapter(scope = backgroundScope, riderProfileRepository = mockRepository)
+            forumslader.connect(emitter)
+
+            val gradePoint = DataPoint(
+                DataType.Type.ELEVATION_GRADE,
+                mapOf(DataType.Field.ELEVATION_GRADE to 4.0)
+            )
+            forumslader.handleElevationGrade(OnStreamState(StreamState.Streaming(gradePoint)))
+
+            val flc = $$"$FLC,5,0,80\n"
+            // 200 pulses vs 1000 pulses with default WS=2200, poles=14, V6 scale=1.0 -> delta ~125m >= 50m
+            val frame1 = $$"$FL6,0,2,200,4000,4000,4000,100,100,0,0,0,100\n"
+            val frame2 = $$"$FL6,0,2,200,4000,4000,4000,100,100,0,0,0,1000\n"
+
+            // when: riding telemetry arrives
+            incomingDataFlow.emit((flc + frame1).toByteArray(Charsets.US_ASCII))
+            incomingDataFlow.emit(frame2.toByteArray(Charsets.US_ASCII))
+
+            // then: zero SQLite writes happened during 1 Hz telemetry collection
+            coVerify(exactly = 0) { mockRepository.save(any()) }
+
+            // when: ride pauses
+            forumslader.handleRideState(RideState.Recording)
+            forumslader.handleRideState(RideState.Paused(auto = false))
+
+            // then: dirty bucket flushed in batch
+            coVerify(exactly = 1) { mockRepository.save(match { it.gradientPct == 4 }) }
         }
     }
 })

@@ -82,4 +82,26 @@ class DynamoPowerCurveTest : ShouldSpec({
         // then
         predictedWatts shouldBe (curve.predictFromFrequency(50.0f) plusOrMinus 0.01f)
     }
+
+    should("fallback to frequency prediction when learned baseProfile dynamo power is below credible threshold") {
+        // given
+        val profile = GradientProfile(
+            gradientPct = 2,
+            speedMetersPerSecond = 4.5f,
+            frequencyHz = 35.0f,
+            dynamoPowerWatts = 0f
+        )
+        val pollutedBase = GradientProfile(
+            gradientPct = 2,
+            speedMetersPerSecond = 4.5f,
+            frequencyHz = 35.0f,
+            dynamoPowerWatts = 0.1f
+        )
+
+        // when
+        val predictedWatts = curve.predictPowerWatts(profile = profile, baseProfile = pollutedBase)
+
+        // then
+        predictedWatts shouldBe (curve.predictFromFrequency(35.0f) plusOrMinus 0.01f)
+    }
 })

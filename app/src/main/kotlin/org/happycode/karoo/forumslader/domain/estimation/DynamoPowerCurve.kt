@@ -1,8 +1,12 @@
 package org.happycode.karoo.forumslader.domain.estimation
 
 class DynamoPowerCurve {
+    /**
+     * Predicts dynamo output in watts for [profile], scaling a learned [baseProfile]
+     * by frequency ratio when credible, or falling back to the theoretical frequency curve.
+     */
     fun predictPowerWatts(profile: GradientProfile, baseProfile: GradientProfile? = null): Float =
-        baseProfile?.takeIf { it.frequencyHz > 0f && it.dynamoPowerWatts > 0f }
+        baseProfile?.takeIf { it.frequencyHz > 0f && it.dynamoPowerWatts >= MIN_CREDIBLE_LEARNED_WATTS }
             ?.let { learned ->
                 val ratio = profile.frequencyHz / learned.frequencyHz
                 (learned.dynamoPowerWatts * ratio).coerceIn(0f, MAX_POWER_WATTS)
@@ -31,5 +35,6 @@ class DynamoPowerCurve {
         private const val STAGE_THREE_HZ = 40.0f
         private const val SATURATION_HZ = 60.0f
         private const val MAX_POWER_WATTS = 11.0f
+        private const val MIN_CREDIBLE_LEARNED_WATTS = 0.25f
     }
 }

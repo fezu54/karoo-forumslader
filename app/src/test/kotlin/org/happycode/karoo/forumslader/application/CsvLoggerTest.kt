@@ -190,4 +190,32 @@ class CsvLoggerTest : ShouldSpec({
         logger.getRowCount() shouldBe 0
         logger.getFileSize() shouldBeGreaterThan 0L
     }
+
+    should("buffer rows in memory until batch size reached or flush invoked") {
+        //given
+        val tempDir = tempdir().toPath()
+        val logger = CsvLogger(directory = tempDir, flushBatchSize = 3)
+        val csvFile = tempDir.resolve(CsvLogger.FILE_NAME)
+
+        //when: log 2 rows (< batch size 3)
+        logger.logTelemetry(sampleMetrics())
+        logger.logTelemetry(sampleMetrics())
+
+        //then: file only has header until flushed or batch fills
+        csvFile.readLines() shouldHaveSize 1
+
+        //when: 3rd row triggers batch flush
+        logger.logTelemetry(sampleMetrics())
+
+        //then: all 3 rows written in one batch
+        csvFile.readLines() shouldHaveSize 4
+
+        //when: 4th row buffered and explicitly flushed
+        logger.logTelemetry(sampleMetrics())
+        csvFile.readLines() shouldHaveSize 4
+        logger.flush()
+
+        //then
+        csvFile.readLines() shouldHaveSize 5
+    }
 })

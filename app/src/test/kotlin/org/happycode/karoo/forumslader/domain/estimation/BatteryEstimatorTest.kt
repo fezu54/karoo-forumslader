@@ -2,6 +2,8 @@ package org.happycode.karoo.forumslader.domain.estimation
 
 import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.floats.plusOrMinus
+import io.kotest.matchers.floats.shouldBeGreaterThan
+import io.kotest.matchers.floats.shouldBeLessThan
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -1095,5 +1097,103 @@ class BatteryEstimatorTest : ShouldSpec({
         // then
         estimate.shouldNotBeNull()
         estimate.isSufficientForRoute shouldBe false
+    }
+
+    should("avoid collapsing range to zero on hilly daytime route with inter-climb recovery and react to night 12V light load") {
+        // given: 65 km Black Forest route with 4 climbs separated by flat/descent recovery
+        val climbs = listOf(
+            ClimbSegment(startDistanceMeters = 5_000.0, lengthMeters = 3_000.0, gradientPct = 8.0f),
+            ClimbSegment(startDistanceMeters = 20_000.0, lengthMeters = 3_000.0, gradientPct = 8.0f),
+            ClimbSegment(startDistanceMeters = 38_000.0, lengthMeters = 3_000.0, gradientPct = 8.0f),
+            ClimbSegment(startDistanceMeters = 55_000.0, lengthMeters = 3_000.0, gradientPct = 8.0f)
+        )
+        val profiles = mapOf(
+            0 to GradientProfile(0, speedMetersPerSecond = 5.5f, frequencyHz = 39.6f, dynamoPowerWatts = 5.0f),
+            8 to GradientProfile(8, speedMetersPerSecond = 2.0f, frequencyHz = 14.4f, dynamoPowerWatts = 0.8f)
+        )
+        val estimator = BatteryEstimator(initialDischargeRate = 1.0f).apply {
+            onRiderProfilesLoaded(profiles)
+            onUpcomingClimbs(climbs)
+            onRouteRemaining(distanceMeters = 65_000.0, upcomingElevation = 1_100.0)
+        }
+
+        // when: daytime riding with low 0.08A baseline consumer current
+        estimator.onMetrics(
+            createMetrics(
+                distance = 0.0,
+                batteryPct = 85,
+                batteryCurrent = -0.08f,
+                consumerCurrent = 0.08f,
+                speedMetersPerSecond = 5.0f
+            )
+        )
+        val dayEstimate = estimator.getEstimate().shouldNotBeNull()
+
+        // and when: dusk falls and 12V Supernova headlight draws 0.80A
+        estimator.onMetrics(
+            createMetrics(
+                distance = 1_000.0,
+                batteryPct = 84,
+                batteryCurrent = -0.80f,
+                consumerCurrent = 0.80f,
+                speedMetersPerSecond = 4.0f
+            )
+        )
+        val nightEstimate = estimator.getEstimate().shouldNotBeNull()
+
+        // then: daytime route is comfortably sufficient; night headlight substantially drops range
+        dayEstimate.isSufficientForRoute shouldBe true
+        val dayRange = dayEstimate.estimatedRangeKm.shouldNotBeNull()
+        dayRange shouldBeGreaterThan 65.0f
+        nightEstimate.estimatedRangeKm.shouldNotBeNull() shouldBeLessThan dayRange
+    }
+
+    should("bound range increase when turning off heavy 12V light load instead of spiking to unrealistic distance") {
+        // given: discharge rate of 1.5%/km measured with 0.85A 12V headlight active (~10.2W)
+        val estimator = BatteryEstimator(minMetersForEstimate = 500.0)
+        estimator.onMetrics(createMetrics(distance = 0.0, batteryPct = 80, batteryCurrent = -0.85f, consumerCurrent = 0.85f, speedMetersPerSecond = 3.0f))
+        estimator.onMetrics(createMetrics(distance = 1_000.0, batteryPct = 79, batteryCurrent = -0.85f, consumerCurrent = 0.85f, speedMetersPerSecond = 3.0f))
+        estimator.onMetrics(createMetrics(distance = 2_000.0, batteryPct = 77, batteryCurrent = -0.85f, consumerCurrent = 0.85f, speedMetersPerSecond = 3.0f))
+
+        // when: headlight turns off (consumer drops to 0.05A)
+        estimator.onMetrics(createMetrics(distance = 2_010.0, batteryPct = 77, batteryCurrent = -0.05f, consumerCurrent = 0.05f, speedMetersPerSecond = 3.0f))
+        val estimate = estimator.getEstimate().shouldNotBeNull()
+
+        // then: rate relief is bounded (does not clamp to 0.15%/km -> 500+ km spike)
+        estimate.estimatedRangeKm.shouldNotBeNull() shouldBeLessThan 150.0f
+    }
+
+    should("apply headwind penalty proportionally across flat route portions even when climbs exist and avoid double-counting baseline wind") {
+        // given: 50 km route with one 10 km climb (80% flat/rolling)
+        val climb = ClimbSegment(startDistanceMeters = 30_000.0, lengthMeters = 10_000.0, gradientPct = 6.0f)
+        val calmEstimator = BatteryEstimator(minMetersForEstimate = 500.0).apply {
+            onUpcomingClimbs(listOf(climb))
+            onRouteRemaining(distanceMeters = 50_000.0, upcomingElevation = null)
+            onMetrics(createMetrics(distance = 0.0, batteryPct = 90))
+            onMetrics(createMetrics(distance = 1_000.0, batteryPct = 89))
+        }
+        val windyEstimator = BatteryEstimator(minMetersForEstimate = 500.0).apply {
+            onUpcomingClimbs(listOf(climb))
+            onRouteRemaining(distanceMeters = 50_000.0, upcomingElevation = null)
+            onMetrics(createMetrics(distance = 0.0, batteryPct = 90))
+            onMetrics(createMetrics(distance = 1_000.0, batteryPct = 89))
+            onHeadwindSpeed(5.0f)
+        }
+        val acclimatedWindyEstimator = BatteryEstimator(minMetersForEstimate = 500.0).apply {
+            onUpcomingClimbs(listOf(climb))
+            onRouteRemaining(distanceMeters = 50_000.0, upcomingElevation = null)
+            onHeadwindSpeed(5.0f)
+            onMetrics(createMetrics(distance = 0.0, batteryPct = 90))
+            onMetrics(createMetrics(distance = 1_000.0, batteryPct = 89))
+        }
+
+        // when
+        val calm = calmEstimator.getEstimate().shouldNotBeNull()
+        val newHeadwind = windyEstimator.getEstimate().shouldNotBeNull()
+        val acclimatedHeadwind = acclimatedWindyEstimator.getEstimate().shouldNotBeNull()
+
+        // then: fresh headwind increases rate over calm; wind already baked into discharge window is not double-counted
+        newHeadwind.avgDischargeRatePctPerKm shouldBeGreaterThan calm.avgDischargeRatePctPerKm
+        acclimatedHeadwind.avgDischargeRatePctPerKm shouldBe (calm.avgDischargeRatePctPerKm plusOrMinus 0.01f)
     }
 })
