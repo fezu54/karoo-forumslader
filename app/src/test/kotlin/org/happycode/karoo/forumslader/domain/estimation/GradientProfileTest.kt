@@ -3,6 +3,7 @@ package org.happycode.karoo.forumslader.domain.estimation
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.floats.plusOrMinus
+import io.kotest.matchers.floats.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 
 class GradientProfileTest : ShouldSpec({
@@ -23,10 +24,10 @@ class GradientProfileTest : ShouldSpec({
             measuredDynamoWatts = 6.0f
         )
 
-        // then
-        updated.speedMetersPerSecond shouldBe (5.5f plusOrMinus 0.001f)
-        updated.frequencyHz shouldBe (39.6f plusOrMinus 0.001f)
-        updated.dynamoPowerWatts shouldBe (2.4f plusOrMinus 0.001f)
+        // then (EMA_ALPHA = 0.05)
+        updated.speedMetersPerSecond shouldBe (5.25f plusOrMinus 0.001f)
+        updated.frequencyHz shouldBe (37.8f plusOrMinus 0.001f)
+        updated.dynamoPowerWatts shouldBe (2.2f plusOrMinus 0.001f)
         updated.gradientPct shouldBe 5
     }
 
@@ -70,4 +71,51 @@ class GradientProfileTest : ShouldSpec({
                 profile.dynamoPowerWatts shouldBe 0f
             }
         }
-    }})
+    }
+
+    should("preserve learned dynamo power when hysteresis cutoff passes null but blend genuine zero watt readings") {
+        // given
+        val profile = GradientProfile(
+            gradientPct = 0,
+            speedMetersPerSecond = 5.0f,
+            frequencyHz = 36.0f,
+            dynamoPowerWatts = 4.0f
+        )
+
+        // when: hysteresis cutoff passes null
+        val afterHysteresis = profile.updatedWith(
+            measuredSpeedMs = 6.0f,
+            measuredFrequencyHz = 43.2f,
+            measuredDynamoWatts = null
+        )
+
+        // and when: genuine 0 W reading below cut-in is measured
+        val afterZeroWatts = profile.updatedWith(
+            measuredSpeedMs = 1.5f,
+            measuredFrequencyHz = 10.8f,
+            measuredDynamoWatts = 0.0f
+        )
+
+        // then
+        afterHysteresis.dynamoPowerWatts shouldBe 4.0f
+        afterHysteresis.speedMetersPerSecond shouldBe (5.05f plusOrMinus 0.001f)
+        afterZeroWatts.dynamoPowerWatts shouldBe (3.8f plusOrMinus 0.001f)
+    }
+
+    should("scale headwind speed reduction down on steep slow climbs") {
+        // given: steep slow climb at 1.8 m/s under 4 m/s headwind
+        val climbProfile = GradientProfile(
+            gradientPct = 10,
+            speedMetersPerSecond = 1.8f,
+            frequencyHz = 13.0f,
+            dynamoPowerWatts = 1.0f
+        )
+
+        // when
+        val adjusted = climbProfile.adjustedForHeadwind(headwindSpeedMs = 4.0f)
+
+        // then: scaled penalty = 4.0 * 0.25 * (1.8 / 5.0) = 0.36 m/s -> 1.44 m/s (above 1.2 m/s floor)
+        adjusted.speedMetersPerSecond shouldBe (1.44f plusOrMinus 0.01f)
+        adjusted.speedMetersPerSecond shouldBeGreaterThan 1.2f
+    }
+})

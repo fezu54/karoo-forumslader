@@ -78,6 +78,8 @@ class ForumsladerKarooAdapter(
         private const val TAG = "FL_ADAPTER"
         private const val RIDE_SUMMARY_NOTIFICATION_ID = "fl_ride_summary"
         private const val SECONDS_PER_MINUTE = 60L
+        private const val MIN_PROFILE_STEP_METERS = 50.0
+        private const val PROFILE_FLUSH_INTERVAL_MS = 5 * 60 * 1000L
 
         private val METRICS_REGISTRY = listOf<Pair<String, MetricContext.() -> Number?>>(
             "fl_battery_voltage" to { metrics.power.batteryVoltage },
@@ -131,10 +133,15 @@ class ForumsladerKarooAdapter(
     )
     private val profileRepository: RiderProfileRepository = riderProfileRepository
         ?: RoomRiderProfileRepository(ForumsladerDatabase.getInstance(context).riderProfileDao())
-    private val recordRiderProfileUseCase = RecordRiderProfileUseCase(profileRepository)
+    private val recordRiderProfileUseCase = RecordRiderProfileUseCase(
+        repository = profileRepository,
+        persistImmediately = false,
+        minDistanceStepMeters = MIN_PROFILE_STEP_METERS
+    )
     private var previousLightState: LightLoadState = LightLoadState.IDLE
     private var autoDisabledUsbByLight = false
     private var previousRideState: RideState = RideState.Idle
+    private var lastProfileFlushMs: Long = 0L
     
     private var flowCollectionJob: Job? = null
     private val consumers = mutableListOf<String>()
@@ -160,8 +167,11 @@ class ForumsladerKarooAdapter(
         currentEmitter = emitter
         karooSystem.connect {}
 
+        lastProfileFlushMs = System.currentTimeMillis()
         adapterScope.launch {
-            batteryEstimator.onRiderProfilesLoaded(profileRepository.findAll())
+            val profiles = profileRepository.findAll()
+            batteryEstimator.onRiderProfilesLoaded(profiles)
+            recordRiderProfileUseCase.onProfilesLoaded(profiles)
         }
 
         consumers += karooSystem.addConsumer(OnStreamState.StartStreaming(DataType.Type.DISTANCE_TO_DESTINATION)) { event: OnStreamState ->
@@ -207,6 +217,8 @@ class ForumsladerKarooAdapter(
             previousLightState = LightLoadState.IDLE
             autoDisabledUsbByLight = false
             previousRideState = RideState.Idle
+            csvLogger.flush()
+            adapterScope.launch { recordRiderProfileUseCase.flush() }
             bleManager.stop()
             karooSystem.disconnect()
             BatteryEstimateStore.clear()
@@ -223,6 +235,8 @@ class ForumsladerKarooAdapter(
                     Log.i(TAG, "Connection status changed for $address: $status")
                     currentEmitter?.onNext(OnConnectionStatus(status = status))
                     if (status == ConnectionStatus.DISCONNECTED) {
+                        csvLogger.flush()
+                        recordRiderProfileUseCase.flush()
                         protocol.stopParameterRequestLoop()
                         parser.resetConfigLoaded()
                         BatteryEstimateStore.clear()
@@ -263,6 +277,11 @@ class ForumsladerKarooAdapter(
                         batteryEstimator.onMetrics(metrics)
                         recordRiderProfileUseCase.onMetricsAndGradient(metrics, currentGradientPct)?.let { updatedProfile ->
                             batteryEstimator.onRiderProfileUpdated(updatedProfile)
+                            val nowMs = System.currentTimeMillis()
+                            if (nowMs - lastProfileFlushMs >= PROFILE_FLUSH_INTERVAL_MS) {
+                                lastProfileFlushMs = nowMs
+                                recordRiderProfileUseCase.flush()
+                            }
                         }
                         BatteryEstimateStore.updateEstimate(batteryEstimator.getEstimate())
                         emitMetrics(em, metrics)
@@ -346,7 +365,7 @@ class ForumsladerKarooAdapter(
     internal fun handleHeadwindStreamState(event: OnStreamState) {
         when (val state = event.state) {
             is StreamState.Streaming -> {
-                val windSpeed = state.dataPoint.values[DataType.Field.SINGLE]
+                val windSpeed = state.dataPoint.values[DataType.Field.SINGLE] ?: state.dataPoint.singleValue
                 batteryEstimator.onHeadwindSpeed(windSpeed?.toFloat())
             }
             else -> batteryEstimator.onHeadwindSpeed(null)
@@ -372,6 +391,8 @@ class ForumsladerKarooAdapter(
             is RideState.Paused -> {
                 rideEnergyAccumulator.onRidePause()
                 fitRecorder.writeSessionSummary(rideEnergyAccumulator.toSummary())
+                csvLogger.flush()
+                adapterScope.launch { recordRiderProfileUseCase.flush() }
             }
             is RideState.Idle -> when (previousRideState) {
                 is RideState.Recording, is RideState.Paused -> {
@@ -380,6 +401,8 @@ class ForumsladerKarooAdapter(
                         dispatchRideSummaryNotification(summary)
                     }
                     rideEnergyAccumulator.reset()
+                    csvLogger.flush()
+                    adapterScope.launch { recordRiderProfileUseCase.flush() }
                 }
                 is RideState.Idle -> Unit
             }

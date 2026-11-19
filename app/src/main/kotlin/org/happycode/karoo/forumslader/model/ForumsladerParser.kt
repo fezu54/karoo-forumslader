@@ -12,6 +12,7 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
     companion object {
         private const val TAG = "FL_Parser"
         private const val DEBUG_SENTENCE_PARSING = true // Set to false to reduce verbose logs
+        private const val CURRENT_DEADBAND_AMPS = 0.015f
     }
 
     private val frameBuffer = StringBuilder()
@@ -245,13 +246,6 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
                     } ?: 0
                     currentStatusMask = statusInt
 
-                    chargeState = when {
-                        (statusInt and 0x8000) != 0 -> ChargeState.FULL
-                        (statusInt and 0x200) != 0 -> ChargeState.CHARGING
-                        (statusInt and 0x100) != 0 -> ChargeState.DISCHARGING
-                        else -> ChargeState.STANDBY
-                    }
-
                     generatorGear = tokens.getOrNull(2)?.toIntOrNull() ?: generatorGear
 
                     val frequency = tokens.getOrNull(3)?.toFloatOrNull() ?: 0f
@@ -261,6 +255,17 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
                     batteryVoltage = (cell1 + cell2 + cell3) / 1000f
                     batteryCurrent = (tokens.getOrNull(7)?.toFloatOrNull() ?: 0f) / 1000f
                     consumerCurrent = (tokens.getOrNull(8)?.toFloatOrNull() ?: 0f) / 1000f
+
+                    // Verified against Forumslader protocol (ref-companion):
+                    // 0x200 = STANDBY, 0x100 = FULL, 0x8000 = DISCHARGING; otherwise derive from batteryCurrent.
+                    chargeState = when {
+                        (statusInt and 0x200) != 0 -> ChargeState.STANDBY
+                        (statusInt and 0x100) != 0 -> ChargeState.FULL
+                        (statusInt and 0x8000) != 0 -> ChargeState.DISCHARGING
+                        batteryCurrent > CURRENT_DEADBAND_AMPS -> ChargeState.CHARGING
+                        batteryCurrent < -CURRENT_DEADBAND_AMPS -> ChargeState.DISCHARGING
+                        else -> ChargeState.STANDBY
+                    }
 
                     val impulseCounter = tokens.getOrNull(version.impulseIndex)?.toDoubleOrNull() ?: 0.0
                     currentImpulseCounter = impulseCounter

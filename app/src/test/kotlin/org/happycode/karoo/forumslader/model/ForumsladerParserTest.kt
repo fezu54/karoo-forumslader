@@ -262,7 +262,7 @@ class ForumsladerParserTest : ShouldSpec({
 
     should("parse charge state and gear from FL6 status when processIncomingBytes is called") {
         // given
-        val payload = $$"$FL6,0x200,5,100,4100,4120,4110,-150,250,0,0,0,12345"
+        val payload = $$"$FL6,0x8000,5,100,4100,4120,4110,-150,250,0,0,0,12345"
         val data = payload.toFrameBytes()
 
         // when
@@ -270,7 +270,7 @@ class ForumsladerParserTest : ShouldSpec({
 
         // then
         result.run {
-            power.chargeState shouldBe ChargeState.CHARGING
+            power.chargeState shouldBe ChargeState.DISCHARGING
             dynamics.generatorGear shouldBe 5
             power.dynamoPowerWatts shouldBe (1.233f plusOrMinus 0.01f)
         }
@@ -326,7 +326,7 @@ class ForumsladerParserTest : ShouldSpec({
         val result = parser.processIncomingBytes(data).shouldNotBeNull()
 
         // then
-        result.power.chargeState shouldBe ChargeState.CHARGING
+        result.power.chargeState shouldBe ChargeState.STANDBY
     }
 
     should("not overwrite battery and consumer current in FLD when missing") {
@@ -402,9 +402,9 @@ class ForumsladerParserTest : ShouldSpec({
     }
 
     listOf(
-        "0x8000" to ChargeState.FULL,
-        "0x100" to ChargeState.DISCHARGING,
-        "0x200" to ChargeState.CHARGING
+        "0x200" to ChargeState.STANDBY,
+        "0x100" to ChargeState.FULL,
+        "0x8000" to ChargeState.DISCHARGING
     ).forEach { (status, expectedState) ->
         should("handle FL6 status bitmask $status and charge states") {
             // given
@@ -445,13 +445,13 @@ class ForumsladerParserTest : ShouldSpec({
 
     should("handle FL6 status as hex if not starting with 0x when processIncomingBytes is called") {
         // given
-        val payload = $$"$FL6,200,0,0,4000,4000,4000,0,0,0,0,0,0"
+        val payload = $$"$FL6,8000,0,0,4000,4000,4000,0,0,0,0,0,0"
 
         // when
         val result = parser.processIncomingBytes(payload.toFrameBytes()).shouldNotBeNull()
 
         // then
-        result.power.chargeState shouldBe ChargeState.CHARGING
+        result.power.chargeState shouldBe ChargeState.DISCHARGING
     }
 
     should("parse FLC set 5 for battery percentage when processIncomingBytes is called") {
@@ -626,5 +626,22 @@ class ForumsladerParserTest : ShouldSpec({
 
         // then
         customParser.isConfigLoadedFlow.value shouldBe false
+    }
+
+    should("derive charging discharging and standby states from battery current when FL6 status bits are zero") {
+        // given: status bitmask is 0 (common on Ahead V6 during normal ride)
+        val chargingPayload = $$"$FL6,0,4,150,4100,4100,4100,320,80,0,0,0,12345"
+        val dischargingPayload = $$"$FL6,0,2,80,4000,4000,4000,-450,800,0,0,0,12350"
+        val standbyPayload = $$"$FL6,0,0,0,4000,4000,4000,-5,0,0,0,0,12350"
+
+        // when
+        val chargingResult = parser.processIncomingBytes(chargingPayload.toFrameBytes()).shouldNotBeNull()
+        val dischargingResult = parser.processIncomingBytes(dischargingPayload.toFrameBytes()).shouldNotBeNull()
+        val standbyResult = parser.processIncomingBytes(standbyPayload.toFrameBytes()).shouldNotBeNull()
+
+        // then
+        chargingResult.power.chargeState shouldBe ChargeState.CHARGING
+        dischargingResult.power.chargeState shouldBe ChargeState.DISCHARGING
+        standbyResult.power.chargeState shouldBe ChargeState.STANDBY
     }
 })
