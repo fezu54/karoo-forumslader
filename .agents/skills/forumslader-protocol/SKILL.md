@@ -43,7 +43,7 @@ Always parse `tokens[1]` as base-16 (with or without `0x` prefix). Do **not** in
 |-------------------|--------------------------------------------------------------------------------------------------|----------------------------------------------------|
 | `0x200`           | Standby (`"o"`)                                                                                  | `ChargeState.STANDBY`                              |
 | `0x100`           | Battery Full (`"*"`)                                                                             | `ChargeState.FULL`                                 |
-| `0x8000`          | Discharging (`"-"`)                                                                              | `ChargeState.DISCHARGING`                          |
+| `0x8000`          | Discharging (`"-"`) — respected only when `batteryCurrent < -0.015 A` (deadband filters quiescent standby draw like `-4 mA`) | `ChargeState.DISCHARGING` / `STANDBY` |
 | None of the above | Charging (`"+"`) when `batteryCurrent > +0.015 A`, Discharging when `< -0.015 A`, else `STANDBY` | `ChargeState.CHARGING` / `DISCHARGING` / `STANDBY` |
 | `0x8`             | Short circuit                                                                                    | `ForumsladerAlert.ShortCircuit`                    |
 | `0x800000`        | System interrupt                                                                                 | `ForumsladerAlert.SystemInterrupt`                 |
