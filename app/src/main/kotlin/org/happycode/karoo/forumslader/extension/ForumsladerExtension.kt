@@ -89,7 +89,7 @@ class ForumsladerExtension(
             ForumsladerDataType(extension, DataFieldId.FREQUENCY),
             ForumsladerDataType(extension, DataFieldId.TEMPERATURE),
             ForumsladerDataType(extension, DataFieldId.GENERATOR_GEAR),
-            ForumsladerDataType(extension, DataFieldId.CHARGE_STATE),
+            ChargeStateGraphicalDataType(extension),
             ForumsladerDataType(extension, DataFieldId.TRIP_ENERGY, DataType.Type.ENERGY_OUTPUT),
             ForumsladerDataType(extension, DataFieldId.TOUR_ENERGY, DataType.Type.ENERGY_OUTPUT),
             ForumsladerDataType(extension, DataFieldId.DYNAMO_POWER, DataType.Type.POWER),
