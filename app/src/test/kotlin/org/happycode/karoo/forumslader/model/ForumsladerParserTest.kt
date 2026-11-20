@@ -402,13 +402,14 @@ class ForumsladerParserTest : ShouldSpec({
     }
 
     listOf(
-        "0x200" to ChargeState.STANDBY,
-        "0x100" to ChargeState.FULL,
-        "0x8000" to ChargeState.DISCHARGING
-    ).forEach { (status, expectedState) ->
-        should("handle FL6 status bitmask $status and charge states") {
+        Triple("0x200", 0, ChargeState.STANDBY),
+        Triple("0x100", 0, ChargeState.FULL),
+        Triple("0x8000", -150, ChargeState.DISCHARGING),
+        Triple("0x8000", -4, ChargeState.STANDBY)
+    ).forEach { (status, currentMa, expectedState) ->
+        should("handle FL6 status bitmask $status with ${currentMa}mA as $expectedState") {
             // given
-            val payload = $$"$FL6,$$status,0,0,4000,4000,4000,0,0,0,0,0,0"
+            val payload = $$"$FL6,$$status,0,0,4000,4000,4000,$$currentMa,0,0,0,0,0"
 
             // when
             val result = parser.processIncomingBytes(payload.toFrameBytes()).shouldNotBeNull()
@@ -445,13 +446,25 @@ class ForumsladerParserTest : ShouldSpec({
 
     should("handle FL6 status as hex if not starting with 0x when processIncomingBytes is called") {
         // given
-        val payload = $$"$FL6,8000,0,0,4000,4000,4000,0,0,0,0,0,0"
+        val payload = $$"$FL6,8000,0,0,4000,4000,4000,-150,0,0,0,0,0"
 
         // when
         val result = parser.processIncomingBytes(payload.toFrameBytes()).shouldNotBeNull()
 
         // then
+        result.power.statusMask shouldBe 0x8000
         result.power.chargeState shouldBe ChargeState.DISCHARGING
+    }
+
+    should("treat quiescent discharge within deadband as standby even when 0x8000 bit is set") {
+        // given: -4 mA standby self-consumption with 0x8000 discharging bit set
+        val payload = $$"$FL6,0x8000,0,0,3860,3860,3860,-4,1,0,0,0,0"
+
+        // when
+        val result = parser.processIncomingBytes(payload.toFrameBytes()).shouldNotBeNull()
+
+        // then
+        result.power.chargeState shouldBe ChargeState.STANDBY
     }
 
     should("parse FLC set 5 for battery percentage when processIncomingBytes is called") {

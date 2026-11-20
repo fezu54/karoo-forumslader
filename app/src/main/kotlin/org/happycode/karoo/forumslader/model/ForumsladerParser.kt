@@ -257,11 +257,12 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
                     consumerCurrent = (tokens.getOrNull(8)?.toFloatOrNull() ?: 0f) / 1000f
 
                     // Verified against Forumslader protocol (ref-companion):
-                    // 0x200 = STANDBY, 0x100 = FULL, 0x8000 = DISCHARGING; otherwise derive from batteryCurrent.
+                    // 0x200 = STANDBY, 0x100 = FULL; otherwise derive from batteryCurrent
+                    // using CURRENT_DEADBAND_AMPS so minor quiescent standby draw (e.g. -4 mA)
+                    // does not report DISCHARGING even when status bit 0x8000 is set.
                     chargeState = when {
                         (statusInt and 0x200) != 0 -> ChargeState.STANDBY
                         (statusInt and 0x100) != 0 -> ChargeState.FULL
-                        (statusInt and 0x8000) != 0 -> ChargeState.DISCHARGING
                         batteryCurrent > CURRENT_DEADBAND_AMPS -> ChargeState.CHARGING
                         batteryCurrent < -CURRENT_DEADBAND_AMPS -> ChargeState.DISCHARGING
                         else -> ChargeState.STANDBY
