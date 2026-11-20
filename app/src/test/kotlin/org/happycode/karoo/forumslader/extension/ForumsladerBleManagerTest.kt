@@ -23,6 +23,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.CHARACTERISTIC_UART_RX_V6
 import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.CHARACTERISTIC_UART_TX_V6
@@ -333,6 +335,53 @@ class ForumsladerBleManagerTest : ShouldSpec({
             // then
             detectedVersions shouldBe emptyList()
             manager.connectionState.value shouldBe ConnectionStatus.CONNECTED
+        }
+    }
+
+    should("reconnect after peripheral disconnects when session child coroutines are active") {
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            val secondPeripheralStateFlow = MutableStateFlow<State>(mockk<State.Disconnected>())
+            val secondServicesFlow = MutableStateFlow<List<DiscoveredService>?>(null)
+            val secondPeripheral = mockk<Peripheral>(relaxed = true) {
+                every { state } returns secondPeripheralStateFlow
+                every { services } returns secondServicesFlow
+                every { observe(any(), any()) } returns observeFlow
+                every { observe(any()) } returns observeFlow
+            }
+            val peripherals = ArrayDeque(listOf(peripheral, secondPeripheral))
+            var factoryCalls = 0
+            val freshAdvertisementsFlow = MutableSharedFlow<Advertisement>()
+            val reconnectScanner = mockk<Scanner<Advertisement>> {
+                every { advertisements } returns freshAdvertisementsFlow
+            }
+            val manager = ForumsladerBleManager(
+                address = address,
+                scope = backgroundScope,
+                scanner = reconnectScanner,
+                peripheralFactory = {
+                    factoryCalls++
+                    peripherals.removeFirst()
+                }
+            )
+
+            manager.start()
+            freshAdvertisementsFlow.emit(mockk())
+            peripheralStateFlow.value = mockk<State.Connected>()
+            val rxChar = mockCharacteristic(CHARACTERISTIC_UART_RX_V6)
+            val txChar = mockCharacteristic(CHARACTERISTIC_UART_TX_V6)
+            servicesFlow.value = listOf(mockService(SERVICE_UUID_V6, listOf(rxChar, txChar)))
+
+            // when
+            peripheralStateFlow.value = mockk<State.Disconnected>()
+            advanceTimeBy(6_000)
+            runCurrent()
+
+            // then
+            manager.connectionState.value shouldBe ConnectionStatus.SEARCHING
+            freshAdvertisementsFlow.emit(mockk())
+            factoryCalls shouldBe 2
+            coVerify(exactly = 1) { secondPeripheral.connect() }
         }
     }
 })
