@@ -13,10 +13,13 @@ import android.content.pm.PackageManager
 import android.location.LocationManager
 import android.os.ParcelUuid
 import android.util.Log
+import io.hammerhead.karooext.KarooSystemService
 import io.hammerhead.karooext.internal.Emitter
 import io.hammerhead.karooext.models.Device
 import io.hammerhead.karooext.models.DeviceEvent
 import io.hammerhead.karooext.models.FitEffect
+import io.hammerhead.karooext.models.ReleaseBluetooth
+import io.hammerhead.karooext.models.RequestBluetooth
 import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
@@ -71,7 +74,8 @@ class ForumsladerExtensionTest : ShouldSpec({
     fun createTestExtension(
         adapter: ForumsladerKarooAdapter = mockk(relaxed = true),
         bluetoothStateFlow: Flow<Boolean> = flowOf(true),
-        scope: CoroutineScope = CoroutineScope(UnconfinedTestDispatcher())
+        scope: CoroutineScope = CoroutineScope(UnconfinedTestDispatcher()),
+        karooSystem: KarooSystemService = mockk(relaxed = true)
     ): ForumsladerExtension = ForumsladerExtension(
         adapterFactory = { _, address, name ->
             adapter.apply {
@@ -85,7 +89,8 @@ class ForumsladerExtensionTest : ShouldSpec({
         },
         defaultScope = scope,
         scanSettingsFactory = { mockk(relaxed = true) },
-        bluetoothStateFlowFactory = { bluetoothStateFlow }
+        bluetoothStateFlowFactory = { bluetoothStateFlow },
+        karooSystemFactory = { karooSystem }
     )
 
     fun setupScanningEnvironment(
@@ -325,5 +330,42 @@ class ForumsladerExtensionTest : ShouldSpec({
 
         // then
         verify(exactly = 1) { scanner.stopScan(any<ScanCallback>()) }
+    }
+
+    should("request Bluetooth lease during BLE scan and release it when scan is cancelled") {
+        // given
+        val karooSystem = mockk<KarooSystemService>(relaxed = true) {
+            every { connect(any()) } answers {
+                firstArg<(Boolean) -> Unit>().invoke(true)
+            }
+        }
+        val spyExtension = spyk(createTestExtension(karooSystem = karooSystem))
+        setupMockExtension(spyExtension)
+        val bluetoothManager = mockk<BluetoothManager>()
+        val bluetoothAdapter = mockk<BluetoothAdapter>()
+        val scanner = mockk<BluetoothLeScanner>(relaxed = true)
+        val emitter = mockk<Emitter<Device>>(relaxed = true)
+        val cancelSlot = slot<() -> Unit>()
+
+        every { spyExtension.checkSelfPermission(any()) } returns PackageManager.PERMISSION_GRANTED
+        every { spyExtension.getSystemService(BluetoothManager::class.java) } returns bluetoothManager
+        every { spyExtension.getSystemService(LocationManager::class.java) } returns null
+        every { bluetoothManager.adapter } returns bluetoothAdapter
+        every { bluetoothAdapter.isEnabled } returns true
+        every { bluetoothAdapter.bluetoothLeScanner } returns scanner
+        every { emitter.setCancellable(capture(cancelSlot)) } returns Unit
+
+        // when
+        spyExtension.startScan(emitter)
+
+        // then
+        verify(exactly = 1) { karooSystem.dispatch(RequestBluetooth("karoo-forumslader:scan")) }
+
+        // when
+        cancelSlot.captured()
+
+        // then
+        verify(exactly = 1) { karooSystem.dispatch(ReleaseBluetooth("karoo-forumslader:scan")) }
+        verify(exactly = 1) { karooSystem.disconnect() }
     }
 })

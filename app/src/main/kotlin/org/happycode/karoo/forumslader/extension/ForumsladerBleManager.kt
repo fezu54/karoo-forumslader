@@ -93,11 +93,11 @@ class ForumsladerBleManager(
             val currentPeripheral = peripheralFactory(advertisement).also { peripheral = it }
             try {
                 handleSession(currentPeripheral)
+                throw ConnectionRestartException()
             } finally {
                 cleanupSession()
             }
         }
-        throw ConnectionRestartException()
     }
 
     @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN])

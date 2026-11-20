@@ -15,6 +15,8 @@ import io.hammerhead.karooext.models.OnConnectionStatus
 import io.hammerhead.karooext.models.OnDataPoint
 import io.hammerhead.karooext.models.OnNavigationState
 import io.hammerhead.karooext.models.OnStreamState
+import io.hammerhead.karooext.models.ReleaseBluetooth
+import io.hammerhead.karooext.models.RequestBluetooth
 import io.hammerhead.karooext.models.RideState
 import io.hammerhead.karooext.models.StreamState
 import io.hammerhead.karooext.models.SystemNotification
@@ -1190,6 +1192,34 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
 
             // then: dirty bucket flushed in batch
             coVerify(exactly = 1) { mockRepository.save(match { it.gradientPct == 4 }) }
+        }
+    }
+
+    should("request Bluetooth lease on connect and release it when cancelled") {
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            every { karooSystem.connect(any()) } answers {
+                firstArg<(Boolean) -> Unit>().invoke(true)
+            }
+            val cancelSlot = slot<() -> Unit>()
+            every { emitter.setCancellable(capture(cancelSlot)) } returns Unit
+            val forumslader = createAdapter(scope = backgroundScope)
+
+            // when
+            forumslader.connect(emitter)
+
+            // then
+            verify(exactly = 1) {
+                karooSystem.dispatch(RequestBluetooth("karoo-forumslader:fl-00:11:22:33:44:55"))
+            }
+
+            // when
+            cancelSlot.captured()
+
+            // then
+            verify(exactly = 1) {
+                karooSystem.dispatch(ReleaseBluetooth("karoo-forumslader:fl-00:11:22:33:44:55"))
+            }
         }
     }
 })
