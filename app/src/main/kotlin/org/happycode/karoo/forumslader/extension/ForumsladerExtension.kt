@@ -14,6 +14,7 @@ import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresPermission
 import androidx.core.content.getSystemService
+import io.hammerhead.karooext.KarooSystemService
 import io.hammerhead.karooext.extension.DataTypeImpl
 import io.hammerhead.karooext.extension.KarooExtension
 import io.hammerhead.karooext.internal.Emitter
@@ -21,6 +22,8 @@ import io.hammerhead.karooext.models.DataType
 import io.hammerhead.karooext.models.Device
 import io.hammerhead.karooext.models.DeviceEvent
 import io.hammerhead.karooext.models.FitEffect
+import io.hammerhead.karooext.models.ReleaseBluetooth
+import io.hammerhead.karooext.models.RequestBluetooth
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -49,7 +52,8 @@ class ForumsladerExtension(
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .build()
     },
-    private val bluetoothStateFlowFactory: (Context) -> Flow<Boolean> = { it.bluetoothStateFlow() }
+    private val bluetoothStateFlowFactory: (Context) -> Flow<Boolean> = { it.bluetoothStateFlow() },
+    private val karooSystemFactory: (Context) -> KarooSystemService = { KarooSystemService(it) }
 ) : KarooExtension(extension = "karoo-forumslader", version = BuildConfig.VERSION_NAME) {
     private var fitEmitter: Emitter<FitEffect>? = null
     private val devices: ConcurrentMap<String, ForumsladerKarooAdapter> = ConcurrentHashMap()
@@ -201,6 +205,16 @@ class ForumsladerExtension(
         val bluetoothManager = getSystemService<BluetoothManager>()
         var activeScanner: BluetoothLeScanner? = null
 
+        val scanKarooSystem = karooSystemFactory(this)
+        val scanBluetoothResourceId = "$extension:scan"
+        var scanCancelled = false
+        scanKarooSystem.connect { connected ->
+            if (connected && !scanCancelled) {
+                Log.i(TAG, "startScan(): Requesting Bluetooth lease: $scanBluetoothResourceId")
+                scanKarooSystem.dispatch(RequestBluetooth(scanBluetoothResourceId))
+            }
+        }
+
         fun stopActiveScan() {
             activeScanner?.let { scanner ->
                 runCatching { scanner.stopScan(callback) }
@@ -246,12 +260,16 @@ class ForumsladerExtension(
 
         emitter.setCancellable {
             Log.d(TAG, "startScan(): Scan cancelled / stopped")
+            scanCancelled = true
             job.cancel()
             val canStop =
                 Build.VERSION.SDK_INT < Build.VERSION_CODES.S || checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED
             if (canStop) {
                 stopActiveScan()
             }
+            Log.i(TAG, "startScan(): Releasing Bluetooth lease: $scanBluetoothResourceId")
+            scanKarooSystem.dispatch(ReleaseBluetooth(scanBluetoothResourceId))
+            scanKarooSystem.disconnect()
         }
     }
 
