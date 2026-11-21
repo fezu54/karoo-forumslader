@@ -1,0 +1,37 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>CyclomaticComplexMethod:BatteryEstimateCard.kt:@Composable private fun BatteryEstimateContent</ID>
+    <ID>CyclomaticComplexMethod:FirmwareUpdateCard.kt:@Composable fun FirmwareUpdateCard</ID>
+    <ID>CyclomaticComplexMethod:ForumsladerExtension.kt:ForumsladerExtension$@RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT]) override fun startScan</ID>
+    <ID>CyclomaticComplexMethod:ForumsladerGraphicalDataType.kt:ForumsladerGraphicalDataType$internal fun createViewState: BatteryViewState</ID>
+    <ID>CyclomaticComplexMethod:ForumsladerParser.kt:ForumsladerParser$private fun parseAsciiPayload: Boolean</ID>
+    <ID>CyclomaticComplexMethod:LightLoadDetector.kt:LightLoadDetector$fun onMetrics: LightLoadState</ID>
+    <ID>CyclomaticComplexMethod:MainScreen.kt:@Composable fun MainScreen</ID>
+    <ID>CyclomaticComplexMethod:MetricFormatter.kt:MetricFormatter$fun format: String</ID>
+    <ID>LongMethod:ForumsladerExtension.kt:ForumsladerExtension$@RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT]) override fun startScan</ID>
+    <ID>LongMethod:ForumsladerGraphicalDataType.kt:ForumsladerGraphicalDataType$internal fun createViewState: BatteryViewState</ID>
+    <ID>LongMethod:ForumsladerKarooAdapter.kt:ForumsladerKarooAdapter$@RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN]) fun connect</ID>
+    <ID>LongMethod:ForumsladerParser.kt:ForumsladerParser$fun processIncomingBytes: ForumsladerMetrics?</ID>
+    <ID>LongMethod:ForumsladerParser.kt:ForumsladerParser$private fun parseAsciiPayload: Boolean</ID>
+    <ID>LoopWithTooManyJumpStatements:ForumsladerParser.kt:ForumsladerParser$while</ID>
+    <ID>MatchingDeclarationName:Theme.kt:ForumsladerCustomColors</ID>
+    <ID>MaxLineLength:BatteryEstimateCard.kt:if</ID>
+    <ID>MaxLineLength:CsvLogger.kt:CsvLogger.Companion$const val CSV_HEADER = "elapsedSeconds,batteryVoltage,batteryCurrent,consumerCurrent,batteryLevel,frequency,speed,tripDistance,temperature,gear,chargeState,tripEnergy,dynamoPower"</ID>
+    <ID>MaxLineLength:ForumsladerExtension.kt:ForumsladerExtension$Build.VERSION.SDK_INT &lt; Build.VERSION_CODES.S || checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED</ID>
+    <ID>MaxLineLength:ForumsladerExtension.kt:ForumsladerExtension$Build.VERSION.SDK_INT &lt; Build.VERSION_CODES.S || checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED</ID>
+    <ID>MaxLineLength:ForumsladerExtension.kt:ForumsladerExtension.&lt;no name provided&gt;$"Matched Forumslader: address=$deviceAddress, name=$name, byName=$hasForumsladerName, byService=$hasForumsladerService, byMfg=$hasForumsladerMfg"</ID>
+    <ID>MaxLineLength:ForumsladerExtension.kt:ForumsladerExtension.&lt;no name provided&gt;$Build.VERSION.SDK_INT &lt; Build.VERSION_CODES.S || checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED</ID>
+    <ID>MaxLineLength:ForumsladerKarooAdapter.kt:ForumsladerKarooAdapter$consumers</ID>
+    <ID>MaxLineLength:ForumsladerParser.kt:ForumsladerParser$"-&gt; speed=${String.format("%.1f", speedMetersPerSecond * 3.6f)}km/h trip=${String.format("%.2f", tripDistanceMeters / 1000.0)}km"</ID>
+    <ID>MaxLineLength:ForumsladerParser.kt:ForumsladerParser$"Speed=${String.format("%.1f", speedMetersPerSecond * 3.6f)}km/h Trip=${String.format("%.2f", tripDistanceMeters / 1000.0)}km "</ID>
+    <ID>NewLineAtEndOfFile:ForumsladerBleProfile.kt:org.happycode.karoo.forumslader.model.ForumsladerBleProfile.kt</ID>
+    <ID>TooGenericExceptionCaught:ForumsladerBleManager.kt:ForumsladerBleManager$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ForumsladerParser.kt:ForumsladerParser$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:NordicDfuAdapter.kt:NordicDfuAdapter$e: Exception</ID>
+    <ID>TooManyFunctions:DischargeWindow.kt:DischargeWindow</ID>
+    <ID>TooManyFunctions:ForumsladerBleManager.kt:ForumsladerBleManager</ID>
+    <ID>TooManyFunctions:ForumsladerKarooAdapter.kt:ForumsladerKarooAdapter</ID>
+  </CurrentIssues>
+</SmellBaseline>
