@@ -33,5 +33,6 @@ Inner rings must not depend on outer rings; invert dependencies with interfaces 
 ## Commits & PRs
 
 - Use Conventional Commits (`feat(scope): ...`, `fix(scope): ...`, `test(scope): ...`, `docs: ...`; enforced by `.githooks/commit-msg`).
+- Always include a descriptive commit body (separated from the subject by a blank line) explaining *why* the change is needed and *what* was changed — never commit with only a single-line subject.
 - Keep each commit focused on one logical change.
 - Include a short description of intent, tests demonstrating the change, and updated docs when public behavior changes.
