@@ -125,7 +125,10 @@ class ChargeStateGraphicalDataType(
         is StreamState.Streaming -> when (streamState.dataPoint.singleValue?.toInt()?.let { ChargeState.entries.getOrNull(it) }) {
             ChargeState.STANDBY -> ChargeStateViewState(context.getString(R.string.charge_state_standby), R.color.karoo_text_primary)
             ChargeState.CHARGING -> ChargeStateViewState(context.getString(R.string.charge_state_charging), R.color.karoo_battery_good)
-            ChargeState.DISCHARGING -> ChargeStateViewState(context.getString(R.string.charge_state_discharging), R.color.karoo_battery_medium)
+            ChargeState.DISCHARGING -> ChargeStateViewState(
+                label = context.getString(R.string.charge_state_discharging),
+                colorResId = R.color.karoo_battery_medium
+            )
             ChargeState.FULL -> ChargeStateViewState(context.getString(R.string.charge_state_full), R.color.karoo_battery_good)
             null -> ChargeStateViewState("---", R.color.karoo_text_primary)
         }
