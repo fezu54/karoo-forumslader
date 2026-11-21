@@ -44,6 +44,13 @@ jobs:
         with:
           packages: 'platform-tools'
 
+      - name: Run Android Lint and Detekt
+        env:
+          USERNAME: ${{ github.actor }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ./gradlew :app:lintDebug :app:detekt
+
       - name: Run tests and verify coverage
         env:
           USERNAME: ${{ github.actor }}

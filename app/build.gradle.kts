@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.kover)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.detekt)
 }
 
 android {
@@ -44,6 +45,10 @@ android {
         compose = true
         buildConfig = true
     }
+    lint {
+        error += setOf("MissingTranslation", "ExtraTranslation")
+        abortOnError = true
+    }
     testOptions {
         unitTests.all {
             it.useJUnitPlatform()
@@ -68,6 +73,13 @@ kover {
             }
         }
     }
+}
+
+detekt {
+    config.setFrom(rootProject.file("config/detekt/detekt.yml"))
+    buildUponDefaultConfig = true
+    parallel = true
+    baseline = file("detekt-baseline.xml")
 }
 
 dependencies {

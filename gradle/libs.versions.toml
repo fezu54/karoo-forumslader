@@ -25,12 +25,14 @@ androidxTestCore = "1.7.0"
 
 room = "2.8.5"
 ksp = "2.3.13"
+detekt = "2.0.0-alpha.6"
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "kover" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+detekt = { id = "dev.detekt", version.ref = "detekt" }
 
 [libraries]
 hammerhead-karoo-ext = { group = "io.hammerhead", name = "karoo-ext", version = "1.1.9" }
