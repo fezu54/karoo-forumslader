@@ -1,0 +1,34 @@
+naming:
+  FunctionNaming:
+    ignoreAnnotated: ['Composable']
+  TopLevelPropertyNaming:
+    constantPattern: '[A-Z][_A-Z0-9]*'
+
+complexity:
+  LargeClass:
+    excludes: ['**/test/**']
+  LongMethod:
+    active: true
+    allowedLines: 60
+    ignoreAnnotated: ['Composable']
+  LongParameterList:
+    ignoreAnnotated: ['Composable']
+  NestedBlockDepth:
+    active: true
+    allowedDepth: 4
+
+style:
+  MagicNumber:
+    active: false
+  MaxLineLength:
+    active: true
+    maxLineLength: 140
+    excludes: ['**/test/**']
+  UnusedPrivateFunction:
+    ignoreAnnotated: ['Preview']
+  UnnecessaryFullyQualifiedName:
+    active: true
+  WildcardImport:
+    active: true
+  ReturnCount:
+    active: false
