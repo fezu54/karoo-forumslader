@@ -4,6 +4,15 @@ Purpose
 - Instructions for GitHub Copilot / Gemini agents to generate, modify, and review code in this repository.
 - Keep suggestions short, precise, and idiomatic Kotlin.
 
+Development Workflow (AI Factory)
+- Route features, refactors, and bug fixes through the `dev-workflow` skill (`.agents/skills/dev-workflow/SKILL.md`), which orchestrates: `dev-issue-gate` -> `dev-implement` -> `dev-review` (max 3 rounds) -> `dev-deliver`.
+- **Issue gate**: Verify a GitHub issue exists before developing new features or significant changes (small isolated bug fixes are exempt). Without an issue, decline implementation and draft a reviewable issue + implementation plan (`dev-issue-gate`).
+- **Never invent requirements**: Stop and ask concise clarifying questions whenever anything is unclear.
+- **Worktree by default**: Isolate changes in a fresh git worktree under `.worktrees/` via `.agents/skills/dev-implement/scripts/setup-worktree.sh`, unless already inside a worktree or the user explicitly requests working directly on a branch.
+- **Test-driven development (TDD)**: Write deterministic unit tests first and ask the user to review and approve them before implementing production code.
+- **Token-saving mode**: Never run Gradle builds/tests before editing code; never unpack `.aar`/`.jar` dependency archives (read `.agents/skills/dev-implement/references/karoo-ext-api.md` instead); iterate with targeted unit tests and run `./gradlew :app:checkCoverageBaseline` once at the end.
+- **German translations**: Whenever adding or modifying `app/src/main/res/values/strings.xml`, always update `app/src/main/res/values-de/strings.xml` (see `.agents/rules/translations.md`).
+
 High-level rules
 - Prefer Kotlin scope functions (let, run, apply, also, with) to reduce nested ifs where appropriate.
 - Prefer `when` over nested `if-else if` chains.
@@ -48,14 +57,16 @@ Testing
 - Define `//given`, `//when`, `//then` comments if it adds clarity
 
 Commit & PR rules
-- Follow Conventional Commits for commit messages. Examples:
+- Follow Conventional Commits (see `CONTRIBUTING.md` and the `dev-deliver` skill). Examples:
   - feat(scope): add user registration use case
   - fix(auth): handle token expiry in refresh flow
   - test(repo): add unit tests for UserRepositoryAdapter
   - docs: add agents.md
+- Commit bodies must explain **why** the change was made in easy-to-understand language. Never list modified files or narrate *what* code edits were done (that is what `git diff` is for).
 - Keep commits small and focused. One logical change per commit.
 - Each PR must include:
-  - a short description of intent
+  - a Conventional Commit PR title (PRs squash-merge onto `main`)
+  - a short plain-language description of why the change is needed (no `Why` heading, `Verification` section, or file list)
   - tests demonstrating the change
   - a changelog entry if the change affects public behavior
 
