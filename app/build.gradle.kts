@@ -1,4 +1,9 @@
 import org.gradle.api.JavaVersion.VERSION_11
+import org.happycode.karoo.forumslader.build.KarooAppManifestSpec
+import org.happycode.karoo.forumslader.build.KarooManifestJsonSerializer
+import org.happycode.karoo.forumslader.build.KarooManifestVersionNormalizer
+import org.happycode.karoo.forumslader.build.ReleaseNotesFormatter
+import java.io.File
 import java.util.Locale
 
 plugins {
@@ -17,7 +22,9 @@ android {
         minSdk = 26
         targetSdk = 37
         versionCode = (project.findProperty("versionCode") as? String)?.toInt() ?: 1
-        versionName = (project.findProperty("versionName") as? String) ?: "1.0"
+        versionName = KarooManifestVersionNormalizer.normalize(
+            (project.findProperty("versionName") as? String) ?: "1.0"
+        )
         buildConfigField("String", "VERSION_NAME", "\"${versionName}\"")
     }
     signingConfigs {
@@ -103,6 +110,70 @@ tasks.register("generateFieldScreenshots") {
     description = "Generates high-resolution RemoteViews data field screenshots for documentation."
     group = "documentation"
     dependsOn("testDebugUnitTest")
+}
+
+tasks.register("generateManifest") {
+    description = "Generates manifest.json for the Hammerhead Karoo Extension Library."
+    group = "publishing"
+
+    val outputFile = layout.buildDirectory.file("outputs/manifest/manifest.json")
+    val appId = requireNotNull(android.defaultConfig.applicationId)
+    val resolvedVersion = requireNotNull(android.defaultConfig.versionName)
+    val resolvedVersionCode = requireNotNull(android.defaultConfig.versionCode)
+    val baseUrl = (project.findProperty("manifestBaseUrl") as? String)
+        ?: "https://github.com/fezu54/karoo-forumslader/releases/latest/download"
+    val releaseNotesPath = project.findProperty("releaseNotesFile") as? String
+    val inlineReleaseNotes = project.findProperty("releaseNotes") as? String
+    val rootDir = rootProject.projectDir
+    val resolvedNotesFile = releaseNotesPath?.let { path ->
+        File(path).let { if (it.isAbsolute) it else rootDir.resolve(path) }
+    }
+
+    inputs.property("packageName", appId)
+    inputs.property("versionName", resolvedVersion)
+    inputs.property("versionCode", resolvedVersionCode)
+    inputs.property("baseUrl", baseUrl)
+    inputs.property("inlineReleaseNotes", inlineReleaseNotes ?: "")
+    inputs.property("releaseNotesPath", releaseNotesPath ?: "")
+    resolvedNotesFile?.let { file -> inputs.file(file).optional() }
+    outputs.file(outputFile)
+
+    doLast {
+        val rawNotes = resolvedNotesFile?.takeIf { it.exists() }?.readText()
+            ?: inlineReleaseNotes
+
+        val screenshotFiles = listOf(
+            "card-1.png",
+            "card-2.png",
+            "card-3.png",
+            "card-4.png",
+            "card-6.png",
+            "card-7.png",
+            "card-8.png"
+        )
+
+        val spec = KarooAppManifestSpec(
+            label = "Karoo Forumslader",
+            packageName = appId,
+            latestApkUrl = "$baseUrl/app-release.apk",
+            latestVersion = resolvedVersion,
+            latestVersionCode = resolvedVersionCode,
+            iconUrl = "$baseUrl/karoo-forumslader.png",
+            developer = "fezu54",
+            description = "Connect your Forumslader V5/V6 hub-dynamo charger to Hammerhead Karoo. " +
+                "Provides 16 live telemetry data fields, climb-aware battery range estimation, " +
+                "automated 12V light USB power management, safety alerts, FIT recording, " +
+                "wireless log export, and V6 firmware updates.",
+            releaseNotes = ReleaseNotesFormatter.format(rawNotes),
+            screenshotUrls = screenshotFiles.map { fileName -> "$baseUrl/$fileName" },
+            tags = emptyList()
+        )
+
+        val target = outputFile.get().asFile
+        target.parentFile.mkdirs()
+        target.writeText(KarooManifestJsonSerializer.toJson(spec))
+        println("Generated ${target.absolutePath} for version $resolvedVersion ($resolvedVersionCode)")
+    }
 }
 
 

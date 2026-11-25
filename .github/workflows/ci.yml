@@ -49,7 +49,7 @@ jobs:
           USERNAME: ${{ github.actor }}
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          ./gradlew :app:checkCoverageBaseline
+          ./gradlew :buildSrc:test :app:checkCoverageBaseline
 
       - name: Update and Push Coverage Baseline
         if: github.ref == 'refs/heads/main'
@@ -111,7 +111,9 @@ jobs:
               patch=$((patch + 1))
             fi
             
-            new_tag="v$major.$minor.$patch"
+            new_version="$major.$minor.$patch"
+            new_tag="v$new_version"
+            echo "new_version=$new_version" >> $GITHUB_ENV
             echo "new_tag=$new_tag" >> $GITHUB_ENV
             echo "New version: $new_tag"
           else
@@ -136,12 +138,63 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          ./gradlew :app:assembleRelease -PversionName=${{ env.new_tag }} -PversionCode=${{ github.run_number }}
+          ./gradlew :app:assembleRelease -PversionName=${{ env.new_version }} -PversionCode=${{ github.run_number }}
 
       - name: Generate Release Notes
         if: github.ref == 'refs/heads/main' && env.should_release == 'true'
         run: |
           kotlinc -script .github/scripts/generate_release_notes.kts
+
+      - name: Generate Karoo Store Manifest
+        if: github.ref == 'refs/heads/main' && env.should_release == 'true'
+        env:
+          USERNAME: ${{ github.actor }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ./gradlew :app:generateManifest -PversionName=${{ env.new_version }} -PversionCode=${{ github.run_number }} -PreleaseNotesFile=release_notes.md
+
+      - name: Validate Karoo Store Release Artifacts
+        if: github.ref == 'refs/heads/main' && env.should_release == 'true'
+        run: |
+          manifest="app/build/outputs/manifest/manifest.json"
+          apk="app/build/outputs/apk/release/app-release.apk"
+
+          jq empty "$manifest"
+          jq -e 'has("tags") | not' "$manifest" >/dev/null
+          jq -er '.releaseNotes | length > 0' "$manifest" >/dev/null
+
+          sdk="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          tools=$(ls -d "$sdk"/build-tools/* 2>/dev/null | sort -V | tail -1)
+          aapt2="$tools/aapt2"
+          test -x "$aapt2"
+
+          badging=$("$aapt2" dump badging "$apk")
+          badging_line=${badging%%$'\n'*}
+          extract_badging() {
+            awk -v key="$2" '{ if (match($0, key "=\047[^\047]*\047")) { print substr($0, RSTART + length(key) + 2, RLENGTH - length(key) - 3) } }' <<< "$1"
+          }
+
+          apk_pkg=$(extract_badging "$badging_line" "name")
+          apk_ver=$(extract_badging "$badging_line" "versionName")
+          apk_code=$(extract_badging "$badging_line" "versionCode")
+
+          test -n "$apk_pkg"
+          test -n "$apk_ver"
+          test -n "$apk_code"
+
+          man_pkg=$(jq -r '.packageName' "$manifest")
+          man_ver=$(jq -r '.latestVersion' "$manifest")
+          man_code=$(jq -r '.latestVersionCode' "$manifest")
+
+          test "$apk_pkg" = "$man_pkg"
+          test "$apk_ver" = "$man_ver"
+          test "$apk_code" = "$man_code"
+          test -f "docs/images/karoo-forumslader.png"
+
+          while IFS= read -r url; do
+            file_name="${url##*/}"
+            test -f "docs/images/screenshots/$file_name"
+          done < <(jq -r '.screenshotUrls[]' "$manifest")
 
       - name: Create GitHub Release
         if: github.ref == 'refs/heads/main' && env.should_release == 'true'
@@ -153,6 +206,11 @@ jobs:
           body_path: release_notes.md
           draft: false
           prerelease: false
-          files: app/build/outputs/apk/release/app-release.apk
+          make_latest: true
+          files: |
+            app/build/outputs/apk/release/app-release.apk
+            app/build/outputs/manifest/manifest.json
+            docs/images/karoo-forumslader.png
+            docs/images/screenshots/card-*.png
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
