@@ -1,10 +1,10 @@
 # Karoo Forumslader Extension Roadmap
 
-This document outlines the planned improvements and missing functionalities for the Karoo Forumslader Extension, compared against the Garmin Connect IQ reference companion project (`ref-companion`).
+This document outlines the planned improvements and missing functionalities for the Karoo Forumslader Extension, compared against the Garmin Connect IQ reference companion project.
 
 ---
 
-## 1. Feature Parity Gaps (Garmin `ref-companion` vs. Karoo Extension)
+## 1. Feature Parity Gaps (Garmin Reference Companion vs. Karoo Extension)
 
 ### Telemetry & Data Fields
 * **Unexposed Existing Fields**: `batteryVoltage`, `batteryCurrent`, and `temperatureCelsius` are parsed but not registered as Karoo custom data types or adapter fields.
