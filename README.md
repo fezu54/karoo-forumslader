@@ -202,21 +202,29 @@ The companion app includes a dedicated **Firmware Update (V6)** card located on 
 
 ### Installation & Setup
 
-1. **Download the APK**: Grab the latest release from the [Releases](https://github.com/fezu54/karoo-forumslader/releases) page.
-2. **Sideload onto Karoo**: Install the APK via ADB or the Karoo Companion App (only working for Karoo 3):
+#### Option A: Karoo Extension Library (Store & Auto-Updates)
+
+Once listed in Hammerhead's Extension Library (or configured via the Hammerhead Developer Dashboard using `https://github.com/fezu54/karoo-forumslader/releases/latest/download/manifest.json`), you can install **Karoo Forumslader** directly on your Karoo and receive automatic update prompts when new releases are published.
+
+#### Option B: Manual Sideloading
+
+1. **Download the APK**: Grab the latest `app-release.apk` from the [Releases](https://github.com/fezu54/karoo-forumslader/releases) page.
+2. **Sideload onto Karoo**: Install the APK via ADB or the Karoo Companion App (Karoo 3):
 
    ```bash
-   adb install -r karoo-forumslader-vX.X.X.apk
+   adb install -r app-release.apk
    ```
 
-3. **Pair the Sensor**:
+#### First-Time Pairing & Configuration
+
+1. **Pair the Sensor**:
    - Turn on your Forumslader (or spin your dynamo wheel to wake BLE).
    - On the Karoo, open **Settings** > **Sensors** > **Add Sensor**.
    - Select the Forumslader sensor (named `Forumslader` or `FL-<MAC>`).
-4. **Add Data Fields**:
+2. **Add Data Fields**:
    - Open your preferred Karoo Ride Profile.
    - Edit the screen layout and add any Forumslader fields (e.g. `Battery & Range`, `Dynamo Power`, `Trip Energy`).
-5. **Configure Parameters**:
+3. **Configure Parameters**:
    - Open the **Karoo Forumslader** companion app from the main app launcher.
    - Verify or override your wheel size and dynamo pole settings.
 

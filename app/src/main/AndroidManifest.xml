@@ -56,6 +56,10 @@
             android:name="org.happycode.karoo.forumslader.adapters.ble.ForumsladerDfuService"
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
+
+        <meta-data
+            android:name="io.hammerhead.karooext.MANIFEST_URL"
+            android:value="https://github.com/fezu54/karoo-forumslader/releases/latest/download/manifest.json" />
     </application>
 
 </manifest>
