@@ -10,7 +10,6 @@
 local.properties
 /app/release
 /.antigravitycli
-/ref-companion
 /.worktrees
 /.agents/**/.cache
 

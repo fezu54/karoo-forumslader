@@ -256,7 +256,7 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
                     batteryCurrent = (tokens.getOrNull(7)?.toFloatOrNull() ?: 0f) / 1000f
                     consumerCurrent = (tokens.getOrNull(8)?.toFloatOrNull() ?: 0f) / 1000f
 
-                    // Verified against Forumslader protocol (ref-companion):
+                    // Verified against the Forumslader protocol:
                     // 0x200 = STANDBY, 0x100 = FULL, 0x8000 = DISCHARGING; otherwise derive from batteryCurrent.
                     chargeState = when {
                         (statusInt and 0x200) != 0 -> ChargeState.STANDBY

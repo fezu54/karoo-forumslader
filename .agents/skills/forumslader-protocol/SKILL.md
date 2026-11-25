@@ -14,8 +14,6 @@ This skill documents the verified Forumslader V5 / V6 ASCII telemetry and comman
 
 - For `$FLT` command framing and consumer output toggle values,
   see [flt-commands.md](../../../docs/ble/flt-commands.md).
-- For Garmin reference decoding, see `ref-companion/source/ForumsladerDataManager.mc` and
-  `ref-companion/source/ForumsladerView.mc`.
 
 ---
 
