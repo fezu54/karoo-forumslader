@@ -17,8 +17,6 @@ import io.hammerhead.karooext.models.OnConnectionStatus
 import io.hammerhead.karooext.models.OnDataPoint
 import io.hammerhead.karooext.models.OnNavigationState
 import io.hammerhead.karooext.models.OnStreamState
-import io.hammerhead.karooext.models.ReleaseBluetooth
-import io.hammerhead.karooext.models.RequestBluetooth
 import io.hammerhead.karooext.models.RideState
 import io.hammerhead.karooext.models.StreamState
 import io.hammerhead.karooext.models.SystemNotification
@@ -169,13 +167,8 @@ class ForumsladerKarooAdapter(
     fun connect(emitter: Emitter<DeviceEvent>) {
         Log.i(TAG, "connect() called for $address")
         currentEmitter = emitter
-        var cancelled = false
-        karooSystem.connect { connected ->
-            if (connected && !cancelled) {
-                Log.i(TAG, "Requesting Bluetooth lease: $bluetoothResourceId")
-                karooSystem.dispatch(RequestBluetooth(bluetoothResourceId))
-            }
-        }
+        val bluetoothLease = KarooBluetoothLease(karooSystem, resourceId = bluetoothResourceId)
+        bluetoothLease.acquire()
 
         lastProfileFlushMs = System.currentTimeMillis()
         adapterScope.launch {
@@ -210,7 +203,6 @@ class ForumsladerKarooAdapter(
 
         emitter.setCancellable {
             Log.i(TAG, "Cancelling connection / tearing down adapter for $address")
-            cancelled = true
             currentEmitter = null
             flowCollectionJob?.cancel()
             consumers.forEach { karooSystem.removeConsumer(it) }
@@ -231,8 +223,7 @@ class ForumsladerKarooAdapter(
             csvLogger.flush()
             adapterScope.launch { recordRiderProfileUseCase.flush() }
             bleManager.stop()
-            Log.i(TAG, "Releasing Bluetooth lease: $bluetoothResourceId")
-            karooSystem.dispatch(ReleaseBluetooth(bluetoothResourceId))
+            bluetoothLease.release()
             karooSystem.disconnect()
             BatteryEstimateStore.clear()
         }
