@@ -8,7 +8,7 @@ data class ForumsladerMetrics(
     val dynamics: Dynamics,
     val environment: Environment,
     val energy: Energy,
-    val distance: Distance
+    val distance: Distance,
 ) {
     /**
      * Electronics and power management metrics.
@@ -20,7 +20,9 @@ data class ForumsladerMetrics(
         val batteryLevelPercentage: Int?,
         val chargeState: ChargeState,
         val dynamoPowerWatts: Float,
-        val statusMask: Int
+        val statusMask: Int,
+        val fullChargeCapacityMah: Int? = null,
+        val cycleCount: Int? = null,
     )
 
     /**
@@ -29,7 +31,7 @@ data class ForumsladerMetrics(
     data class Dynamics(
         val frequency: Float,
         val speedMetersPerSecond: Float,
-        val generatorGear: Int
+        val generatorGear: Int,
     )
 
     /**
@@ -37,7 +39,7 @@ data class ForumsladerMetrics(
      */
     data class Environment(
         val temperatureCelsius: Float,
-        val altitudeMeters: Float
+        val altitudeMeters: Float,
     )
 
     /**
@@ -45,7 +47,7 @@ data class ForumsladerMetrics(
      */
     data class Energy(
         val tripWattHours: Double,
-        val tourWattHours: Double
+        val tourWattHours: Double,
     )
 
     /**
@@ -55,6 +57,6 @@ data class ForumsladerMetrics(
         val tripMeters: Double,
         val dayMeters: Double,
         val tourMeters: Double,
-        val odometerMeters: Double
+        val odometerMeters: Double,
     )
 }

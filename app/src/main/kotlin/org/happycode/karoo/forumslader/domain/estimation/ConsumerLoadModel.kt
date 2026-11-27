@@ -33,7 +33,8 @@ class ConsumerLoadModel(
         currentPowerWatts: Float,
         baselinePowerWatts: Float?,
         speedMetersPerSecond: Float?,
-        baseRatePctPerKm: Float
+        baseRatePctPerKm: Float,
+        batteryCapacityWh: Float = this.batteryCapacityWh,
     ): Float {
         val baselineWatts = baselinePowerWatts ?: return 0f
         val powerDeltaWatts = currentPowerWatts - baselineWatts
@@ -42,7 +43,8 @@ class ConsumerLoadModel(
         val speedMs = speedMetersPerSecond?.takeIf { it >= MIN_MOVING_SPEED_MS } ?: DEFAULT_SPEED_MS
         val speedKmh = speedMs * MS_TO_KMH
         val whPerKmDelta = powerDeltaWatts / speedKmh
-        val rawDeltaPctPerKm = (whPerKmDelta / batteryCapacityWh) * PERCENT_SCALE
+        val effectiveCapacityWh = batteryCapacityWh.takeIf { it > 0f } ?: this.batteryCapacityWh
+        val rawDeltaPctPerKm = (whPerKmDelta / effectiveCapacityWh) * PERCENT_SCALE
         val maxNegativeRelief = -baseRatePctPerKm * MAX_NEGATIVE_RELIEF_FRACTION
         return rawDeltaPctPerKm.coerceAtLeast(maxNegativeRelief)
     }

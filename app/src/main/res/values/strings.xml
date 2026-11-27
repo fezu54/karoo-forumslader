@@ -149,4 +149,20 @@
     <string name="ride_summary_notification_message">%1$.1f Wh • Avg %2$.1f W (Peak %3$.1f W)</string>
     <string name="ride_summary_notification_subtext_with_battery">Charging %1$dm • Battery %2$+d%%</string>
     <string name="ride_summary_notification_subtext_no_battery">Charging %1$dm</string>
+
+    <!-- Battery Health -->
+    <string name="battery_health_title">Battery Health</string>
+    <string name="battery_health_empty">No battery health data yet</string>
+    <string name="battery_health_status_good">Good</string>
+    <string name="battery_health_status_degrading">Degrading</string>
+    <string name="battery_health_status_replace_soon">Replace soon</string>
+    <string name="battery_health_capacity_format">%1$d mAh / %2$.1f Wh (%3$d%%)</string>
+    <plurals name="battery_health_cycles_count">
+        <item quantity="one">%1$d cycle</item>
+        <item quantity="other">%1$d cycles</item>
+    </plurals>
+    <string name="battery_health_cycles_remaining">~%1$d cycles remaining</string>
+    <string name="battery_health_replacement_recommended">Replacement recommended</string>
+    <string name="battery_health_more_rides_for_trend">More rides needed for trend</string>
+    <string name="battery_health_chart_title">Capacity Trend</string>
 </resources>

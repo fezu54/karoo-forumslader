@@ -20,7 +20,9 @@ class BatteryEstimatorTest : ShouldSpec({
         batteryCurrent: Float = -0.5f,
         chargeState: ChargeState = ChargeState.DISCHARGING,
         consumerCurrent: Float = 0.5f,
-        speedMetersPerSecond: Float = 0f
+        speedMetersPerSecond: Float = 0f,
+        fullChargeCapacityMah: Int? = null,
+        cycleCount: Int? = null,
     ) = ForumsladerMetrics(
         power = ForumsladerMetrics.Power(
             batteryVoltage = 12.0f,
@@ -29,7 +31,9 @@ class BatteryEstimatorTest : ShouldSpec({
             batteryLevelPercentage = batteryPct,
             chargeState = chargeState,
             dynamoPowerWatts = 0f,
-            statusMask = 0
+            statusMask = 0,
+            fullChargeCapacityMah = fullChargeCapacityMah,
+            cycleCount = cycleCount,
         ),
         dynamics = ForumsladerMetrics.Dynamics(
             frequency = 0f,
@@ -1195,5 +1199,94 @@ class BatteryEstimatorTest : ShouldSpec({
         // then: fresh headwind increases rate over calm; wind already baked into discharge window is not double-counted
         newHeadwind.avgDischargeRatePctPerKm shouldBeGreaterThan calm.avgDischargeRatePctPerKm
         acclimatedHeadwind.avgDischargeRatePctPerKm shouldBe (calm.avgDischargeRatePctPerKm plusOrMinus 0.01f)
+    }
+
+    should("adjust climb range prediction dynamically from credible FLC5 fullChargeCapacityMah") {
+        // given: identical climb and night load across default 13.3 Wh, degraded 900 mAh, and 3000 mAh packs
+        val climb = ClimbSegment(startDistanceMeters = 1_000.0, lengthMeters = 3_000.0, gradientPct = 9.0f)
+        val profiles = mapOf(
+            9 to GradientProfile(9, speedMetersPerSecond = 1.8f, frequencyHz = 12.9f, dynamoPowerWatts = 0.6f)
+        )
+        fun estimatorWithCapacity(capacityMah: Int?): BatteryEstimator =
+            BatteryEstimator(initialDischargeRate = 1.0f).apply {
+                onRiderProfilesLoaded(profiles)
+                onUpcomingClimbs(listOf(climb))
+                onRouteRemaining(distanceMeters = 10_000.0, upcomingElevation = null)
+                onMetrics(
+                    createMetrics(
+                        distance = 0.0,
+                        batteryPct = 80,
+                        batteryCurrent = -0.8f,
+                        consumerCurrent = 0.8f,
+                        speedMetersPerSecond = 3.0f,
+                        fullChargeCapacityMah = capacityMah
+                    )
+                )
+            }
+
+        // when
+        val degradedRange = estimatorWithCapacity(900).getEstimate().shouldNotBeNull().estimatedRangeKm.shouldNotBeNull()
+        val defaultRange = estimatorWithCapacity(null).getEstimate().shouldNotBeNull().estimatedRangeKm.shouldNotBeNull()
+        val largePackRange = estimatorWithCapacity(3000).getEstimate().shouldNotBeNull().estimatedRangeKm.shouldNotBeNull()
+
+        // then
+        degradedRange shouldBeLessThan defaultRange
+        largePackRange shouldBeGreaterThan defaultRange
+    }
+
+    should("ignore out-of-range fullChargeCapacityMah and preserve default or last credible capacity") {
+        // given
+        val climb = ClimbSegment(startDistanceMeters = 1_000.0, lengthMeters = 3_000.0, gradientPct = 9.0f)
+        val baselineEstimator = BatteryEstimator(initialDischargeRate = 1.0f).apply {
+            onUpcomingClimbs(listOf(climb))
+            onRouteRemaining(distanceMeters = 10_000.0, upcomingElevation = null)
+            onMetrics(createMetrics(distance = 0.0, batteryPct = 80, consumerCurrent = 0.8f, fullChargeCapacityMah = null))
+        }
+        val invalidZeroEstimator = BatteryEstimator(initialDischargeRate = 1.0f).apply {
+            onUpcomingClimbs(listOf(climb))
+            onRouteRemaining(distanceMeters = 10_000.0, upcomingElevation = null)
+            onMetrics(createMetrics(distance = 0.0, batteryPct = 80, consumerCurrent = 0.8f, fullChargeCapacityMah = 0))
+            onMetrics(createMetrics(distance = 100.0, batteryPct = 80, consumerCurrent = 0.8f, fullChargeCapacityMah = 6001))
+        }
+
+        // when
+        val baselineRange = baselineEstimator.getEstimate().shouldNotBeNull().estimatedRangeKm
+        val invalidRange = invalidZeroEstimator.getEstimate().shouldNotBeNull().estimatedRangeKm
+
+        // then
+        invalidRange shouldBe baselineRange
+    }
+
+    should("use initialFullChargeCapacityMah on cold start and persist capacity only when value changes") {
+        // given
+        val store = mockk<BatteryCapacityStore>(relaxed = true)
+        val climb = ClimbSegment(startDistanceMeters = 1_000.0, lengthMeters = 3_000.0, gradientPct = 9.0f)
+        val coldStartEstimator = BatteryEstimator(
+            initialDischargeRate = 1.0f,
+            initialFullChargeCapacityMah = 900,
+            batteryCapacityStore = store
+        ).apply {
+            onUpcomingClimbs(listOf(climb))
+            onRouteRemaining(distanceMeters = 10_000.0, upcomingElevation = null)
+            onMetrics(createMetrics(distance = 0.0, batteryPct = 80, consumerCurrent = 0.8f, fullChargeCapacityMah = null))
+        }
+        val defaultEstimator = BatteryEstimator(initialDischargeRate = 1.0f).apply {
+            onUpcomingClimbs(listOf(climb))
+            onRouteRemaining(distanceMeters = 10_000.0, upcomingElevation = null)
+            onMetrics(createMetrics(distance = 0.0, batteryPct = 80, consumerCurrent = 0.8f, fullChargeCapacityMah = null))
+        }
+
+        // then: cold start already uses 900 mAh before first FLC5 arrives
+        coldStartEstimator.getEstimate().shouldNotBeNull().estimatedRangeKm.shouldNotBeNull() shouldBeLessThan
+            defaultEstimator.getEstimate().shouldNotBeNull().estimatedRangeKm.shouldNotBeNull()
+        verify(exactly = 0) { store.saveCapacityMah(any()) }
+
+        // when: identical 900 mAh arrives -> no redundant save; new 890 mAh arrives -> saved once
+        coldStartEstimator.onMetrics(createMetrics(distance = 100.0, batteryPct = 80, fullChargeCapacityMah = 900))
+        verify(exactly = 0) { store.saveCapacityMah(900) }
+
+        coldStartEstimator.onMetrics(createMetrics(distance = 200.0, batteryPct = 80, fullChargeCapacityMah = 890))
+        coldStartEstimator.onMetrics(createMetrics(distance = 300.0, batteryPct = 80, fullChargeCapacityMah = 890))
+        verify(exactly = 1) { store.saveCapacityMah(890) }
     }
 })

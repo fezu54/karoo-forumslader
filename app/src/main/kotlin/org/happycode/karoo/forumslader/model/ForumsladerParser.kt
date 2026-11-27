@@ -22,6 +22,8 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
     private var batteryCurrent: Float = 0f
     private var consumerCurrent: Float = 0f
     private var batteryLevelPercentage: Int? = null
+    private var fullChargeCapacityMah: Int? = null
+    private var cycleCount: Int? = null
     private var currentFrequency: Float = 0f
     private var speedMetersPerSecond: Float = 0f
     private var tripDistanceMeters: Double = 0.0
@@ -120,7 +122,9 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
                     batteryLevelPercentage = batteryLevelPercentage,
                     chargeState = chargeState,
                     dynamoPowerWatts = dynamoPowerWatts,
-                    statusMask = currentStatusMask
+                    statusMask = currentStatusMask,
+                    fullChargeCapacityMah = fullChargeCapacityMah,
+                    cycleCount = cycleCount
                 ),
                 dynamics = ForumsladerMetrics.Dynamics(
                     frequency = currentFrequency,
@@ -303,9 +307,14 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
                     when (tokens.getOrNull(1)) {
                         "5" -> {
                             batteryLevelPercentage = tokens.getOrNull(3)?.toIntOrNull() ?: batteryLevelPercentage
+                            fullChargeCapacityMah = tokens.getOrNull(4)?.toIntOrNull() ?: fullChargeCapacityMah
+                            cycleCount = tokens.getOrNull(5)?.toIntOrNull() ?: cycleCount
                             hasFineGrainedBatteryLevel = true
                             if (DEBUG_SENTENCE_PARSING) {
-                                Log.d(TAG, "FLC: battery level set to $batteryLevelPercentage%")
+                                Log.d(
+                                    TAG,
+                                    "FLC: battery level=$batteryLevelPercentage%, fcc=${fullChargeCapacityMah}mAh, cycles=$cycleCount"
+                                )
                             }
                         }
 
@@ -392,5 +401,7 @@ class ForumsladerParser(private val config: ForumsladerConfig? = null) {
     fun resetConfigLoaded() {
         _isConfigLoadedFlow.value = false
         hasFineGrainedBatteryLevel = false
+        fullChargeCapacityMah = null
+        cycleCount = null
     }
 }

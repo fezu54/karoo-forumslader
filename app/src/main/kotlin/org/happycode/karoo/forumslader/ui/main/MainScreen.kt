@@ -22,6 +22,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -49,6 +50,7 @@ import io.hammerhead.karooext.models.StreamState
 import io.hammerhead.karooext.models.UserProfile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.happycode.karoo.forumslader.PreferencesConstants.DEFAULT_AUTO_DISABLE_USB_ON_LIGHT
 import org.happycode.karoo.forumslader.PreferencesConstants.DEFAULT_BATTERY_LOW_THRESHOLD
 import org.happycode.karoo.forumslader.PreferencesConstants.DEFAULT_HIGH_TEMP_THRESHOLD
@@ -66,20 +68,26 @@ import org.happycode.karoo.forumslader.adapters.network.CoroutineLogServer
 import org.happycode.karoo.forumslader.adapters.network.FirmwareDownloader
 import org.happycode.karoo.forumslader.adapters.storage.PublicStorageAdapter
 import org.happycode.karoo.forumslader.application.estimation.BatteryEstimateStore
+import org.happycode.karoo.forumslader.application.health.BatteryHealthStore
 import org.happycode.karoo.forumslader.application.CsvLoggerProvider
 import org.happycode.karoo.forumslader.application.ForumsladerStateStore
 import org.happycode.karoo.forumslader.application.LogServerGateway
 import org.happycode.karoo.forumslader.application.LogcatDumper
 import org.happycode.karoo.forumslader.application.PublicStorageGateway
 import org.happycode.karoo.forumslader.domain.estimation.BatteryEstimate
+import org.happycode.karoo.forumslader.domain.health.BatteryHealthAnalyzer
+import org.happycode.karoo.forumslader.domain.health.BatteryHealthSummary
 import org.happycode.karoo.forumslader.domain.CommandBus
 import org.happycode.karoo.forumslader.domain.DfuState
 import org.happycode.karoo.forumslader.domain.ForumsladerCommand
+import org.happycode.karoo.forumslader.extension.health.RoomBatteryHealthRepository
 import org.happycode.karoo.forumslader.framework.DfuUpdateServiceProvider
+import org.happycode.karoo.forumslader.framework.persistence.ForumsladerDatabase
 import org.happycode.karoo.forumslader.model.ForumsladerVersion
 import org.happycode.karoo.forumslader.theme.AppTheme
 import org.happycode.karoo.forumslader.ui.main.components.AlertsConfigCard
 import org.happycode.karoo.forumslader.ui.main.components.BatteryEstimateCard
+import org.happycode.karoo.forumslader.ui.main.components.BatteryHealthCard
 import org.happycode.karoo.forumslader.ui.main.components.ConfigCard
 import org.happycode.karoo.forumslader.ui.main.components.DistanceMetricsCard
 import org.happycode.karoo.forumslader.ui.main.components.FirmwareUpdateCard
@@ -97,6 +105,19 @@ fun MainScreen(sharedUri: Uri? = null) {
     var userProfile by remember { mutableStateOf<UserProfile?>(null) }
     val streamStates = remember { mutableStateMapOf<String, StreamState>() }
     val estimate by BatteryEstimateStore.estimateFlow.collectAsState(null)
+    val batteryHealth by BatteryHealthStore.summaryFlow.collectAsState(null)
+    LaunchedEffect(Unit) {
+        if (BatteryHealthStore.summaryFlow.value == null) {
+            val snapshots = withContext(Dispatchers.IO) {
+                RoomBatteryHealthRepository(
+                    ForumsladerDatabase.getInstance(context).batteryHealthDao()
+                ).findAll()
+            }
+            if (BatteryHealthStore.summaryFlow.value == null) {
+                BatteryHealthStore.updateSummary(BatteryHealthAnalyzer().analyze(snapshots))
+            }
+        }
+    }
     val dfuViewModel = viewModel { DfuViewModel(DfuUpdateServiceProvider.getInstance(context)) }
     val dfuState by dfuViewModel.state.collectAsState()
     val hasMissingStreams by remember {
@@ -254,6 +275,7 @@ fun MainScreen(sharedUri: Uri? = null) {
         metrics = metrics,
         userProfile = userProfile,
         estimate = estimate,
+        batteryHealth = batteryHealth,
         wheelsize = wheelsize,
         poles = poles,
         versionKey = versionKey,
@@ -361,6 +383,7 @@ fun MainScreenContent(
     metrics: Map<String, Double>,
     userProfile: UserProfile?,
     estimate: BatteryEstimate?,
+    batteryHealth: BatteryHealthSummary? = null,
     wheelsize: Int,
     poles: Int,
     versionKey: String,
@@ -396,7 +419,7 @@ fun MainScreenContent(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { padding ->
         val showFirmware = versionKey != ForumsladerVersion.V5.key
-        val pageCount = if (showFirmware) 7 else 6
+        val pageCount = if (showFirmware) 8 else 7
         val pagerState = rememberPagerState(pageCount = { pageCount })
 
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -435,7 +458,8 @@ fun MainScreenContent(
                             onResetDayDistance = onResetDayDistance,
                             onResetTourDistance = onResetTourDistance
                         )
-                        3 -> ConfigCard(
+                        3 -> BatteryHealthCard(summary = batteryHealth)
+                        4 -> ConfigCard(
                             wheelsize = wheelsize,
                             poles = poles,
                             versionKey = versionKey,
@@ -445,13 +469,13 @@ fun MainScreenContent(
                             onConfigUpdate = onConfigUpdate,
                             onForgetDevice = onForgetDevice
                         )
-                        4 -> AlertsConfigCard(
+                        5 -> AlertsConfigCard(
                             batteryLowThreshold = batteryLowThreshold,
                             highTempThreshold = highTempThreshold,
                             onBatteryLowThresholdChange = onBatteryLowThresholdChange,
                             onHighTempThresholdChange = onHighTempThresholdChange
                         )
-                        5 -> if (showFirmware) {
+                        6 -> if (showFirmware) {
                             FirmwareUpdateCard(
                                 dfuState = dfuState,
                                 sharedUri = sharedUri,
@@ -473,7 +497,7 @@ fun MainScreenContent(
                                 onClearLogs = onClearLogs
                             )
                         }
-                        6 -> LogExportCard(
+                        7 -> LogExportCard(
                             csvRowCount = csvRowCount,
                             csvFileSize = csvFileSize,
                             isServerRunning = isServerRunning,

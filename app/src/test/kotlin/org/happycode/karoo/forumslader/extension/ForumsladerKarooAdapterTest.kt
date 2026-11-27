@@ -49,6 +49,7 @@ import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.Dat
 import org.happycode.karoo.forumslader.application.CsvLogger
 import org.happycode.karoo.forumslader.application.ForumsladerStateStore
 import org.happycode.karoo.forumslader.application.estimation.BatteryEstimateStore
+import org.happycode.karoo.forumslader.application.health.BatteryHealthStore
 import org.happycode.karoo.forumslader.domain.CommandBus
 import org.happycode.karoo.forumslader.domain.ForumsladerCommand
 import org.happycode.karoo.forumslader.domain.LightLoadDetector
@@ -56,6 +57,7 @@ import org.happycode.karoo.forumslader.domain.RideEnergyAccumulator
 import org.happycode.karoo.forumslader.domain.estimation.BatteryEstimator
 import org.happycode.karoo.forumslader.domain.estimation.ClimbSegment
 import org.happycode.karoo.forumslader.domain.estimation.RiderProfileRepository
+import org.happycode.karoo.forumslader.domain.health.BatteryHealthRepository
 import org.happycode.karoo.forumslader.model.ForumsladerVersion
 import java.io.File
 import java.nio.file.Files
@@ -85,7 +87,8 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
         lightLoadDetector: LightLoadDetector = LightLoadDetector(),
         batteryEstimator: BatteryEstimator? = null,
         riderProfileRepository: RiderProfileRepository? = mockk(relaxed = true),
-        rideEnergyAccumulator: RideEnergyAccumulator = RideEnergyAccumulator()
+        rideEnergyAccumulator: RideEnergyAccumulator = RideEnergyAccumulator(),
+        batteryHealthRepository: BatteryHealthRepository? = mockk(relaxed = true)
     ) = ForumsladerKarooAdapter(
         context,
         address,
@@ -97,7 +100,8 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
         lightLoadDetector,
         batteryEstimator,
         riderProfileRepository,
-        rideEnergyAccumulator
+        rideEnergyAccumulator,
+        batteryHealthRepository
     )
 
     beforeEach {
@@ -147,6 +151,7 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
     afterEach {
         ForumsladerStateStore.clear()
         BatteryEstimateStore.clear()
+        BatteryHealthStore.clear()
         tempFilesDir.deleteRecursively()
         unmockkAll()
     }
@@ -1190,6 +1195,130 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
 
             // then: dirty bucket flushed in batch
             coVerify(exactly = 1) { mockRepository.save(match { it.gradientPct == 4 }) }
+        }
+    }
+
+    should("load persisted battery health history once when connect is called") {
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            val healthRepository = mockk<BatteryHealthRepository>(relaxed = true)
+            val forumslader = createAdapter(
+                scope = backgroundScope,
+                batteryHealthRepository = healthRepository
+            )
+
+            // when
+            forumslader.connect(emitter)
+
+            // then
+            coVerify(exactly = 1) { healthRepository.findAll() }
+        }
+    }
+
+    should("buffer FLC5 battery health readings in memory without writing during live telemetry") {
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            val healthRepository = mockk<BatteryHealthRepository>(relaxed = true)
+            val forumslader = createAdapter(
+                scope = backgroundScope,
+                batteryHealthRepository = healthRepository
+            )
+            forumslader.connect(emitter)
+
+            val flc5 = $$"$FLC,5,12,85,1140,127,1000\n"
+            val fl6 = $$"$FL6,0,2,200,4000,4000,4000,-100,100,0,0,0,100\n"
+
+            // when
+            incomingDataFlow.emit((flc5 + fl6).toByteArray(Charsets.US_ASCII))
+
+            // then
+            coVerify(exactly = 0) { healthRepository.upsertForDay(any(), any()) }
+            BatteryHealthStore.summaryFlow.value.shouldNotBeNull().currentCapacityMah shouldBe 1140
+        }
+    }
+
+    should("flush buffered battery health snapshot when ride pauses") {
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            val healthRepository = mockk<BatteryHealthRepository>(relaxed = true)
+            val forumslader = createAdapter(
+                scope = backgroundScope,
+                batteryHealthRepository = healthRepository
+            )
+            forumslader.connect(emitter)
+
+            val flc5 = $$"$FLC,5,12,85,1140,127,1000\n"
+            val fl6 = $$"$FL6,0,2,200,4000,4000,4000,-100,100,0,0,0,100\n"
+            incomingDataFlow.emit((flc5 + fl6).toByteArray(Charsets.US_ASCII))
+
+            // when
+            forumslader.handleRideState(RideState.Recording)
+            forumslader.handleRideState(RideState.Paused(auto = false))
+
+            // then
+            coVerify(exactly = 1) {
+                healthRepository.upsertForDay(
+                    any(),
+                    match { it.fullChargeCapacityMah == 1140 && it.cycleCount == 127 && it.socPct == 85 }
+                )
+            }
+        }
+    }
+
+    should("flush buffered battery health snapshot when ride transitions from recording to idle") {
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            val healthRepository = mockk<BatteryHealthRepository>(relaxed = true)
+            val forumslader = createAdapter(
+                scope = backgroundScope,
+                batteryHealthRepository = healthRepository
+            )
+            forumslader.connect(emitter)
+
+            val flc5 = $$"$FLC,5,12,85,1140,127,1000\n"
+            val fl6 = $$"$FL6,0,2,200,4000,4000,4000,-100,100,0,0,0,100\n"
+            incomingDataFlow.emit((flc5 + fl6).toByteArray(Charsets.US_ASCII))
+
+            // when
+            forumslader.handleRideState(RideState.Recording)
+            forumslader.handleRideState(RideState.Idle)
+
+            // then
+            coVerify(exactly = 1) {
+                healthRepository.upsertForDay(
+                    any(),
+                    match { it.fullChargeCapacityMah == 1140 && it.cycleCount == 127 && it.socPct == 85 }
+                )
+            }
+        }
+    }
+
+    should("flush buffered battery health snapshot and retain battery health store when disconnected") {
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            val healthRepository = mockk<BatteryHealthRepository>(relaxed = true)
+            val forumslader = createAdapter(
+                scope = backgroundScope,
+                batteryHealthRepository = healthRepository
+            )
+            forumslader.connect(emitter)
+            connectionStateFlow.value = ConnectionStatus.CONNECTED
+
+            val flc5 = $$"$FLC,5,13,80,1135,128,900\n"
+            val fl6 = $$"$FL6,0,2,200,4000,4000,4000,-100,100,0,0,0,100\n"
+            incomingDataFlow.emit((flc5 + fl6).toByteArray(Charsets.US_ASCII))
+
+            // when
+            connectionStateFlow.value = ConnectionStatus.DISCONNECTED
+
+            // then
+            coVerify(exactly = 1) {
+                healthRepository.upsertForDay(
+                    any(),
+                    match { it.fullChargeCapacityMah == 1135 && it.cycleCount == 128 && it.socPct == 80 }
+                )
+            }
+            BatteryHealthStore.summaryFlow.value.shouldNotBeNull().currentCapacityMah shouldBe 1135
         }
     }
 })

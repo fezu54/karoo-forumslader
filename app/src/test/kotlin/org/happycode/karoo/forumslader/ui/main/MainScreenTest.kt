@@ -25,10 +25,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
 import org.happycode.karoo.forumslader.domain.estimation.BatteryEstimate
+import org.happycode.karoo.forumslader.domain.health.BatteryHealthSnapshot
+import org.happycode.karoo.forumslader.domain.health.BatteryHealthStatus
+import org.happycode.karoo.forumslader.domain.health.BatteryHealthSummary
 import org.happycode.karoo.forumslader.domain.ChargeState
 import org.happycode.karoo.forumslader.domain.CommandBus
 import org.happycode.karoo.forumslader.domain.ForumsladerCommand
 import org.happycode.karoo.forumslader.model.ForumsladerConfig
+import org.happycode.karoo.forumslader.model.ForumsladerVersion
 import org.happycode.karoo.forumslader.theme.AppTheme
 import org.junit.Before
 import org.junit.Rule
@@ -78,6 +82,7 @@ class MainScreenTest {
         metrics: Map<String, Double> = emptyMap(),
         userProfile: UserProfile? = null,
         estimate: BatteryEstimate? = null,
+        batteryHealth: BatteryHealthSummary? = null,
         wheelsize: Int = config.wheelsize,
         poles: Int = config.poles,
         versionKey: String = config.version.key,
@@ -101,6 +106,7 @@ class MainScreenTest {
                     metrics = metrics,
                     userProfile = userProfile,
                     estimate = estimate,
+                    batteryHealth = batteryHealth,
                     wheelsize = wheelsize,
                     poles = poles,
                     versionKey = versionKey,
@@ -132,20 +138,24 @@ class MainScreenTest {
         repeat(2) { composeTestRule.onRoot().performTouchInput { swipeLeft() } }
     }
 
-    private fun swipeToConfigPage() {
+    private fun swipeToBatteryHealthPage() {
         repeat(3) { composeTestRule.onRoot().performTouchInput { swipeLeft() } }
     }
 
-    private fun swipeToAlertsPage() {
+    private fun swipeToConfigPage() {
         repeat(4) { composeTestRule.onRoot().performTouchInput { swipeLeft() } }
     }
 
-    private fun swipeToFirmwarePage() {
+    private fun swipeToAlertsPage() {
         repeat(5) { composeTestRule.onRoot().performTouchInput { swipeLeft() } }
     }
 
-    private fun swipeToDiagnosticsPage() {
+    private fun swipeToFirmwarePage() {
         repeat(6) { composeTestRule.onRoot().performTouchInput { swipeLeft() } }
+    }
+
+    private fun swipeToDiagnosticsPage() {
+        repeat(7) { composeTestRule.onRoot().performTouchInput { swipeLeft() } }
     }
 
     @Test
@@ -674,5 +684,42 @@ class MainScreenTest {
 
         // then
         composeTestRule.onNodeWithText("Currently not implemented, waiting for further information…").assertIsDisplayed()
+    }
+
+    @Test
+    fun `should display battery health card on page 3 after distance page`() {
+        // given
+        val summary = BatteryHealthSummary(
+            currentCapacityMah = 1140,
+            currentCapacityWh = 12.654f,
+            baselineCapacityMah = 1200,
+            stateOfHealthPct = 95f,
+            cycleCount = 127,
+            status = BatteryHealthStatus.GOOD,
+            slopeMahPerCycle = -1.5f,
+            estimatedCyclesRemaining = 240,
+            history = listOf(
+                BatteryHealthSnapshot(1_000L, 100, 1200, 90),
+                BatteryHealthSnapshot(2_000L, 127, 1140, 85)
+            )
+        )
+
+        // when
+        showMainScreen(batteryHealth = summary)
+        swipeToBatteryHealthPage()
+
+        // then
+        composeTestRule.onNodeWithText("Battery Health").assertIsDisplayed()
+        composeTestRule.onNodeWithText("1140 mAh / 12.7 Wh (95%)").assertIsDisplayed()
+    }
+
+    @Test
+    fun `should hide firmware page and show diagnostics on page 6 for V5 device`() {
+        // when
+        showMainScreen(versionKey = ForumsladerVersion.V5.key)
+        swipeToFirmwarePage()
+
+        // then
+        composeTestRule.onNodeWithText("Diagnostics & Logs").assertIsDisplayed()
     }
 }

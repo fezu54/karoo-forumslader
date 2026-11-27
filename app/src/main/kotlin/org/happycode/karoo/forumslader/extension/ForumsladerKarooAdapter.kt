@@ -38,6 +38,8 @@ import org.happycode.karoo.forumslader.application.CsvLoggerProvider
 import org.happycode.karoo.forumslader.application.ForumsladerStateStore
 import org.happycode.karoo.forumslader.application.estimation.BatteryEstimateStore
 import org.happycode.karoo.forumslader.application.estimation.RecordRiderProfileUseCase
+import org.happycode.karoo.forumslader.application.health.BatteryHealthStore
+import org.happycode.karoo.forumslader.application.health.RecordBatteryHealthUseCase
 import org.happycode.karoo.forumslader.domain.BatteryLowRule
 import org.happycode.karoo.forumslader.domain.CommandBus
 import org.happycode.karoo.forumslader.domain.ForumsladerAlert
@@ -54,8 +56,11 @@ import org.happycode.karoo.forumslader.domain.estimation.BatteryEstimate
 import org.happycode.karoo.forumslader.domain.estimation.BatteryEstimator
 import org.happycode.karoo.forumslader.domain.estimation.ClimbSegment
 import org.happycode.karoo.forumslader.domain.estimation.RiderProfileRepository
+import org.happycode.karoo.forumslader.domain.health.BatteryHealthRepository
 import org.happycode.karoo.forumslader.extension.estimation.RoomRiderProfileRepository
+import org.happycode.karoo.forumslader.extension.estimation.SharedPrefsBatteryCapacityStore
 import org.happycode.karoo.forumslader.extension.estimation.SharedPrefsDischargeRateStore
+import org.happycode.karoo.forumslader.extension.health.RoomBatteryHealthRepository
 import org.happycode.karoo.forumslader.framework.persistence.ForumsladerDatabase
 import org.happycode.karoo.forumslader.model.ForumsladerConfig
 import org.happycode.karoo.forumslader.model.ForumsladerParser
@@ -71,7 +76,8 @@ class ForumsladerKarooAdapter(
     private val lightLoadDetector: LightLoadDetector = LightLoadDetector(),
     batteryEstimator: BatteryEstimator? = null,
     riderProfileRepository: RiderProfileRepository? = null,
-    private val rideEnergyAccumulator: RideEnergyAccumulator = RideEnergyAccumulator()
+    private val rideEnergyAccumulator: RideEnergyAccumulator = RideEnergyAccumulator(),
+    batteryHealthRepository: BatteryHealthRepository? = null
 ) {
     companion object {
         private const val EXTENSION_ID = "karoo-forumslader"
@@ -127,9 +133,12 @@ class ForumsladerKarooAdapter(
 
     private val fitRecorder = ForumsladerFitRecorder()
     private val prefsStore = SharedPrefsDischargeRateStore(sharedPrefs)
+    private val capacityStore = SharedPrefsBatteryCapacityStore(sharedPrefs)
     private val batteryEstimator = batteryEstimator ?: BatteryEstimator(
         initialDischargeRate = prefsStore.loadInitialRate(),
-        dischargeRateStore = prefsStore
+        dischargeRateStore = prefsStore,
+        initialFullChargeCapacityMah = capacityStore.loadCapacityMah(),
+        batteryCapacityStore = capacityStore
     )
     private val profileRepository: RiderProfileRepository = riderProfileRepository
         ?: RoomRiderProfileRepository(ForumsladerDatabase.getInstance(context).riderProfileDao())
@@ -137,6 +146,12 @@ class ForumsladerKarooAdapter(
         repository = profileRepository,
         persistImmediately = false,
         minDistanceStepMeters = MIN_PROFILE_STEP_METERS
+    )
+    private val healthRepository: BatteryHealthRepository = batteryHealthRepository
+        ?: RoomBatteryHealthRepository(ForumsladerDatabase.getInstance(context).batteryHealthDao())
+    private val recordBatteryHealthUseCase = RecordBatteryHealthUseCase(
+        repository = healthRepository,
+        onSummaryUpdated = BatteryHealthStore::updateSummary
     )
     private var previousLightState: LightLoadState = LightLoadState.IDLE
     private var autoDisabledUsbByLight = false
@@ -172,6 +187,7 @@ class ForumsladerKarooAdapter(
             val profiles = profileRepository.findAll()
             batteryEstimator.onRiderProfilesLoaded(profiles)
             recordRiderProfileUseCase.onProfilesLoaded(profiles)
+            recordBatteryHealthUseCase.loadHistory()
         }
 
         consumers += karooSystem.addConsumer(OnStreamState.StartStreaming(DataType.Type.DISTANCE_TO_DESTINATION)) { event: OnStreamState ->
@@ -218,7 +234,10 @@ class ForumsladerKarooAdapter(
             autoDisabledUsbByLight = false
             previousRideState = RideState.Idle
             csvLogger.flush()
-            adapterScope.launch { recordRiderProfileUseCase.flush() }
+            adapterScope.launch {
+                recordRiderProfileUseCase.flush()
+                recordBatteryHealthUseCase.flush()
+            }
             bleManager.stop()
             karooSystem.disconnect()
             BatteryEstimateStore.clear()
@@ -237,6 +256,7 @@ class ForumsladerKarooAdapter(
                     if (status == ConnectionStatus.DISCONNECTED) {
                         csvLogger.flush()
                         recordRiderProfileUseCase.flush()
+                        recordBatteryHealthUseCase.flush()
                         protocol.stopParameterRequestLoop()
                         parser.resetConfigLoaded()
                         BatteryEstimateStore.clear()
@@ -275,6 +295,7 @@ class ForumsladerKarooAdapter(
                             config.lockedMacAddress = address
                         }
                         batteryEstimator.onMetrics(metrics)
+                        recordBatteryHealthUseCase.onMetrics(metrics)
                         recordRiderProfileUseCase.onMetricsAndGradient(metrics, currentGradientPct)?.let { updatedProfile ->
                             batteryEstimator.onRiderProfileUpdated(updatedProfile)
                             val nowMs = System.currentTimeMillis()
@@ -392,7 +413,10 @@ class ForumsladerKarooAdapter(
                 rideEnergyAccumulator.onRidePause()
                 fitRecorder.writeSessionSummary(rideEnergyAccumulator.toSummary())
                 csvLogger.flush()
-                adapterScope.launch { recordRiderProfileUseCase.flush() }
+                adapterScope.launch {
+                    recordRiderProfileUseCase.flush()
+                    recordBatteryHealthUseCase.flush()
+                }
             }
             is RideState.Idle -> when (previousRideState) {
                 is RideState.Recording, is RideState.Paused -> {
@@ -402,7 +426,10 @@ class ForumsladerKarooAdapter(
                     }
                     rideEnergyAccumulator.reset()
                     csvLogger.flush()
-                    adapterScope.launch { recordRiderProfileUseCase.flush() }
+                    adapterScope.launch {
+                        recordRiderProfileUseCase.flush()
+                        recordBatteryHealthUseCase.flush()
+                    }
                 }
                 is RideState.Idle -> Unit
             }

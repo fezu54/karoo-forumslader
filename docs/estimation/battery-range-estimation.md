@@ -247,6 +247,8 @@ sequenceDiagram
   dynamo power, while genuine `0 W` readings below cut-in still blend downward normally.
   `DynamoPowerCurve` requires at least `0.25 W` before trusting a learned profile over the frequency
   curve.
+- **Headwind & Consumer Load Adjustments**:
+  - `BatteryEstimator` dynamically overrides the `13.3 Wh` fallback capacity with `(fullChargeCapacityMah / 1000) * 11.1 V` whenever `$FLC,5` reports a credible `fullChargeCapacityMah` (`450..6000 mAh`), persisting the last credible value in `SharedPrefsBatteryCapacityStore` for cold-start accuracy across different pack sizes and battery aging.
 - **Minimal Disk I/O**:
     - `RecordRiderProfileUseCase` keeps profiles in memory and flushes dirty buckets only on
       `RideState.Paused`, `RideState.Idle`, BLE disconnect, or every 5 minutes.

@@ -103,4 +103,49 @@ class RouteEnergyForecasterTest : ShouldSpec({
         // then: full 5 * 1.5 = 7.5% penalty applied -> 72.5%
         forecast.adjustedCapacityPct(currentLevelPct = 80f, effectiveRatePctPerKm = 1.0f) shouldBe (72.5f plusOrMinus 0.01f)
     }
+
+    should("scale climb deficit inversely when dynamic batteryCapacityWh override is supplied") {
+        // given: steep climb causing a net Wh deficit
+        val climb = ClimbSegment(startDistanceMeters = 1_000.0, lengthMeters = 3_000.0, gradientPct = 9.0f)
+        val profiles = mapOf(
+            9 to GradientProfile(9, speedMetersPerSecond = 1.8f, frequencyHz = 12.9f, dynamoPowerWatts = 0.6f)
+        )
+
+        // when: same climb evaluated with 10.0 Wh (degraded) vs 13.3 Wh (default) vs 33.3 Wh (18650)
+        val degradedForecast = forecaster.forecast(
+            currentLevelPct = 80f,
+            routeRemainingKm = 3f,
+            upcomingElevationMeters = null,
+            upcomingClimbs = listOf(climb),
+            riderProfiles = profiles,
+            currentConsumerPowerWatts = 9.6f,
+            headwindSpeedMs = null,
+            batteryCapacityWh = 10.0f
+        )
+        val defaultForecast = forecaster.forecast(
+            currentLevelPct = 80f,
+            routeRemainingKm = 3f,
+            upcomingElevationMeters = null,
+            upcomingClimbs = listOf(climb),
+            riderProfiles = profiles,
+            currentConsumerPowerWatts = 9.6f,
+            headwindSpeedMs = null
+        )
+        val largePackForecast = forecaster.forecast(
+            currentLevelPct = 80f,
+            routeRemainingKm = 3f,
+            upcomingElevationMeters = null,
+            upcomingClimbs = listOf(climb),
+            riderProfiles = profiles,
+            currentConsumerPowerWatts = 9.6f,
+            headwindSpeedMs = null,
+            batteryCapacityWh = 33.3f
+        )
+
+        // then
+        degradedForecast.peakDeficitPct shouldBeGreaterThan defaultForecast.peakDeficitPct
+        largePackForecast.peakDeficitPct shouldBeLessThan defaultForecast.peakDeficitPct
+        (degradedForecast.peakDeficitPct / defaultForecast.peakDeficitPct) shouldBe ((13.3f / 10.0f) plusOrMinus 0.01f)
+        (largePackForecast.peakDeficitPct / defaultForecast.peakDeficitPct) shouldBe ((13.3f / 33.3f) plusOrMinus 0.01f)
+    }
 })
