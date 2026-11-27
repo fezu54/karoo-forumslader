@@ -161,11 +161,14 @@ class ForumsladerKarooAdapter(
         displayName = displayName ?: "Forumslader"
     )
 
+    private val bluetoothResourceId: String = "$EXTENSION_ID:${device.uid}"
+
     @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN])
     fun connect(emitter: Emitter<DeviceEvent>) {
         Log.i(TAG, "connect() called for $address")
         currentEmitter = emitter
-        karooSystem.connect {}
+        val bluetoothLease = KarooBluetoothLease(karooSystem, resourceId = bluetoothResourceId)
+        bluetoothLease.acquire()
 
         lastProfileFlushMs = System.currentTimeMillis()
         adapterScope.launch {
@@ -220,6 +223,7 @@ class ForumsladerKarooAdapter(
             csvLogger.flush()
             adapterScope.launch { recordRiderProfileUseCase.flush() }
             bleManager.stop()
+            bluetoothLease.release()
             karooSystem.disconnect()
             BatteryEstimateStore.clear()
         }

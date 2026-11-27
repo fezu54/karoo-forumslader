@@ -14,6 +14,7 @@ import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresPermission
 import androidx.core.content.getSystemService
+import io.hammerhead.karooext.KarooSystemService
 import io.hammerhead.karooext.extension.DataTypeImpl
 import io.hammerhead.karooext.extension.KarooExtension
 import io.hammerhead.karooext.internal.Emitter
@@ -36,6 +37,7 @@ import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.SERVICE_UUID_
 import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.SERVICE_UUID_V6
 import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.SERVICE_UUID_V6_ALT
 import org.happycode.karoo.forumslader.model.ForumsladerConfig
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentMap
 
@@ -49,7 +51,8 @@ class ForumsladerExtension(
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .build()
     },
-    private val bluetoothStateFlowFactory: (Context) -> Flow<Boolean> = { it.bluetoothStateFlow() }
+    private val bluetoothStateFlowFactory: (Context) -> Flow<Boolean> = { it.bluetoothStateFlow() },
+    private val karooSystemFactory: (Context) -> KarooSystemService = { KarooSystemService(it) }
 ) : KarooExtension(extension = "karoo-forumslader", version = BuildConfig.VERSION_NAME) {
     private var fitEmitter: Emitter<FitEffect>? = null
     private val devices: ConcurrentMap<String, ForumsladerKarooAdapter> = ConcurrentHashMap()
@@ -201,6 +204,13 @@ class ForumsladerExtension(
         val bluetoothManager = getSystemService<BluetoothManager>()
         var activeScanner: BluetoothLeScanner? = null
 
+        val scanKarooSystem = karooSystemFactory(applicationContext)
+        val bluetoothLease = KarooBluetoothLease(
+            karooSystem = scanKarooSystem,
+            resourceId = "$extension:scan:${UUID.randomUUID()}"
+        )
+        bluetoothLease.acquire()
+
         fun stopActiveScan() {
             activeScanner?.let { scanner ->
                 runCatching { scanner.stopScan(callback) }
@@ -252,6 +262,8 @@ class ForumsladerExtension(
             if (canStop) {
                 stopActiveScan()
             }
+            bluetoothLease.release()
+            scanKarooSystem.disconnect()
         }
     }
 
