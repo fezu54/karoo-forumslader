@@ -353,7 +353,7 @@ class MainScreenTest {
         showMainScreen(sensorState = StreamState.NotAvailable)
 
         // then
-        composeTestRule.onNodeWithContentDescription("Not Available").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("No Sensor").assertIsDisplayed()
     }
 
     @Test

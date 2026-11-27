@@ -64,7 +64,7 @@
     <string name="forumslader_device_label">Forumslader Device</string>
     <string name="status_connected">Connected</string>
     <string name="status_searching">Searching</string>
-    <string name="status_not_available">Not Available</string>
+    <string name="status_not_available">No Sensor</string>
     <string name="status_disconnected">Disconnected</string>
     <string name="configuration_title">Configuration</string>
     <string name="label_wheel_size">Wheel Size</string>
