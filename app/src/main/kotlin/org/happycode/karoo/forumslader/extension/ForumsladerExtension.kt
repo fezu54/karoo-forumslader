@@ -37,6 +37,7 @@ import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.SERVICE_UUID_
 import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.SERVICE_UUID_V6
 import org.happycode.karoo.forumslader.model.ForumsladerBleProfile.SERVICE_UUID_V6_ALT
 import org.happycode.karoo.forumslader.model.ForumsladerConfig
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentMap
 
@@ -203,10 +204,10 @@ class ForumsladerExtension(
         val bluetoothManager = getSystemService<BluetoothManager>()
         var activeScanner: BluetoothLeScanner? = null
 
-        val scanKarooSystem = karooSystemFactory(this)
+        val scanKarooSystem = karooSystemFactory(applicationContext)
         val bluetoothLease = KarooBluetoothLease(
             karooSystem = scanKarooSystem,
-            resourceId = "$extension:scan"
+            resourceId = "$extension:scan:${UUID.randomUUID()}"
         )
         bluetoothLease.acquire()
 

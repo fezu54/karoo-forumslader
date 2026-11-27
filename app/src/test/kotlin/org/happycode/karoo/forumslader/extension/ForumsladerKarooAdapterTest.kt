@@ -1217,9 +1217,51 @@ class ForumsladerKarooAdapterTest : ShouldSpec({
             cancelSlot.captured()
 
             // then
-            verify(exactly = 1) {
+            verifyOrder {
                 karooSystem.dispatch(ReleaseBluetooth("karoo-forumslader:fl-00:11:22:33:44:55"))
+                karooSystem.disconnect()
             }
+        }
+    }
+
+    should("not request Bluetooth lease when Karoo system fails to connect") {
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            every { karooSystem.connect(any()) } answers {
+                firstArg<(Boolean) -> Unit>().invoke(false)
+            }
+            val cancelSlot = slot<() -> Unit>()
+            every { emitter.setCancellable(capture(cancelSlot)) } returns Unit
+            val forumslader = createAdapter(scope = backgroundScope)
+
+            // when
+            forumslader.connect(emitter)
+            cancelSlot.captured()
+
+            // then
+            verify(exactly = 0) { karooSystem.dispatch(ofType<RequestBluetooth>()) }
+            verify(exactly = 0) { karooSystem.dispatch(ofType<ReleaseBluetooth>()) }
+            verify(exactly = 1) { karooSystem.disconnect() }
+        }
+    }
+
+    should("not request Bluetooth lease when connect callback fires after cancellation") {
+        runTest(UnconfinedTestDispatcher()) {
+            // given
+            val connectCallbackSlot = slot<(Boolean) -> Unit>()
+            every { karooSystem.connect(capture(connectCallbackSlot)) } returns Unit
+            val cancelSlot = slot<() -> Unit>()
+            every { emitter.setCancellable(capture(cancelSlot)) } returns Unit
+            val forumslader = createAdapter(scope = backgroundScope)
+
+            // when
+            forumslader.connect(emitter)
+            cancelSlot.captured()
+            connectCallbackSlot.captured(true)
+
+            // then
+            verify(exactly = 0) { karooSystem.dispatch(ofType<RequestBluetooth>()) }
+            verify(exactly = 0) { karooSystem.dispatch(ofType<ReleaseBluetooth>()) }
         }
     }
 })
