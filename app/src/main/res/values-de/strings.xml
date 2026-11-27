@@ -150,4 +150,20 @@
     <string name="ride_summary_notification_message">%1$.1f Wh • Ø %2$.1f W (Peak %3$.1f W)</string>
     <string name="ride_summary_notification_subtext_with_battery">Laden %1$dm • Akku %2$+d%%</string>
     <string name="ride_summary_notification_subtext_no_battery">Laden %1$dm</string>
+
+    <!-- Akkuzustand -->
+    <string name="battery_health_title">Akkuzustand</string>
+    <string name="battery_health_empty">Noch keine Akkuzustandsdaten</string>
+    <string name="battery_health_status_good">Gut</string>
+    <string name="battery_health_status_degrading">Nachlassend</string>
+    <string name="battery_health_status_replace_soon">Bald ersetzen</string>
+    <string name="battery_health_capacity_format">%1$d mAh / %2$.1f Wh (%3$d%%)</string>
+    <plurals name="battery_health_cycles_count">
+        <item quantity="one">%1$d Zyklus</item>
+        <item quantity="other">%1$d Zyklen</item>
+    </plurals>
+    <string name="battery_health_cycles_remaining">~%1$d Zyklen verbleibend</string>
+    <string name="battery_health_replacement_recommended">Austausch empfohlen</string>
+    <string name="battery_health_more_rides_for_trend">Weitere Fahrten für Trend nötig</string>
+    <string name="battery_health_chart_title">Kapazitätsverlauf</string>
 </resources>

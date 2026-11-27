@@ -7,13 +7,16 @@ package org.happycode.karoo.forumslader.domain.estimation
 data class RouteEnergyForecast(
     val peakDeficitPct: Float,
     val bottleneckClimbKm: Float,
-    val nonClimbRouteFraction: Float
+    val nonClimbRouteFraction: Float,
 ) {
     /**
      * Computes usable battery capacity after deducting only the excess climb deficit
      * beyond what [effectiveRatePctPerKm] already budgets for [bottleneckClimbKm].
      */
-    fun adjustedCapacityPct(currentLevelPct: Float, effectiveRatePctPerKm: Float): Float {
+    fun adjustedCapacityPct(
+        currentLevelPct: Float,
+        effectiveRatePctPerKm: Float,
+    ): Float {
         val baselineClimbBudgetPct = bottleneckClimbKm * effectiveRatePctPerKm.coerceAtLeast(0f)
         val excessDeficitPct = (peakDeficitPct - baselineClimbBudgetPct).coerceAtLeast(0f)
         return (currentLevelPct - excessDeficitPct).coerceAtLeast(0f)
@@ -27,7 +30,7 @@ data class RouteEnergyForecast(
 class RouteEnergyForecaster(
     private val elevationPenaltyPctPer100m: Float,
     private val batteryCapacityWh: Float,
-    private val dynamoPowerCurve: DynamoPowerCurve
+    private val dynamoPowerCurve: DynamoPowerCurve,
 ) {
     /**
      * Forecasts upcoming terrain deficit and non-climb route fraction from [currentLevelPct].
@@ -39,20 +42,30 @@ class RouteEnergyForecaster(
         upcomingClimbs: List<ClimbSegment>,
         riderProfiles: Map<Int, GradientProfile>,
         currentConsumerPowerWatts: Float,
-        headwindSpeedMs: Float?
-    ): RouteEnergyForecast = when {
-        upcomingClimbs.isNotEmpty() -> forecastWithClimbs(
-            currentLevelPct,
-            routeRemainingKm,
-            upcomingClimbs,
-            riderProfiles,
-            currentConsumerPowerWatts,
-            headwindSpeedMs
-        )
-        else -> forecastFromElevation(
-            routeRemainingKm,
-            upcomingElevationMeters
-        )
+        headwindSpeedMs: Float?,
+        batteryCapacityWh: Float = this.batteryCapacityWh,
+    ): RouteEnergyForecast {
+        val effectiveCapacityWh = batteryCapacityWh.takeIf { it > 0f } ?: this.batteryCapacityWh
+        return when {
+            upcomingClimbs.isNotEmpty() -> {
+                forecastWithClimbs(
+                    currentLevelPct,
+                    routeRemainingKm,
+                    upcomingClimbs,
+                    riderProfiles,
+                    currentConsumerPowerWatts,
+                    headwindSpeedMs,
+                    effectiveCapacityWh,
+                )
+            }
+
+            else -> {
+                forecastFromElevation(
+                    routeRemainingKm,
+                    upcomingElevationMeters,
+                )
+            }
+        }
     }
 
     private fun forecastWithClimbs(
@@ -61,30 +74,44 @@ class RouteEnergyForecaster(
         upcomingClimbs: List<ClimbSegment>,
         riderProfiles: Map<Int, GradientProfile>,
         currentConsumerPowerWatts: Float,
-        headwindSpeedMs: Float?
+        headwindSpeedMs: Float?,
+        effectiveCapacityWh: Float,
     ): RouteEnergyForecast {
         val totalClimbKm = (upcomingClimbs.sumOf { it.lengthMeters } / METERS_PER_KM).toFloat()
         val nonClimbFraction = resolveNonClimbFraction(routeRemainingKm, totalClimbKm)
         val nonClimbKm = routeRemainingKm?.let { (it - totalClimbKm).coerceAtLeast(0f) } ?: 0f
 
-        val (peakDeficitPct, bottleneckClimbKm) = when {
-            nonClimbKm > 0f -> simulateClimbsWithRecovery(
-                currentLevelPct,
-                nonClimbKm,
-                upcomingClimbs,
-                riderProfiles,
-                currentConsumerPowerWatts,
-                headwindSpeedMs
-            )
-            else -> upcomingClimbs.fold(0f) { acc, climb ->
-                acc + calculateClimbDrainPct(climb, riderProfiles, currentConsumerPowerWatts, headwindSpeedMs)
-            } to totalClimbKm
-        }
+        val (peakDeficitPct, bottleneckClimbKm) =
+            when {
+                nonClimbKm > 0f -> {
+                    simulateClimbsWithRecovery(
+                        currentLevelPct,
+                        nonClimbKm,
+                        upcomingClimbs,
+                        riderProfiles,
+                        currentConsumerPowerWatts,
+                        headwindSpeedMs,
+                        effectiveCapacityWh,
+                    )
+                }
+
+                else -> {
+                    upcomingClimbs.fold(0f) { acc, climb ->
+                        acc + calculateClimbDrainPct(
+                            climb,
+                            riderProfiles,
+                            currentConsumerPowerWatts,
+                            headwindSpeedMs,
+                            effectiveCapacityWh,
+                        )
+                    } to totalClimbKm
+                }
+            }
 
         return RouteEnergyForecast(
             peakDeficitPct = peakDeficitPct,
             bottleneckClimbKm = bottleneckClimbKm,
-            nonClimbRouteFraction = nonClimbFraction
+            nonClimbRouteFraction = nonClimbFraction,
         )
     }
 
@@ -94,14 +121,17 @@ class RouteEnergyForecaster(
         upcomingClimbs: List<ClimbSegment>,
         riderProfiles: Map<Int, GradientProfile>,
         currentConsumerPowerWatts: Float,
-        headwindSpeedMs: Float?
+        headwindSpeedMs: Float?,
+        effectiveCapacityWh: Float,
     ): Pair<Float, Float> {
         val sortedClimbs = upcomingClimbs.sortedBy { it.startDistanceMeters }
-        val recoveryPctPerKm = calculateFlatRecoveryPctPerKm(
-            riderProfiles,
-            currentConsumerPowerWatts,
-            headwindSpeedMs
-        )
+        val recoveryPctPerKm =
+            calculateFlatRecoveryPctPerKm(
+                riderProfiles,
+                currentConsumerPowerWatts,
+                headwindSpeedMs,
+                effectiveCapacityWh,
+            )
 
         var simulatedLevelPct = currentLevelPct
         var minSimulatedLevelPct = currentLevelPct
@@ -111,23 +141,26 @@ class RouteEnergyForecaster(
         var prevEndMeters: Double? = null
 
         sortedClimbs.forEach { climb ->
-            val gapKm = prevEndMeters?.let { prevEnd ->
-                ((climb.startDistanceMeters - prevEnd).coerceAtLeast(0.0) / METERS_PER_KM)
-                    .toFloat()
-                    .coerceAtMost(remainingNonClimbKm)
-            } ?: 0f
+            val gapKm =
+                prevEndMeters?.let { prevEnd ->
+                    ((climb.startDistanceMeters - prevEnd).coerceAtLeast(0.0) / METERS_PER_KM)
+                        .toFloat()
+                        .coerceAtMost(remainingNonClimbKm)
+                } ?: 0f
 
             if (gapKm > 0f && recoveryPctPerKm > 0f) {
                 simulatedLevelPct = (simulatedLevelPct + (gapKm * recoveryPctPerKm)).coerceAtMost(MAX_BATTERY_PCT)
                 remainingNonClimbKm = (remainingNonClimbKm - gapKm).coerceAtLeast(0f)
             }
 
-            val climbDrainPct = calculateClimbDrainPct(
-                climb,
-                riderProfiles,
-                currentConsumerPowerWatts,
-                headwindSpeedMs
-            )
+            val climbDrainPct =
+                calculateClimbDrainPct(
+                    climb,
+                    riderProfiles,
+                    currentConsumerPowerWatts,
+                    headwindSpeedMs,
+                    effectiveCapacityWh,
+                )
             accumulatedClimbKm += (climb.lengthMeters / METERS_PER_KM).toFloat()
             simulatedLevelPct -= climbDrainPct
             if (simulatedLevelPct < minSimulatedLevelPct) {
@@ -145,40 +178,48 @@ class RouteEnergyForecaster(
         climb: ClimbSegment,
         riderProfiles: Map<Int, GradientProfile>,
         currentConsumerPowerWatts: Float,
-        headwindSpeedMs: Float?
+        headwindSpeedMs: Float?,
+        effectiveCapacityWh: Float,
     ): Float {
         val bucket = GradientProfile.bucketFor(climb.gradientPct)
         val baseProfile = riderProfiles[bucket]
-        val profileForClimb = (baseProfile ?: GradientProfile.defaultFor(bucket)).let { profile ->
-            headwindSpeedMs?.let { profile.adjustedForHeadwind(it) } ?: profile
-        }
-        val netBalanceWh = climb.predictNetEnergyBalanceWh(
-            profileForClimb,
-            baseProfile,
-            dynamoPowerCurve,
-            currentConsumerPowerWatts
-        )
-        return if (netBalanceWh < 0f) (-netBalanceWh / batteryCapacityWh) * PERCENT_SCALE else 0f
+        val profileForClimb =
+            (baseProfile ?: GradientProfile.defaultFor(bucket)).let { profile ->
+                headwindSpeedMs?.let { profile.adjustedForHeadwind(it) } ?: profile
+            }
+        val netBalanceWh =
+            climb.predictNetEnergyBalanceWh(
+                profileForClimb,
+                baseProfile,
+                dynamoPowerCurve,
+                currentConsumerPowerWatts,
+            )
+        return if (netBalanceWh < 0f) (-netBalanceWh / effectiveCapacityWh) * PERCENT_SCALE else 0f
     }
 
     private fun calculateFlatRecoveryPctPerKm(
         riderProfiles: Map<Int, GradientProfile>,
         currentConsumerPowerWatts: Float,
-        headwindSpeedMs: Float?
+        headwindSpeedMs: Float?,
+        effectiveCapacityWh: Float,
     ): Float {
         val baseFlat = riderProfiles[0] ?: GradientProfile.defaultFor(0)
         val effectiveFlat = headwindSpeedMs?.let { baseFlat.adjustedForHeadwind(it) } ?: baseFlat
         val predictedPowerWatts = dynamoPowerCurve.predictPowerWatts(effectiveFlat, riderProfiles[0])
-        val netSurplusWatts = (predictedPowerWatts - currentConsumerPowerWatts).coerceAtLeast(0f) *
-            RECOVERY_EFFICIENCY
+        val netSurplusWatts =
+            (predictedPowerWatts - currentConsumerPowerWatts).coerceAtLeast(0f) *
+                RECOVERY_EFFICIENCY
         if (netSurplusWatts <= 0f) return 0f
 
         val speedKmh = effectiveFlat.speedMetersPerSecond.coerceAtLeast(MIN_FLAT_SPEED_MS) * MS_TO_KMH
         val whRecoveredPerKm = netSurplusWatts / speedKmh
-        return (whRecoveredPerKm / batteryCapacityWh) * PERCENT_SCALE
+        return (whRecoveredPerKm / effectiveCapacityWh) * PERCENT_SCALE
     }
 
-    private fun resolveNonClimbFraction(routeRemainingKm: Float?, totalClimbKm: Float): Float =
+    private fun resolveNonClimbFraction(
+        routeRemainingKm: Float?,
+        totalClimbKm: Float,
+    ): Float =
         when {
             routeRemainingKm == null || routeRemainingKm <= 0f -> 0f
             else -> ((routeRemainingKm - totalClimbKm) / routeRemainingKm).coerceIn(0f, 1f)
@@ -186,7 +227,7 @@ class RouteEnergyForecaster(
 
     private fun forecastFromElevation(
         routeRemainingKm: Float?,
-        upcomingElevationMeters: Double?
+        upcomingElevationMeters: Double?,
     ): RouteEnergyForecast {
         val elevation = upcomingElevationMeters?.coerceAtLeast(0.0) ?: 0.0
         val rawPenalty = (elevation / METERS_PER_100M).toFloat() * elevationPenaltyPctPer100m
@@ -194,21 +235,22 @@ class RouteEnergyForecaster(
         return RouteEnergyForecast(
             peakDeficitPct = scaledPenalty,
             bottleneckClimbKm = 0f,
-            nonClimbRouteFraction = 1f
+            nonClimbRouteFraction = 1f,
         )
     }
 
     private fun scaleElevationPenalty(
         rawPenalty: Float,
         elevationMeters: Double,
-        routeRemainingKm: Float?
+        routeRemainingKm: Float?,
     ): Float {
         val remainingKm = routeRemainingKm?.takeIf { it > 0f } ?: return rawPenalty
         val avgGradePct = ((elevationMeters / (remainingKm * METERS_PER_KM)) * PERCENT_SCALE).toFloat()
-        val intensityScale = when {
-            avgGradePct >= FULL_PENALTY_AVG_GRADE_PCT -> 1.0f
-            else -> (avgGradePct / FULL_PENALTY_AVG_GRADE_PCT).coerceIn(MIN_ELEVATION_SCALE, 1.0f)
-        }
+        val intensityScale =
+            when {
+                avgGradePct >= FULL_PENALTY_AVG_GRADE_PCT -> 1.0f
+                else -> (avgGradePct / FULL_PENALTY_AVG_GRADE_PCT).coerceIn(MIN_ELEVATION_SCALE, 1.0f)
+            }
         return rawPenalty * intensityScale
     }
 

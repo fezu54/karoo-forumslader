@@ -644,4 +644,62 @@ class ForumsladerParserTest : ShouldSpec({
         dischargingResult.power.chargeState shouldBe ChargeState.DISCHARGING
         standbyResult.power.chargeState shouldBe ChargeState.STANDBY
     }
+
+    should("parse fullChargeCapacityMah and cycleCount from FLC set 5 sentence") {
+        // given
+        val flc5 = $$"$FLC,5,12,85,1140,127,1000"
+        val fl6 = $$"$FL6,0,0,100,4100,4120,4110,-150,250,0,0,0,12345"
+        val data = (flc5.withChecksum() + fl6.withChecksum()).toByteArray()
+
+        // when
+        val result = parser.processIncomingBytes(data).shouldNotBeNull()
+
+        // then
+        result.power.batteryLevelPercentage shouldBe 85
+        result.power.fullChargeCapacityMah shouldBe 1140
+        result.power.cycleCount shouldBe 127
+    }
+
+    should("leave fullChargeCapacityMah and cycleCount null when only FLD legacy frames arrive") {
+        // given
+        val fld = $$"$FLD,0,0,0,100,12.1,-0.2,0.1,-,5,0,0,0,0,1.5"
+
+        // when
+        val result = parser.processIncomingBytes(fld.toFrameBytes()).shouldNotBeNull()
+
+        // then
+        result.power.fullChargeCapacityMah.shouldBeNull()
+        result.power.cycleCount.shouldBeNull()
+    }
+
+    should("preserve last parsed fullChargeCapacityMah and cycleCount when malformed FLC set 5 omits them") {
+        // given
+        val validFlc5 = $$"$FLC,5,12,85,1140,127,1000"
+        val partialFlc5 = $$"$FLC,5,12,84,bad"
+        val fl6 = $$"$FL6,0,0,100,4100,4120,4110,-150,250,0,0,0,12345"
+
+        // when
+        parser.processIncomingBytes((validFlc5.withChecksum() + fl6.withChecksum()).toByteArray())
+        val result = parser.processIncomingBytes((partialFlc5.withChecksum() + fl6.withChecksum()).toByteArray()).shouldNotBeNull()
+
+        // then
+        result.power.batteryLevelPercentage shouldBe 84
+        result.power.fullChargeCapacityMah shouldBe 1140
+        result.power.cycleCount shouldBe 127
+    }
+
+    should("clear fullChargeCapacityMah and cycleCount when resetConfigLoaded is called") {
+        // given
+        val flc5 = $$"$FLC,5,12,85,1140,127,1000"
+        val fl6 = $$"$FL6,0,0,100,4100,4120,4110,-150,250,0,0,0,12345"
+        parser.processIncomingBytes((flc5.withChecksum() + fl6.withChecksum()).toByteArray())
+
+        // when
+        parser.resetConfigLoaded()
+        val resultAfterReset = parser.processIncomingBytes(fl6.toFrameBytes()).shouldNotBeNull()
+
+        // then
+        resultAfterReset.power.fullChargeCapacityMah.shouldBeNull()
+        resultAfterReset.power.cycleCount.shouldBeNull()
+    }
 })

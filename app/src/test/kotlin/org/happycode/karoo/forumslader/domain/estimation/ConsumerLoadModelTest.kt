@@ -92,4 +92,34 @@ class ConsumerLoadModelTest : ShouldSpec({
         // then
         adjustment shouldBe (3.759f plusOrMinus 0.02f)
     }
+
+    should("increase rate adjustment when dynamic batteryCapacityWh override reflects a degraded pack") {
+        // given: +9W jump at 18 km/h -> +0.5 Wh/km on a degraded 10.0 Wh pack
+        // when
+        val degradedAdjustment = model.calculateRateAdjustmentPctPerKm(
+            currentPowerWatts = 10.0f,
+            baselinePowerWatts = 1.0f,
+            speedMetersPerSecond = 5.0f,
+            baseRatePctPerKm = 1.0f,
+            batteryCapacityWh = 10.0f
+        )
+
+        // then: 0.5 / 10.0 * 100 = 5.0 %/km
+        degradedAdjustment shouldBe (5.0f plusOrMinus 0.01f)
+    }
+
+    should("decrease rate adjustment when dynamic batteryCapacityWh override reflects a larger battery pack") {
+        // given: +9W jump at 18 km/h -> +0.5 Wh/km on a large 33.3 Wh 18650 pack
+        // when
+        val largePackAdjustment = model.calculateRateAdjustmentPctPerKm(
+            currentPowerWatts = 10.0f,
+            baselinePowerWatts = 1.0f,
+            speedMetersPerSecond = 5.0f,
+            baseRatePctPerKm = 1.0f,
+            batteryCapacityWh = 33.3f
+        )
+
+        // then: 0.5 / 33.3 * 100 = 1.502 %/km
+        largePackAdjustment shouldBe (1.502f plusOrMinus 0.01f)
+    }
 })

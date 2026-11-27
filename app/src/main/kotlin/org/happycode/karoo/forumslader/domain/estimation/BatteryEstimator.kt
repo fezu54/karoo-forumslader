@@ -19,25 +19,29 @@ class BatteryEstimator(
     initialDischargeRate: Float? = DEFAULT_DISCHARGE_RATE,
     dischargeRateStore: DischargeRateStore = DischargeRateStore {},
     batteryCapacityWh: Float = DEFAULT_BATTERY_CAPACITY_WH,
-    dynamoPowerCurve: DynamoPowerCurve = DynamoPowerCurve()
+    dynamoPowerCurve: DynamoPowerCurve = DynamoPowerCurve(),
+    initialFullChargeCapacityMah: Int? = null,
+    private val batteryCapacityStore: BatteryCapacityStore = BatteryCapacityStore {},
 ) {
-    private val dischargeWindow = DischargeWindow(
-        windowMeters = windowMeters,
-        minMetersForEstimate = minMetersForEstimate,
-        maxStepMeters = maxStepMeters,
-        minCredibleDischargeRate = minCredibleDischargeRate,
-        maxCredibleDischargeRate = maxCredibleDischargeRate,
-        emaAlpha = emaAlpha,
-        initialDischargeRate = initialDischargeRate,
-        dischargeRateStore = dischargeRateStore
-    )
+    private val dischargeWindow =
+        DischargeWindow(
+            windowMeters = windowMeters,
+            minMetersForEstimate = minMetersForEstimate,
+            maxStepMeters = maxStepMeters,
+            minCredibleDischargeRate = minCredibleDischargeRate,
+            maxCredibleDischargeRate = maxCredibleDischargeRate,
+            emaAlpha = emaAlpha,
+            initialDischargeRate = initialDischargeRate,
+            dischargeRateStore = dischargeRateStore,
+        )
     private val consumerLoadModel = ConsumerLoadModel(batteryCapacityWh = batteryCapacityWh)
     private val headwindCompensator = HeadwindCompensator(headwindPenaltyPctPerKmPerMs = headwindPenaltyPctPerKmPerMs)
-    private val routeEnergyForecaster = RouteEnergyForecaster(
-        elevationPenaltyPctPer100m = elevationPenaltyPctPer100m,
-        batteryCapacityWh = batteryCapacityWh,
-        dynamoPowerCurve = dynamoPowerCurve
-    )
+    private val routeEnergyForecaster =
+        RouteEnergyForecaster(
+            elevationPenaltyPctPer100m = elevationPenaltyPctPer100m,
+            batteryCapacityWh = batteryCapacityWh,
+            dynamoPowerCurve = dynamoPowerCurve,
+        )
 
     private val riderProfiles = mutableMapOf<Int, GradientProfile>()
     private var upcomingClimbs: List<ClimbSegment> = emptyList()
@@ -49,6 +53,10 @@ class BatteryEstimator(
     private var routeRemainingKm: Float? = null
     private var upcomingElevationMeters: Double? = null
     private var headwindSpeedMs: Float? = null
+    private var lastPersistedCapacityMah: Int? =
+        initialFullChargeCapacityMah?.takeIf(BatteryCapacity::isCredibleMah)
+    private var currentBatteryCapacityWh: Float =
+        BatteryCapacity.toCredibleWh(lastPersistedCapacityMah) ?: batteryCapacityWh
 
     fun onUpcomingClimbs(climbs: List<ClimbSegment>) {
         upcomingClimbs = climbs
@@ -64,6 +72,7 @@ class BatteryEstimator(
     }
 
     fun onMetrics(metrics: ForumsladerMetrics) {
+        updateDynamicCapacity(metrics.power.fullChargeCapacityMah)
         val currentLevel = metrics.power.batteryLevelPercentage ?: return
         val currentState = metrics.power.chargeState
 
@@ -77,11 +86,14 @@ class BatteryEstimator(
             batteryLevelPct = currentLevel,
             tripDistanceMeters = metrics.distance.tripMeters,
             consumerPowerWatts = currentConsumerPowerWatts,
-            headwindSpeedMs = headwindSpeedMs
+            headwindSpeedMs = headwindSpeedMs,
         )
     }
 
-    fun onRouteRemaining(distanceMeters: Double?, upcomingElevation: Double?) {
+    fun onRouteRemaining(
+        distanceMeters: Double?,
+        upcomingElevation: Double?,
+    ) {
         routeRemainingKm = distanceMeters?.let { (it / METERS_PER_KM).toFloat() }
         upcomingElevationMeters = upcomingElevation
     }
@@ -93,61 +105,83 @@ class BatteryEstimator(
     fun getEstimate(): BatteryEstimate? {
         val currentLevel = lastBatteryLevelPct ?: return null
         val currentState = lastChargeState ?: return null
-        val routeForecast = routeEnergyForecaster.forecast(
-            currentLevelPct = currentLevel.toFloat(),
-            routeRemainingKm = routeRemainingKm,
-            upcomingElevationMeters = upcomingElevationMeters,
-            upcomingClimbs = upcomingClimbs,
-            riderProfiles = riderProfiles,
-            currentConsumerPowerWatts = currentConsumerPowerWatts,
-            headwindSpeedMs = headwindSpeedMs
-        )
-        val effectiveRate = calculateEffectiveRate(
-            baseRate = dischargeWindow.lastDischargeRate,
-            nonClimbRouteFraction = routeForecast.nonClimbRouteFraction
-        )
-        val estimatedRangeKm = effectiveRate?.takeIf { it > 0f }?.let { dischargeRate ->
-            val adjustedCapacity = routeForecast.adjustedCapacityPct(
+        val routeForecast =
+            routeEnergyForecaster.forecast(
                 currentLevelPct = currentLevel.toFloat(),
-                effectiveRatePctPerKm = dischargeRate
+                routeRemainingKm = routeRemainingKm,
+                upcomingElevationMeters = upcomingElevationMeters,
+                upcomingClimbs = upcomingClimbs,
+                riderProfiles = riderProfiles,
+                currentConsumerPowerWatts = currentConsumerPowerWatts,
+                headwindSpeedMs = headwindSpeedMs,
+                batteryCapacityWh = currentBatteryCapacityWh,
             )
-            (adjustedCapacity / dischargeRate).takeIf { range -> range.isFinite() }
-        }
-        val avgDischargeRatePctPerKm = when (currentState) {
-            ChargeState.CHARGING, ChargeState.FULL -> 0f
-            else -> effectiveRate ?: 0f
-        }
-        val isSufficientForRoute = routeRemainingKm?.let { remaining ->
-            estimatedRangeKm?.let { it >= remaining } ?: when (currentState) {
-                ChargeState.CHARGING, ChargeState.FULL -> true
-                else -> null
+        val effectiveRate =
+            calculateEffectiveRate(
+                baseRate = dischargeWindow.lastDischargeRate,
+                nonClimbRouteFraction = routeForecast.nonClimbRouteFraction,
+            )
+        val estimatedRangeKm =
+            effectiveRate?.takeIf { it > 0f }?.let { dischargeRate ->
+                val adjustedCapacity =
+                    routeForecast.adjustedCapacityPct(
+                        currentLevelPct = currentLevel.toFloat(),
+                        effectiveRatePctPerKm = dischargeRate,
+                    )
+                (adjustedCapacity / dischargeRate).takeIf { range -> range.isFinite() }
             }
-        }
+        val avgDischargeRatePctPerKm =
+            when (currentState) {
+                ChargeState.CHARGING, ChargeState.FULL -> 0f
+                else -> effectiveRate ?: 0f
+            }
+        val isSufficientForRoute =
+            routeRemainingKm?.let { remaining ->
+                estimatedRangeKm?.let { it >= remaining } ?: when (currentState) {
+                    ChargeState.CHARGING, ChargeState.FULL -> true
+                    else -> null
+                }
+            }
         return BatteryEstimate(
             remainingCapacityPct = currentLevel,
             avgDischargeRatePctPerKm = avgDischargeRatePctPerKm,
             estimatedRangeKm = estimatedRangeKm,
             routeRemainingKm = routeRemainingKm,
             isSufficientForRoute = isSufficientForRoute,
-            chargeState = currentState
+            chargeState = currentState,
         )
     }
 
-    private fun calculateEffectiveRate(baseRate: Float?, nonClimbRouteFraction: Float): Float? =
+    private fun calculateEffectiveRate(
+        baseRate: Float?,
+        nonClimbRouteFraction: Float,
+    ): Float? =
         baseRate?.takeIf { it > 0f }?.let { rate ->
-            val headwindPenalty = headwindCompensator.calculateRatePenaltyPctPerKm(
-                currentHeadwindMs = headwindSpeedMs,
-                baselineHeadwindMs = dischargeWindow.baselineHeadwindSpeedMs,
-                nonClimbRouteFraction = nonClimbRouteFraction
-            )
-            val consumerDelta = consumerLoadModel.calculateRateAdjustmentPctPerKm(
-                currentPowerWatts = currentConsumerPowerWatts,
-                baselinePowerWatts = dischargeWindow.baselineConsumerPowerWatts,
-                speedMetersPerSecond = lastSpeedMetersPerSecond,
-                baseRatePctPerKm = rate
-            )
+            val headwindPenalty =
+                headwindCompensator.calculateRatePenaltyPctPerKm(
+                    currentHeadwindMs = headwindSpeedMs,
+                    baselineHeadwindMs = dischargeWindow.baselineHeadwindSpeedMs,
+                    nonClimbRouteFraction = nonClimbRouteFraction,
+                )
+            val consumerDelta =
+                consumerLoadModel.calculateRateAdjustmentPctPerKm(
+                    currentPowerWatts = currentConsumerPowerWatts,
+                    baselinePowerWatts = dischargeWindow.baselineConsumerPowerWatts,
+                    speedMetersPerSecond = lastSpeedMetersPerSecond,
+                    baseRatePctPerKm = rate,
+                    batteryCapacityWh = currentBatteryCapacityWh,
+                )
             (rate + headwindPenalty + consumerDelta).coerceIn(minCredibleDischargeRate, maxCredibleDischargeRate)
         }
+
+    private fun updateDynamicCapacity(capacityMah: Int?) {
+        val credibleMah = capacityMah?.takeIf(BatteryCapacity::isCredibleMah) ?: return
+        currentBatteryCapacityWh = BatteryCapacity.toWh(credibleMah)
+        if (credibleMah != lastPersistedCapacityMah) {
+            lastPersistedCapacityMah = credibleMah
+            batteryCapacityStore.saveCapacityMah(credibleMah)
+        }
+    }
 
     companion object {
         const val DEFAULT_DISCHARGE_RATE = 1.0f
