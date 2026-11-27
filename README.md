@@ -173,7 +173,6 @@ Select your dynamo hub model or enter a custom pole count (range: 1–60):
 
 - On the first successful connection, the app locks onto your Forumslader's Bluetooth MAC address.
 - Subsequent connections bypass BLE discovery scanning entirely, achieving instant reconnects even after Karoo sleep or reboot.
-- The extension automatically requests and releases Karoo Bluetooth leases (`RequestBluetooth` / `ReleaseBluetooth`) during scanning and active connections, keeping the Karoo 3 Bluetooth radio active even when no native BLE sensors are paired, and cleanly retries on unexpected disconnects.
 - To pair a different Forumslader, tap **Forget** under the *Locked Device* section in the companion settings.
 
 ### Firmware Updates (V6 Hardware)
