@@ -234,42 +234,35 @@ class ForumsladerGraphicalDataType(
         state: BatteryViewState
     ): RemoteViews = RemoteViews(context.packageName, R.layout.custom_data_field_battery).apply {
         val density = context.resources.displayMetrics.density.coerceAtLeast(1.0f)
-        val viewWidthDp = config.viewSize.first / density
-        val viewHeightDp = config.viewSize.second / density
-        val halfWidthDp = (viewWidthDp - 10f).coerceAtLeast(20f) / 2f
-
-        val isCompact = config.gridSize.first < 50
-        val digitScale = if (isCompact) 0.55f else 0.70f
-        val textScale = if (isCompact) 0.40f else 0.50f
-
-        val maxDigitHeightSp = viewHeightDp * 0.52f
-        val maxTextHeightSp = viewHeightDp * 0.38f
-        val maxDigitWidthSp = halfWidthDp / 2.2f
-
-        val digitSizeSp = minOf(config.textSize * digitScale, maxDigitHeightSp, maxDigitWidthSp).coerceIn(12f, 40f)
-        val unitSizeSp = (digitSizeSp * 0.5f).coerceIn(9f, 20f)
-
-        val rangeTextLen = state.rangeText.length.coerceAtLeast(1)
-        val maxTextWidthSp = halfWidthDp / (rangeTextLen * 0.58f)
-        val textSizeSp = minOf(config.textSize * textScale, maxTextHeightSp, maxTextWidthSp).coerceIn(10f, 22f)
+        val sizes = BatteryFieldTextSizer.calculate(
+            viewWidthDp = config.viewSize.first / density,
+            viewHeightDp = config.viewSize.second / density,
+            configTextSize = config.textSize,
+            isCompact = config.gridSize.first < 50,
+            levelText = state.levelText,
+            levelUnitText = state.levelUnitText,
+            rangeText = state.rangeText,
+            rangeUnitText = state.rangeUnitText,
+            isRangeNumeric = state.isRangeNumeric
+        )
 
         setTextViewText(R.id.battery_level_value, state.levelText)
-        setTextViewTextSize(R.id.battery_level_value, TypedValue.COMPLEX_UNIT_SP, digitSizeSp)
+        setTextViewTextSize(R.id.battery_level_value, TypedValue.COMPLEX_UNIT_SP, sizes.digitSizeSp)
         setTextColor(R.id.battery_level_value, ContextCompat.getColor(context, state.levelColorResId))
 
         setTextViewText(R.id.battery_level_unit, state.levelUnitText)
-        setTextViewTextSize(R.id.battery_level_unit, TypedValue.COMPLEX_UNIT_SP, unitSizeSp)
+        setTextViewTextSize(R.id.battery_level_unit, TypedValue.COMPLEX_UNIT_SP, sizes.unitSizeSp)
 
         setTextViewText(R.id.battery_range_value, state.rangeText)
         setTextViewTextSize(
             R.id.battery_range_value,
             TypedValue.COMPLEX_UNIT_SP,
-            if (state.isRangeNumeric) digitSizeSp else textSizeSp
+            if (state.isRangeNumeric) sizes.digitSizeSp else sizes.textSizeSp
         )
         setTextColor(R.id.battery_range_value, ContextCompat.getColor(context, state.rangeColorResId))
 
         setTextViewText(R.id.battery_range_unit, state.rangeUnitText)
-        setTextViewTextSize(R.id.battery_range_unit, TypedValue.COMPLEX_UNIT_SP, unitSizeSp)
+        setTextViewTextSize(R.id.battery_range_unit, TypedValue.COMPLEX_UNIT_SP, sizes.unitSizeSp)
         setTextColor(R.id.battery_range_unit, ContextCompat.getColor(context, state.unitColorResId))
         setViewVisibility(
             R.id.battery_range_unit,
