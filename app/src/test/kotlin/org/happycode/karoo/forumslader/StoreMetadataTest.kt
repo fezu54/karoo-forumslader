@@ -107,7 +107,7 @@ class StoreMetadataTest : ShouldSpec({
         // when / then
         workflowText shouldContain ":app:generateManifest"
         workflowText shouldContain "make_latest: true"
-        workflowLines shouldContain "app/build/outputs/apk/release/app-release.apk"
+        workflowLines shouldContain $$"app/build/outputs/apk/release/karoo-forumslader-${{ env.new_version }}-release.apk"
         workflowLines shouldContain "app/build/outputs/manifest/manifest.json"
         workflowLines shouldContain "docs/images/karoo-forumslader.png"
         workflowLines shouldContain "docs/images/screenshots/card-*.png"

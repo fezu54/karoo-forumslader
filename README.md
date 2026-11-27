@@ -208,11 +208,11 @@ Once listed in Hammerhead's Extension Library (or configured via the Hammerhead 
 
 #### Option B: Manual Sideloading
 
-1. **Download the APK**: Grab the latest `app-release.apk` from the [Releases](https://github.com/fezu54/karoo-forumslader/releases) page.
+1. **Download the APK**: Grab the latest `karoo-forumslader-<version>-release.apk` from the [Releases](https://github.com/fezu54/karoo-forumslader/releases) page.
 2. **Sideload onto Karoo**: Install the APK via ADB or the Karoo Companion App (Karoo 3):
 
    ```bash
-   adb install -r app-release.apk
+   adb install -r karoo-forumslader-<version>-release.apk
    ```
 
 #### First-Time Pairing & Configuration
