@@ -2,7 +2,7 @@
 agp = "9.5.1"
 kotlin = "2.4.21"
 kover = "0.9.11"
-kable = "0.45.0"
+kable = "0.46.0"
 nordicDfu = "2.11.0"
 kotlinxCoroutines = "1.11.0"
 qrcodeKotlin = "4.5.0"
