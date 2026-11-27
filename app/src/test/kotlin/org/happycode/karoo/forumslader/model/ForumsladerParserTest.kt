@@ -403,9 +403,22 @@ class ForumsladerParserTest : ShouldSpec({
 
     listOf(
         Triple("0x200", 0, ChargeState.STANDBY),
+        Triple("0x200", -150, ChargeState.STANDBY),
         Triple("0x100", 0, ChargeState.FULL),
+        Triple("0x100", -150, ChargeState.FULL),
+        Triple("0x100", 150, ChargeState.FULL),
+        Triple("0x0", -16, ChargeState.DISCHARGING),
+        Triple("0x0", -15, ChargeState.STANDBY),
+        Triple("0x0", 15, ChargeState.STANDBY),
+        Triple("0x0", 16, ChargeState.CHARGING),
         Triple("0x8000", -150, ChargeState.DISCHARGING),
-        Triple("0x8000", -4, ChargeState.STANDBY)
+        Triple("0x8000", -16, ChargeState.DISCHARGING),
+        Triple("0x8000", -15, ChargeState.STANDBY),
+        Triple("0x8000", -4, ChargeState.STANDBY),
+        Triple("0x8000", 0, ChargeState.STANDBY),
+        Triple("0x8000", 15, ChargeState.STANDBY),
+        Triple("0x8000", 16, ChargeState.CHARGING),
+        Triple("0x8000", 150, ChargeState.CHARGING)
     ).forEach { (status, currentMa, expectedState) ->
         should("handle FL6 status bitmask $status with ${currentMa}mA as $expectedState") {
             // given
@@ -456,14 +469,15 @@ class ForumsladerParserTest : ShouldSpec({
         result.power.chargeState shouldBe ChargeState.DISCHARGING
     }
 
-    should("treat quiescent discharge within deadband as standby even when 0x8000 bit is set") {
-        // given: -4 mA standby self-consumption with 0x8000 discharging bit set
-        val payload = $$"$FL6,0x8000,0,0,3860,3860,3860,-4,1,0,0,0,0"
+    should("treat FL5 quiescent discharge within deadband as standby when 0x8000 bit is set") {
+        // given: -4 mA standby self-consumption on FL5 (14 fields) with 0x8000 bit set
+        val payload = $$"$FL5,0x8000,0,0,3860,3860,3860,-4,0,0,0,0,0,0"
 
         // when
         val result = parser.processIncomingBytes(payload.toFrameBytes()).shouldNotBeNull()
 
         // then
+        result.power.statusMask shouldBe 0x8000
         result.power.chargeState shouldBe ChargeState.STANDBY
     }
 
