@@ -178,6 +178,7 @@ class ForumsladerExtensionTest : ShouldSpec({
         typeIds shouldContain DataFieldId.BATTERY_LEVEL
         typeIds shouldContain DataFieldId.SPEED
         (types.first { it.typeId == DataFieldId.BATTERY_LEVEL } is ForumsladerGraphicalDataType) shouldBe true
+        (types.first { it.typeId == DataFieldId.CHARGE_STATE } is ChargeStateGraphicalDataType) shouldBe true
     }
 
     should("handle missing permission when start scan is called") {

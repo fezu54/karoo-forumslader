@@ -73,7 +73,7 @@
         displayName="@string/datafield_charge_state"
         description="@string/datafield_charge_state_desc"
         icon="@drawable/ic_df_bolt"
-        graphical="false" />
+        graphical="true" />
 
     <DataType
         typeId="fl_trip_energy"
