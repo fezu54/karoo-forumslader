@@ -12,6 +12,7 @@ import io.hammerhead.karooext.models.StreamState
 import io.hammerhead.karooext.models.ViewConfig
 import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
@@ -72,6 +73,10 @@ class ChargeStateGraphicalDataTypeTest : ShouldSpec({
         every { karooSystem.connect(any()) } answers {
             firstArg<(Boolean) -> Unit>().invoke(true)
         }
+        every { handler.post(any()) } answers {
+            firstArg<Runnable>().run()
+            true
+        }
     }
 
     afterEach {
@@ -116,9 +121,9 @@ class ChargeStateGraphicalDataTypeTest : ShouldSpec({
 
         // when & then
         dataType.createViewState(context, StreamState.Searching) shouldBe
-            ChargeStateViewState("Searching", R.color.karoo_text_primary)
+            ChargeStateViewState("Searching", R.color.karoo_text_primary, isStatus = true)
         dataType.createViewState(context, StreamState.NotAvailable) shouldBe
-            ChargeStateViewState("N/A", R.color.karoo_text_primary)
+            ChargeStateViewState("N/A", R.color.karoo_text_primary, isStatus = true)
         dataType.createViewState(context, StreamState.Idle) shouldBe
             ChargeStateViewState("---", R.color.karoo_text_primary)
     }
@@ -216,5 +221,216 @@ class ChargeStateGraphicalDataTypeTest : ShouldSpec({
         // then
         verify(exactly = 0) { karooSystem.addConsumer(any()) }
         verify(atLeast = 1) { karooSystem.disconnect() }
+    }
+
+    should("emit immediately on first render when monotonic uptime is below throttle window") {
+        // given
+        currentTimeMs = 200L
+        val dataType = createDataType()
+        val session = dataType.ViewSession(context, defaultConfig, emitter, handler)
+        val idleEvent = OnStreamState(StreamState.Idle)
+
+        // when
+        session.onStreamState(idleEvent)
+
+        // then
+        verify(exactly = 1) { emitter.updateView(any()) }
+        verify(exactly = 0) { handler.postDelayed(any(), any()) }
+    }
+
+    should("emit immediately when clock moves backward") {
+        // given
+        val dataType = createDataType()
+        val session = dataType.ViewSession(context, defaultConfig, emitter, handler)
+        val idleEvent = OnStreamState(StreamState.Idle)
+        val chargingEvent = OnStreamState(
+            StreamState.Streaming(
+                singleValueDataPoint(dataType.dataTypeId, ChargeState.CHARGING.ordinal.toDouble())
+            )
+        )
+
+        // when
+        session.onStreamState(idleEvent)
+        currentTimeMs = 5_000L
+        session.onStreamState(chargingEvent)
+
+        // then
+        verify(exactly = 2) { emitter.updateView(any()) }
+        verify(exactly = 0) { handler.postDelayed(any(), any()) }
+    }
+
+    should("replace pending runnable when another rapid state transition arrives inside throttle window") {
+        // given
+        val dataType = createDataType()
+        val session = dataType.ViewSession(context, defaultConfig, emitter, handler)
+        val runnables = mutableListOf<Runnable>()
+        val delays = mutableListOf<Long>()
+        every { handler.postDelayed(capture(runnables), capture(delays)) } returns true
+
+        val idleEvent = OnStreamState(StreamState.Idle)
+        val dischargingEvent = OnStreamState(
+            StreamState.Streaming(
+                singleValueDataPoint(dataType.dataTypeId, ChargeState.DISCHARGING.ordinal.toDouble())
+            )
+        )
+        val chargingEvent = OnStreamState(
+            StreamState.Streaming(
+                singleValueDataPoint(dataType.dataTypeId, ChargeState.CHARGING.ordinal.toDouble())
+            )
+        )
+
+        // when
+        session.onStreamState(idleEvent)
+        currentTimeMs += 300L
+        session.onStreamState(dischargingEvent)
+        currentTimeMs += 300L
+        session.onStreamState(chargingEvent)
+
+        // then
+        delays shouldBe listOf(750L, 450L)
+        verify(exactly = 1) { handler.removeCallbacks(runnables[0]) }
+        verify(exactly = 1) { emitter.updateView(any()) }
+
+        // when
+        currentTimeMs += 450L
+        runnables[1].run()
+
+        // then
+        verify(exactly = 2) { emitter.updateView(any()) }
+    }
+
+    should("remove pending callbacks and skip update when session is cancelled during throttle window") {
+        // given
+        val dataType = createDataType()
+        var cancelled = false
+        val session = dataType.ViewSession(
+            context,
+            defaultConfig,
+            emitter,
+            handler,
+            isCancelled = { cancelled }
+        )
+        val runnableSlot = slot<Runnable>()
+        every { handler.postDelayed(capture(runnableSlot), any()) } returns true
+
+        val idleEvent = OnStreamState(StreamState.Idle)
+        val dischargingEvent = OnStreamState(
+            StreamState.Streaming(
+                singleValueDataPoint(dataType.dataTypeId, ChargeState.DISCHARGING.ordinal.toDouble())
+            )
+        )
+
+        // when
+        session.onStreamState(idleEvent)
+        currentTimeMs += 600L
+        session.onStreamState(dischargingEvent)
+        cancelled = true
+        session.cancel()
+        runnableSlot.captured.run()
+
+        // then
+        verify(exactly = 1) { handler.removeCallbacks(runnableSlot.captured) }
+        verify(exactly = 1) { emitter.updateView(any()) }
+    }
+
+    should("deliver stream events through handler and ignore events received after cancellation") {
+        // given
+        var capturedConsumer: ((OnStreamState) -> Unit)? = null
+        val dataType = ChargeStateGraphicalDataType(
+            extension = EXTENSION_ID,
+            timeProvider = { currentTimeMs },
+            karooSystemFactory = { karooSystem },
+            handlerFactory = { handler },
+            streamConsumerRegistrar = { _, _, onEvent ->
+                capturedConsumer = onEvent
+                "listener-id"
+            }
+        )
+        val cancelSlot = slot<() -> Unit>()
+        every { emitter.setCancellable(capture(cancelSlot)) } returns Unit
+
+        val chargingEvent = OnStreamState(
+            StreamState.Streaming(
+                singleValueDataPoint(dataType.dataTypeId, ChargeState.CHARGING.ordinal.toDouble())
+            )
+        )
+        val fullEvent = OnStreamState(
+            StreamState.Streaming(
+                singleValueDataPoint(dataType.dataTypeId, ChargeState.FULL.ordinal.toDouble())
+            )
+        )
+
+        // when
+        dataType.startView(context, defaultConfig, emitter)
+        capturedConsumer?.invoke(chargingEvent)
+        cancelSlot.captured()
+        currentTimeMs += 2_000L
+        capturedConsumer?.invoke(fullEvent)
+
+        // then
+        capturedConsumer shouldNotBe null
+        verify(atLeast = 1) { handler.post(any()) }
+        verify(exactly = 1) { emitter.updateView(any()) }
+    }
+
+    should("disconnect and skip consumer registration when connect fails") {
+        // given
+        val dataType = createDataType()
+        every { karooSystem.connect(any()) } answers {
+            firstArg<(Boolean) -> Unit>().invoke(false)
+        }
+
+        // when
+        dataType.startView(context, defaultConfig, emitter)
+
+        // then
+        verify(exactly = 0) { karooSystem.addConsumer(any()) }
+        verify(exactly = 1) { karooSystem.disconnect() }
+    }
+
+    should("remove consumer immediately when cancelled while addConsumer is registering") {
+        // given
+        val dataType = createDataType()
+        val cancelSlot = slot<() -> Unit>()
+        every { emitter.setCancellable(capture(cancelSlot)) } returns Unit
+        every { karooSystem.addConsumer(any()) } answers {
+            cancelSlot.captured()
+            "raced-listener-id"
+        }
+
+        // when
+        dataType.startView(context, defaultConfig, emitter)
+
+        // then
+        verify(exactly = 1) { karooSystem.removeConsumer("raced-listener-id") }
+        verify(atLeast = 1) { karooSystem.disconnect() }
+    }
+
+    should("render RemoteViews with standard non-compact layout when grid width is at least 50") {
+        // given
+        val dataType = createDataType()
+        val wideConfig = defaultConfig.copy(
+            gridSize = Pair(60, 15),
+            viewSize = Pair(400, 100)
+        )
+        val state = ChargeStateViewState("Charging", R.color.karoo_battery_good)
+
+        // when
+        val valueViews = dataType.createRemoteViews(context, wideConfig, state)
+        val statusViews = dataType.createRemoteViews(
+            context,
+            wideConfig,
+            ChargeStateViewState("Searching", R.color.karoo_text_primary, isStatus = true)
+        )
+        val compactStatusViews = dataType.createRemoteViews(
+            context,
+            defaultConfig,
+            ChargeStateViewState("Searching", R.color.karoo_text_primary, isStatus = true)
+        )
+
+        // then
+        valueViews shouldNotBe null
+        statusViews shouldNotBe null
+        compactStatusViews shouldNotBe null
     }
 })

@@ -64,8 +64,8 @@
     <string name="status_inactive">Inaktiv</string>
     <string name="forumslader_device_label">Forumslader-Gerät</string>
     <string name="status_connected">Verbunden</string>
-    <string name="status_searching">Suche&#8230;</string>
-    <string name="status_not_available">Nicht verfügbar</string>
+    <string name="status_searching">Suchen&#8230;</string>
+    <string name="status_not_available">Kein Sensor</string>
     <string name="status_disconnected">Getrennt</string>
     <string name="configuration_title">Konfiguration</string>
     <string name="label_wheel_size">Radumfang</string>

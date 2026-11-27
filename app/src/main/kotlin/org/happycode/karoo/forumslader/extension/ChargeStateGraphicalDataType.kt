@@ -3,6 +3,7 @@ package org.happycode.karoo.forumslader.extension
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.TypedValue
 import android.widget.RemoteViews
 import androidx.core.content.ContextCompat
@@ -15,13 +16,18 @@ import io.hammerhead.karooext.models.ViewConfig
 import org.happycode.karoo.forumslader.R
 import org.happycode.karoo.forumslader.adapters.ForumsladerDataFieldsAdapter.DataFieldId
 import org.happycode.karoo.forumslader.domain.ChargeState
+import java.util.concurrent.atomic.AtomicBoolean
 
 class ChargeStateGraphicalDataType(
     extension: String,
     typeId: String = DataFieldId.CHARGE_STATE,
-    private val timeProvider: () -> Long = System::currentTimeMillis,
+    private val timeProvider: () -> Long = SystemClock::elapsedRealtime,
     private val karooSystemFactory: (Context) -> KarooSystemService = { KarooSystemService(it) },
-    private val handlerFactory: () -> Handler = { Handler(Looper.getMainLooper()) }
+    private val handlerFactory: () -> Handler = { Handler(Looper.getMainLooper()) },
+    private val streamConsumerRegistrar: (KarooSystemService, String, (OnStreamState) -> Unit) -> String =
+        { karooSystem, id, onEvent ->
+            karooSystem.addConsumer(OnStreamState.StartStreaming(id)) { event: OnStreamState -> onEvent(event) }
+        }
 ) : DataTypeImpl(extension, typeId) {
 
     companion object {
@@ -30,21 +36,24 @@ class ChargeStateGraphicalDataType(
 
     internal data class ChargeStateViewState(
         val label: String,
-        val colorResId: Int
+        val colorResId: Int,
+        val isStatus: Boolean = false
     )
 
     internal inner class ViewSession(
         private val context: Context,
         private val config: ViewConfig,
         private val emitter: ViewEmitter,
-        private val handler: Handler
+        private val handler: Handler,
+        private val isCancelled: () -> Boolean = { false }
     ) {
         private var lastViewState: ChargeStateViewState? = null
-        private var lastEmitTimeMs: Long = 0L
+        private var lastEmitTimeMs: Long? = null
         private var pendingViews: RemoteViews? = null
         private var emitRunnable: Runnable? = null
 
         fun onStreamState(event: OnStreamState) {
+            if (isCancelled()) return
             val state = createViewState(context, event.state)
             if (state == lastViewState) return
             lastViewState = state
@@ -53,8 +62,8 @@ class ChargeStateGraphicalDataType(
 
         private fun postUpdateView(views: RemoteViews) {
             val now = timeProvider()
-            val elapsed = now - lastEmitTimeMs
-            if (elapsed >= THROTTLE_WINDOW_MS) {
+            val elapsed = lastEmitTimeMs?.let { now - it }
+            if (elapsed == null || elapsed < 0L || elapsed >= THROTTLE_WINDOW_MS) {
                 emitRunnable?.let { handler.removeCallbacks(it) }
                 emitRunnable = null
                 pendingViews = null
@@ -64,10 +73,12 @@ class ChargeStateGraphicalDataType(
                 pendingViews = views
                 emitRunnable?.let { handler.removeCallbacks(it) }
                 val runnable = Runnable {
-                    pendingViews?.let { pending ->
-                        emitter.updateView(pending)
-                        lastEmitTimeMs = timeProvider()
-                        pendingViews = null
+                    if (!isCancelled()) {
+                        pendingViews?.let { pending ->
+                            emitter.updateView(pending)
+                            lastEmitTimeMs = timeProvider()
+                            pendingViews = null
+                        }
                     }
                     emitRunnable = null
                 }
@@ -94,26 +105,43 @@ class ChargeStateGraphicalDataType(
         }
 
         val karooSystem = karooSystemFactory(context)
-        val session = ViewSession(context, config, emitter, handlerFactory())
+        val handler = handlerFactory()
+        val cancelled = AtomicBoolean(false)
+        val lock = Any()
+        val session = ViewSession(context, config, emitter, handler, isCancelled = cancelled::get)
         var listenerId: String? = null
-        var cancelled = false
 
         emitter.setCancellable {
-            cancelled = true
-            session.cancel()
-            listenerId?.let { karooSystem.removeConsumer(it) }
-            listenerId = null
+            cancelled.set(true)
+            val idToRemove = synchronized(lock) {
+                listenerId.also { listenerId = null }
+            }
+            idToRemove?.let { karooSystem.removeConsumer(it) }
             karooSystem.disconnect()
+            handler.post { session.cancel() }
         }
 
         karooSystem.connect { connected ->
-            if (!connected || cancelled) {
+            if (!connected || cancelled.get()) {
                 karooSystem.disconnect()
                 return@connect
             }
-            listenerId = karooSystem.addConsumer(OnStreamState.StartStreaming(dataTypeId)) { event: OnStreamState ->
-                if (cancelled) return@addConsumer
-                session.onStreamState(event)
+            val registeredId = streamConsumerRegistrar(karooSystem, dataTypeId) { event: OnStreamState ->
+                if (!cancelled.get()) {
+                    handler.post { session.onStreamState(event) }
+                }
+            }
+            val shouldRemove = synchronized(lock) {
+                if (cancelled.get()) {
+                    true
+                } else {
+                    listenerId = registeredId
+                    false
+                }
+            }
+            if (shouldRemove) {
+                karooSystem.removeConsumer(registeredId)
+                karooSystem.disconnect()
             }
         }
     }
@@ -134,11 +162,13 @@ class ChargeStateGraphicalDataType(
         }
         is StreamState.Searching -> ChargeStateViewState(
             label = context.getString(R.string.status_searching),
-            colorResId = R.color.karoo_text_primary
+            colorResId = R.color.karoo_text_primary,
+            isStatus = true
         )
         is StreamState.NotAvailable -> ChargeStateViewState(
             label = context.getString(R.string.status_not_available),
-            colorResId = R.color.karoo_text_primary
+            colorResId = R.color.karoo_text_primary,
+            isStatus = true
         )
         is StreamState.Idle -> ChargeStateViewState(
             label = "---",
@@ -157,11 +187,18 @@ class ChargeStateGraphicalDataType(
         val availableWidthDp = (viewWidthDp - 8f).coerceAtLeast(20f)
 
         val isCompact = config.gridSize.first < 50
-        val textScale = if (isCompact) 0.50f else 0.65f
-        val maxHeightSp = viewHeightDp * 0.50f
+        val textScale = when {
+            state.isStatus -> if (isCompact) 0.40f else 0.50f
+            isCompact -> 0.55f
+            else -> 0.70f
+        }
+        val maxHeightSp = viewHeightDp * if (state.isStatus) 0.38f else 0.52f
+        val minSizeSp = if (state.isStatus) 10f else 12f
+        val maxSizeSp = if (state.isStatus) 22f else 32f
         val textLen = state.label.length.coerceAtLeast(1)
         val maxWidthSp = availableWidthDp / (textLen * 0.58f)
-        val textSizeSp = minOf(config.textSize * textScale, maxHeightSp, maxWidthSp).coerceIn(12f, 34f)
+        val textSizeSp = minOf(config.textSize * textScale, maxHeightSp, maxWidthSp)
+            .coerceIn(minSizeSp, maxSizeSp)
 
         setTextViewText(R.id.charge_state_value, state.label)
         setTextViewTextSize(R.id.charge_state_value, TypedValue.COMPLEX_UNIT_SP, textSizeSp)
