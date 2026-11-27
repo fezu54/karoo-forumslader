@@ -67,6 +67,8 @@ android {
     }
 }
 
+base.archivesName.set("karoo-forumslader-${android.defaultConfig.versionName}")
+
 kover {
     reports {
         filters {
@@ -155,7 +157,7 @@ tasks.register("generateManifest") {
         val spec = KarooAppManifestSpec(
             label = "Karoo Forumslader",
             packageName = appId,
-            latestApkUrl = "$baseUrl/app-release.apk",
+            latestApkUrl = "$baseUrl/karoo-forumslader-$resolvedVersion-release.apk",
             latestVersion = resolvedVersion,
             latestVersionCode = resolvedVersionCode,
             iconUrl = "$baseUrl/karoo-forumslader.png",

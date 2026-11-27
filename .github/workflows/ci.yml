@@ -157,7 +157,7 @@ jobs:
         if: github.ref == 'refs/heads/main' && env.should_release == 'true'
         run: |
           manifest="app/build/outputs/manifest/manifest.json"
-          apk="app/build/outputs/apk/release/app-release.apk"
+          apk="app/build/outputs/apk/release/karoo-forumslader-${{ env.new_version }}-release.apk"
 
           jq empty "$manifest"
           jq -e 'has("tags") | not' "$manifest" >/dev/null
@@ -208,7 +208,7 @@ jobs:
           prerelease: false
           make_latest: true
           files: |
-            app/build/outputs/apk/release/app-release.apk
+            app/build/outputs/apk/release/karoo-forumslader-${{ env.new_version }}-release.apk
             app/build/outputs/manifest/manifest.json
             docs/images/karoo-forumslader.png
             docs/images/screenshots/card-*.png
