@@ -159,10 +159,11 @@ flowchart TD
 ### Key Safeguards Against Unrealistic Swings
 
 1. **Accurate `ChargeState` on Forumslader V5/V6 (`ForumsladerParser`)**:
-    - Decodes the verified `$FL5`/`$FL6` status bitmask (`0x200 = STANDBY`, `0x100 = FULL`,
-      `0x8000 = DISCHARGING`) and falls back to measured `batteryCurrent` outside a `±0.015 A`
-      deadband (`> +0.015 A` → `CHARGING`, `< -0.015 A` → `DISCHARGING`) when none of those flags
-      are set, ensuring `DischargeWindow` tracks discharge distance and drops reliably.
+    - Decodes the verified `$FL5`/`$FL6` status bitmask (`0x200 = STANDBY`, `0x100 = FULL`) and
+      otherwise (ignoring `0x8000`) derives `ChargeState` from measured `batteryCurrent` outside a
+      `±0.015 A` deadband (`> +0.015 A` → `CHARGING`, `< -0.015 A` → `DISCHARGING`, else `STANDBY`)
+      so quiescent standby draw (e.g., `-4 mA`) does not report `DISCHARGING` and `DischargeWindow`
+      tracks discharge distance and drops reliably.
 2. **True 12 V & USB Consumer Power (`ConsumerLoadModel`)**:
     - `$FL6` `consumerCurrent` reflects battery-bus load (`batteryVoltage × consumerCurrent`, e.g.,
       `~12 V × 0.8 A ≈ 9.6 W` for a 12 V Supernova headlight + taillight via converter, rather than

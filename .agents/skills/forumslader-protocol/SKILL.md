@@ -37,14 +37,14 @@ $FL6,<statusHex>,<gear>,<freq>,<cell1mV>,<cell2mV>,<cell3mV>,<battCurrMa>,<consC
 
 Always parse `tokens[1]` as base-16 (with or without `0x` prefix). Do **not** invert these bits:
 
-| Bitmask           | Meaning                                                                                          | Domain Mapping                                     |
-|-------------------|--------------------------------------------------------------------------------------------------|----------------------------------------------------|
-| `0x200`           | Standby (`"o"`)                                                                                  | `ChargeState.STANDBY`                              |
-| `0x100`           | Battery Full (`"*"`)                                                                             | `ChargeState.FULL`                                 |
-| `0x8000`          | Discharging (`"-"`)                                                                              | `ChargeState.DISCHARGING`                          |
-| None of the above | Charging (`"+"`) when `batteryCurrent > +0.015 A`, Discharging when `< -0.015 A`, else `STANDBY` | `ChargeState.CHARGING` / `DISCHARGING` / `STANDBY` |
-| `0x8`             | Short circuit                                                                                    | `ForumsladerAlert.ShortCircuit`                    |
-| `0x800000`        | System interrupt                                                                                 | `ForumsladerAlert.SystemInterrupt`                 |
+| Bitmask           | Meaning                                                                                                                                                     | Domain Mapping                                     |
+|-------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------|
+| `0x200`           | Standby (`"o"`)                                                                                                                                             | `ChargeState.STANDBY`                              |
+| `0x100`           | Battery Full (`"*"`)                                                                                                                                        | `ChargeState.FULL`                                 |
+| `0x8000`          | Discharging (`"-"`) — ignored by parser; charge state is derived from `batteryCurrent` (`±0.015 A` deadband) so quiescent draw like `-4 mA` stays `STANDBY` | `ChargeState.CHARGING` / `DISCHARGING` / `STANDBY` |
+| None of the above | Charging (`"+"`) when `batteryCurrent > +0.015 A`, Discharging when `< -0.015 A`, else `STANDBY`                                                            | `ChargeState.CHARGING` / `DISCHARGING` / `STANDBY` |
+| `0x8`             | Short circuit                                                                                                                                               | `ForumsladerAlert.ShortCircuit`                    |
+| `0x800000`        | System interrupt                                                                                                                                            | `ForumsladerAlert.SystemInterrupt`                 |
 
 ### Electrical Scaling
 

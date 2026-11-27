@@ -42,9 +42,10 @@ Android/Room imports per `AGENTS.md`):
 ## 2. Critical Domain & Hardware Invariants (Do Not Break)
 
 1. **`ChargeState` Accuracy (`ForumsladerParser`)**:
-    - Follow the verified `$FL5`/`$FL6` status bitmask (`0x200 = STANDBY`, `0x100 = FULL`,
-      `0x8000 = DISCHARGING`) with `batteryCurrent` (`±0.015 A` deadband) fallback when none of
-      those flags are set. See [forumslader-protocol](../forumslader-protocol/SKILL.md).
+    - Follow the verified `$FL5`/`$FL6` status bitmask (`0x200 = STANDBY`, `0x100 = FULL`);
+      otherwise (ignoring `0x8000`) derive `ChargeState` from `batteryCurrent` (`±0.015 A`
+      deadband) so quiescent standby draw like `-4 mA` stays `STANDBY`. See
+      [forumslader-protocol](../forumslader-protocol/SKILL.md).
 2. **12 V Bus Consumer Power (`ConsumerLoadModel`)**:
     - `$FL6` `consumerCurrent` measures total consumer draw at battery bus voltage (`~12 V`, e.g.,
       `~0.8 A ≈ 9.6 W` for a 12 V headlight + taillight via converter), **not** `5 V` USB rail.
